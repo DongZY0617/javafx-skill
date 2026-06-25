@@ -1,0 +1,33 @@
+# IDE files
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+.settings/
+.project
+.classpath
+*.swp
+
+# Build output
+target/
+build/
+out/
+dist/
+*.class
+*.jar
+*.war
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+logs/
+
+# Runtime data
+data/
+*.db
+*.sqlite
