@@ -1,4 +1,4 @@
-package ${packageName}.controller;
+package {{packageName}}.controller;
 
 import java.io.IOException;
 import java.net.URL;
@@ -49,10 +49,16 @@ public abstract class BaseController implements Initializable {
      * it from the root node's scene window.
      *
      * @return the stage, or {@code null} if the view is not yet attached
+     *         or the root node is null
      */
     public Stage getStage() {
         if (stage == null) {
-            Scene scene = getRoot().getScene();
+            Region root = getRoot();
+            // Safely return null when the root is not yet ready, avoiding a NullPointerException
+            if (root == null) {
+                return null;
+            }
+            Scene scene = root.getScene();
             if (scene != null && scene.getWindow() instanceof Stage) {
                 stage = (Stage) scene.getWindow();
             }
@@ -72,6 +78,10 @@ public abstract class BaseController implements Initializable {
     /**
      * Loads a view from the given FXML resource path, creates a new stage
      * for it, and returns the loaded controller.
+     * <p>
+     * When an owner stage exists it is set as the owner to ensure correct
+     * dialog layering and focus ownership.
+     * </p>
      *
      * @param <T>       the controller type
      * @param fxmlPath  the path to the FXML resource
@@ -91,6 +101,11 @@ public abstract class BaseController implements Initializable {
         Stage dialogStage = new Stage();
         dialogStage.setTitle(title);
         dialogStage.initModality(modality);
+        // Set the owner when one exists to ensure correct dialog layering and focus ownership
+        Stage owner = getStage();
+        if (owner != null) {
+            dialogStage.initOwner(owner);
+        }
         dialogStage.setScene(new Scene(root));
         controller.setStage(dialogStage);
 

@@ -21,7 +21,7 @@ This guide covers the full workflow of packaging and deploying JavaFX applicatio
 
 | Platform | Required Tools                                       | Installation Method                   |
 |----------|------------------------------------------------------|---------------------------------------|
-| Windows  | WiX Toolset 3.x (generate msi), Inno Setup (generate exe) | Download and install from official site |
+| Windows  | WiX Toolset 4.x (generate msi), Inno Setup (generate exe) | `dotnet tool install --global wix` (v4+) |
 | macOS    | Xcode command line tools                             | `xcode-select --install`              |
 | Linux    | `dpkg-deb` (deb), `rpmbuild` (rpm)                   | `apt install dpkg rpm` / `yum install rpm-build` |
 
@@ -264,6 +264,7 @@ jpackage \
 | Only `--add-modules` necessary modules | Avoids including unused modules |
 | `--no-header-files`          | Removes C header files                  |
 | `--no-man-pages`             | Removes man pages                       |
+| `--strip-native-commands`    | Removes native commands like java/keytool, further reducing size |
 
 Typical JavaFX application jlink image size: 40-80 MB (including JavaFX modules).
 
@@ -324,7 +325,7 @@ plugins {
 
 ```groovy
 javafx {
-    version = "21.0.4"
+    version = "21.0.11"
     modules = ['javafx.controls', 'javafx.fxml']
 }
 
@@ -425,12 +426,9 @@ Gluon Substrate is based on GraalVM Native Image, which can compile JavaFX appli
 ### 7.3 Building a Native Image
 
 ```bash
-# Set up GraalVM environment
+# Set up GraalVM environment (GraalVM JDK 21+ has native-image built-in, no need for gu install)
 export GRAALVM_HOME=/path/to/graalvm
 export PATH=$GRAALVM_HOME/bin:$PATH
-
-# Install native-image component
-gu install native-image
 
 # Build native image
 mvn gluonfx:build
@@ -462,6 +460,56 @@ gradle nativeRun
 ### 7.5 Cross-Platform Native Images
 
 GraalVM Native Image does not support cross-compilation, it needs to be built on the target platform. Gluon provides a cloud build service (Gluon Cloud) that can generate native images for multiple platforms in the cloud.
+
+---
+
+### 7.6 ARM64 and macOS Universal Binary Packaging
+
+### 7.7 Windows ARM64
+
+JDK 24+ supports the Windows ARM64 target platform. When packaging, you need to use the ARM64 versions of the JDK and JavaFX SDK:
+
+```bash
+# Build with the ARM64 JDK
+jpackage \
+  --type msi \
+  --name MyApp \
+  --module com.example.myapp/com.example.myapp.MainApp \
+  --module-path "mods:libs" \
+  --runtime-image build/runtime-arm64 \
+  --java-options "--enable-native-access=javafx.graphics" \
+  --dest dist
+```
+
+> Note: Windows ARM64 must be built on an ARM64 device or emulator; jpackage does not support cross-compilation.
+
+### 7.8 macOS Universal Binary (x64 + aarch64 Merge)
+
+macOS supports Universal Binary, which can include both Intel and Apple Silicon versions in the same application bundle:
+
+```bash
+# 1. Build x64 and aarch64 jlink images separately
+jlink --module-path "mods:libs-x64" --add-modules com.example.myapp \
+      --output build/runtime-x64 --strip-debug --compress zip-6
+jlink --module-path "mods:libs-aarch64" --add-modules com.example.myapp \
+      --output build/runtime-aarch64 --strip-debug --compress zip-6
+
+# 2. Use jpackage to build two app-images separately
+jpackage --type app-image --name MyApp --module com.example.myapp/com.example.myapp.MainApp \
+         --module-path "mods:libs-x64" --runtime-image build/runtime-x64 --dest dist-x64
+jpackage --type app-image --name MyApp --module com.example.myapp/com.example.myapp.MainApp \
+         --module-path "mods:libs-aarch64" --runtime-image build/runtime-aarch64 --dest dist-aarch64
+
+# 3. Merge into a Universal Binary
+lipo -create -output dist-universal/MyApp.app/Contents/MacOS/MyApp \
+     dist-x64/MyApp.app/Contents/MacOS/MyApp \
+     dist-aarch64/MyApp.app/Contents/MacOS/MyApp
+
+# 4. Package as dmg
+jpackage --type dmg --name MyApp --app-image dist-universal/MyApp.app --dest dist
+```
+
+> Tip: Gluon's JavaFX SDK provides both `mac` and `mac-aarch64` classifiers; download the corresponding versions separately when building.
 
 ---
 
@@ -511,16 +559,16 @@ jobs:
       - name: Setup JavaFX SDK
         run: |
           # Download JavaFX SDK (jpackage requires SDK or modular JARs)
-          curl -L https://download2.gluonhq.com/openjfx/21.0.4/openjfx-21.0.4_${{ matrix.platform }}-x64_bin-sdk.zip -o javafx-sdk.zip
+          curl -L https://download2.gluonhq.com/openjfx/21.0.11/openjfx-21.0.11_${{ matrix.platform }}-x64_bin-sdk.zip -o javafx-sdk.zip
           7z x javafx-sdk.zip -ojavafx-sdk || unzip javafx-sdk.zip -d javafx-sdk
-          echo "JAVAFX_SDK=javafx-sdk/javafx-sdk-21.0.4/lib" >> $GITHUB_ENV
+          echo "JAVAFX_SDK=javafx-sdk/javafx-sdk-21.0.11/lib" >> $GITHUB_ENV
         shell: bash
 
       - name: Install WiX Toolset (Windows)
         if: matrix.platform == 'windows'
         run: |
           dotnet tool install --global wix
-          echo "WIX=C:\Program Files (x86)\WiX Toolset v3.14\bin" >> $GITHUB_ENV
+          echo "$HOME/.dotnet/tools" >> $GITHUB_PATH
 
       - name: Build with Maven
         run: mvn -B clean package -DskipTests

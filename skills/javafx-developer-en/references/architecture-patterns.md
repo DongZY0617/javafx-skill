@@ -115,6 +115,24 @@ public class TaskController implements Initializable {
 }
 ```
 
+```java
+// Add inside TaskController (requires import javafx.scene.control.ListCell;)
+// Custom list cell
+public static class TaskListCell extends ListCell<Task> {
+    @Override
+    protected void updateItem(Task task, boolean empty) {
+        super.updateItem(task, empty);
+        if (empty || task == null) {
+            setText(null);
+            setGraphic(null);
+        } else {
+            setText(task.getTitle());
+            setStyle(task.isCompleted() ? "-fx-text-fill: gray;" : "-fx-text-fill: black;");
+        }
+    }
+}
+```
+
 ### 1.3 MVC Data Flow
 
 ```
@@ -318,7 +336,7 @@ View (FXML + thin Controller) <-bidirectional binding-> ViewModel (Property/Comm
 | Learning curve            | Gentle                               | Steeper, need to understand binding mechanism |
 | Team collaboration        | View and logic easily mixed          | Frontend/logic can be developed in parallel |
 
-### Selection Advice
+### 3.1 Selection Advice
 
 - **Small applications / utility tools**: Use MVC, fast and direct.
 - **Medium to large applications / requiring unit tests**: Use MVVM, ViewModel can be tested independently.
@@ -326,9 +344,78 @@ View (FXML + thin Controller) <-bidirectional binding-> ViewModel (Property/Comm
 
 ---
 
-## 4. Anti-patterns to Avoid
+## 4. MVP Pattern (Model-View-Presenter)
 
-### 4.1 Fat Controller
+MVP (Model-View-Presenter) is an architecture pattern that sits between MVC and MVVM. It pulls all UI logic out of the View and into the Presenter, but unlike MVVM it does not rely on data binding; the View and Presenter interact explicitly through an interface.
+
+**Two Variants**
+
+- **Passive View**: The View is completely passive; all UI state updates are performed by the Presenter through method calls on the View interface. The View contains no logic at all — even simple formatting is delegated to the Presenter. This offers the highest testability, but the Presenter carries more code.
+- **Supervising Controller**: The Presenter handles the main UI logic, but the View is allowed to handle some display logic through simple binding (e.g., direct property binding), with the Presenter intervening only for complex interactions. This carries less code and is the more commonly used variant in practice.
+
+**When to Choose MVP**
+
+- You want a compromise between MVC and MVVM: full separation of UI logic (improving testability) without introducing MVVM's data-binding mechanism (avoiding the complexity and memory-management burden of binding chains).
+- The View logic is complex but hard to express with declarative binding (e.g., it depends on many conditional branches or animation coordination).
+- The team is more familiar with the Presenter interface style, or you need to reuse the Presenter across different UI frameworks.
+
+**Presenter Example**
+
+```java
+// View interface: abstracts the capabilities the View exposes to the Presenter
+public interface TaskView {
+    String getInputText();
+    void setTaskList(List<Task> tasks);
+    void showEmptyInputError();
+}
+
+// Presenter: holds a reference to the View interface, depends on no JavaFX controls,
+// and can be independently unit tested
+public class TaskPresenter {
+    private final TaskView view;
+    private final TaskService service;
+
+    public TaskPresenter(TaskView view, TaskService service) {
+        this.view = view;
+        this.service = service;
+    }
+
+    public void onAddTask() {
+        String title = view.getInputText();
+        if (title == null || title.isBlank()) {
+            view.showEmptyInputError();
+            return;
+        }
+        Task task = new Task(title);
+        service.saveTask(task);
+        view.setTaskList(service.loadTasks());  // update the View through the interface
+    }
+}
+
+// Controller implements the View interface, only does UI operations,
+// and delegates all logic to the Presenter
+public class TaskController implements TaskView {
+    private final TaskPresenter presenter;
+
+    public TaskController(TaskService service) {
+        this.presenter = new TaskPresenter(this, service);
+    }
+
+    @FXML private void handleAddTask() { presenter.onAddTask(); }
+
+    @Override public String getInputText() { return titleField.getText(); }
+    @Override public void setTaskList(List<Task> tasks) {
+        taskListView.setItems(FXCollections.observableArrayList(tasks));
+    }
+    @Override public void showEmptyInputError() { statusLabel.setText("Title cannot be empty"); }
+}
+```
+
+---
+
+## 5. Anti-patterns to Avoid
+
+### 5.1 Fat Controller
 
 **Problem**: The Controller accumulates large amounts of business logic, data access, and validation code, making it difficult to maintain and test.
 
@@ -358,23 +445,23 @@ private void handleLogin() {
 }
 ```
 
-### 4.2 Embedding Business Logic in FXML
+### 5.2 Embedding Business Logic in FXML
 
 **Problem**: Writing logic through scripts (such as JavaScript) in FXML's `onAction`, or handling business through complex inline expressions in the FXML Controller.
 
 ```xml
 <!-- Anti-pattern: Embedding script logic in FXML -->
 <Button text="Calculate" onAction="#calculate">
-    <script>
+    <fx:script>
         var result = parseInt(a) + parseInt(b);
         label.setText(result);
-    </script>
+    </fx:script>
 </Button>
 ```
 
 FXML should remain purely declarative; all logic should go into the Controller or ViewModel.
 
-### 4.3 Tight Coupling
+### 5.3 Tight Coupling
 
 **Problem**: The Controller directly `new`s concrete dependency classes, making them impossible to replace and test.
 
@@ -399,7 +486,7 @@ public class OrderController {
 }
 ```
 
-### 4.4 Other Common Anti-patterns
+### 5.4 Other Common Anti-patterns
 
 | Anti-pattern                          | Description and Improvement                                          |
 |---------------------------------------|----------------------------------------------------------------------|
@@ -410,18 +497,18 @@ public class OrderController {
 
 ---
 
-## 5. Service Layer Design
+## 6. Service Layer Design
 
 The service layer encapsulates business logic and data access, acting as an intermediate layer between the Controller/ViewModel and the data layer, keeping the UI layer clean and testable.
 
-### 5.1 Service Layer Responsibilities
+### 6.1 Service Layer Responsibilities
 
 - Encapsulate business rules and transaction boundaries.
 - Coordinate multiple Repositories / DAOs.
 - Provide UI-agnostic APIs that return domain objects.
 - Handle exceptions and convert them to business semantics.
 
-### 5.2 Service Layer Implementation Example
+### 6.2 Service Layer Implementation Example
 
 ```java
 package com.example.service;
@@ -466,7 +553,7 @@ public class TaskService {
 }
 ```
 
-### 5.3 Asynchronous Service Calls
+### 6.3 Asynchronous Service Calls
 
 Time-consuming service calls should be executed on a background thread to avoid blocking the UI thread:
 
@@ -492,11 +579,11 @@ private void handleLoadTasks() {
 
 ---
 
-## 6. Dependency Injection
+## 7. Dependency Injection
 
 Dependency injection is used to decouple dependencies between components, making testing and implementation replacement easier. There are three common approaches in JavaFX.
 
-### 6.1 Manual Dependency Injection
+### 7.1 Manual Dependency Injection
 
 Suitable for small projects, passing dependencies manually through factories or constructors.
 
@@ -516,7 +603,7 @@ loader.setControllerFactory(c -> AppFactory.createMainController());
 Parent root = loader.load();
 ```
 
-### 6.2 Guice Dependency Injection
+### 7.2 Guice Dependency Injection
 
 Google Guice is a lightweight DI framework, suitable for small to medium JavaFX projects.
 
@@ -585,7 +672,7 @@ public class MainController implements Initializable {
 
 > Note: When using Guice, `module-info.java` needs to `opens` the Controller package to the Guice module to support reflection.
 
-### 6.3 Spring Framework Dependency Injection
+### 7.3 Spring Framework Dependency Injection
 
 Spring Boot can be integrated with JavaFX, suitable for projects already in the Spring ecosystem.
 
@@ -603,7 +690,7 @@ Spring Boot can be integrated with JavaFX, suitable for projects already in the 
 <dependency>
     <groupId>org.springframework.boot</groupId>
     <artifactId>spring-boot-starter</artifactId>
-    <version>3.3.0</version>
+    <version>3.4.0</version>
 </dependency>
 ```
 
@@ -661,7 +748,7 @@ public class MainController implements Initializable {
 }
 ```
 
-### 6.4 Comparison of Three DI Approaches
+### 7.4 Comparison of Three DI Approaches
 
 | Approach | Complexity | Applicable Scenarios            | Pros                    | Cons                    |
 |----------|------------|---------------------------------|-------------------------|--------------------------|
@@ -671,15 +758,16 @@ public class MainController implements Initializable {
 
 ---
 
-## 7. Event Bus Pattern
+## 8. Event Bus Pattern
 
 The event bus is used to implement loosely coupled communication between components, especially suitable for scenarios where multiple unrelated modules need to respond to the same event (e.g., refreshing multiple views after a user logs in).
 
-### 7.1 Simple Event Bus Implementation
+### 8.1 Simple Event Bus Implementation
 
 ```java
 package com.example.eventbus;
 
+import javafx.application.Platform;
 import java.util.*;
 import java.util.concurrent.*;
 
@@ -688,6 +776,9 @@ import java.util.concurrent.*;
  * Event dispatch is executed on the JavaFX Application Thread.
  */
 public class EventBus {
+
+    private static final EventBus INSTANCE = new EventBus();
+    public static EventBus getInstance() { return INSTANCE; }
 
     private final Map<Class<?>, List<EventListener<?>>> listeners =
         new ConcurrentHashMap<>();
@@ -712,7 +803,7 @@ public class EventBus {
         List<EventListener<?>> list = listeners.get(event.getClass());
         if (list != null) {
             for (EventListener<?> listener : list) {
-                ((EventListener<T>) listener).onEvent(event);
+                Platform.runLater(() -> ((EventListener<T>) listener).onEvent(event));
             }
         }
     }
@@ -724,7 +815,7 @@ public class EventBus {
 }
 ```
 
-### 7.2 Defining Events
+### 8.2 Defining Events
 
 ```java
 package com.example.event;
@@ -739,7 +830,7 @@ public record TaskCompletedEvent(Long taskId) {}
 public record DataRefreshEvent(String source) {}
 ```
 
-### 7.3 Usage Example
+### 8.3 Usage Example
 
 ```java
 public class HeaderController implements Initializable {
@@ -775,14 +866,14 @@ public class SidebarController implements Initializable {
 }
 ```
 
-### 7.4 Event Bus Usage Considerations
+### 8.4 Event Bus Usage Considerations
 
 1. **Unregister listeners promptly**: Call `unsubscribe` when a Controller is destroyed to prevent memory leaks.
 2. **Thread safety**: The above implementation uses `CopyOnWriteArrayList` to ensure concurrency safety; if event handling involves UI updates, use `Platform.runLater()` to switch to the UI thread.
 3. **Avoid circular events**: Publishing new events within event handling may cause infinite loops; design carefully.
 4. **Mature solutions**: For production environments, consider using Google Guava's `EventBus` or Apache DeltaSpike's event mechanism.
 
-### 7.5 Guava EventBus Integration Example
+### 8.5 Guava EventBus Integration Example
 
 ```xml
 <dependency>
@@ -814,7 +905,7 @@ eventBus.post(new UserLoggedInEvent("admin", System.currentTimeMillis()));
 
 ---
 
-## 8. Architecture Pattern Selection Decision Tree
+## 9. Architecture Pattern Selection Decision Tree
 
 ```
 Application scale?

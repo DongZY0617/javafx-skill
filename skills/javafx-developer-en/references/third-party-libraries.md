@@ -41,23 +41,42 @@ ControlsFX is the most mature extended controls library in the JavaFX ecosystem,
 **Dialogs:**
 
 ```java
-import org.controlsfx.dialog.Dialogs;
+import javafx.scene.control.Alert;
+import javafx.scene.control.ButtonType;
+import javafx.scene.control.TextInputDialog;
+import java.util.Optional;
 
-// Confirmation dialog
-boolean confirm = Dialogs.create()
-    .title("Confirm Delete")
-    .masthead("Are you sure you want to delete this item?")
-    .message("This action cannot be undone.")
-    .showConfirm() == ButtonType.OK;
+// Recommended: JavaFX native Alert (confirmation dialog)
+Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+alert.setTitle("Confirm Delete");
+alert.setHeaderText("Are you sure you want to delete this item?");
+alert.setContentText("This action cannot be undone.");
+alert.showAndWait().ifPresent(response -> {
+    if (response == ButtonType.OK) {
+        // perform the deletion
+    }
+});
 
-// Input dialog
-Optional<String> result = Dialogs.create()
-    .title("Enter Name")
-    .masthead("Please enter the item name")
-    .showTextInput();
+// Recommended: JavaFX native TextInputDialog (input dialog)
+TextInputDialog input = new TextInputDialog();
+input.setTitle("Enter Name");
+input.setHeaderText("Please enter the item name");
+Optional<String> result = input.showAndWait();
+result.ifPresent(name -> {
+    // use the entered name
+});
 ```
 
-> Note: Newer versions of ControlsFX recommend using JavaFX's native `Alert` and `TextInputDialog`. The ControlsFX `Dialogs` API is mainly for backward compatibility with legacy code.
+> Legacy compatibility: ControlsFX 8.x once provided the fluent `Dialogs.create().title(...).showConfirm()` API, **used only for compatibility with legacy code; do not use it in new projects**. Newer versions of ControlsFX recommend JavaFX's native `Alert` and `TextInputDialog`. Reference:
+>
+> ```java
+> // Not recommended: ControlsFX 8.x legacy fluent API (use native Alert / TextInputDialog for new code)
+> // boolean confirm = Dialogs.create()
+> //     .title("Confirm Delete")
+> //     .masthead("Are you sure you want to delete this item?")
+> //     .message("This action cannot be undone.")
+> //     .showConfirm() == ButtonType.OK;
+> ```
 
 **Notification Bubbles:**
 
@@ -205,7 +224,7 @@ RichTextFX provides a rich text editing area that supports styled text, syntax h
 <dependency>
     <groupId>org.fxmisc.richtext</groupId>
     <artifactId>richtextfx</artifactId>
-    <version>0.11.3</version>
+    <version>0.11.5</version>
 </dependency>
 ```
 
@@ -351,6 +370,13 @@ ValidatorFX provides a declarative form validation framework that integrates dee
 
 ```java
 import net.synedra.validatorfx.Validator;
+import net.synedra.validatorfx.Decoration;
+import net.synedra.validatorfx.ValidationMessage;
+import javafx.scene.Node;
+import javafx.scene.control.Control;
+import javafx.scene.control.Tooltip;
+import java.util.IdentityHashMap;
+import java.util.Map;
 
 public class FormController {
     @FXML private TextField usernameField;
@@ -359,6 +385,8 @@ public class FormController {
     @FXML private Button submitButton;
 
     private Validator validator = new Validator();
+    // Save the error Tooltip reference for each control so the same instance can be passed when uninstalling
+    private final Map<Node, Tooltip> errorTooltips = new IdentityHashMap<>();
 
     @FXML
     public void initialize() {
@@ -406,25 +434,30 @@ public class FormController {
         submitButton.disableProperty().bind(validator.containsErrorsProperty());
     }
 
-    /** Error decorator: adds a red border and tooltip to the control */
+    /**
+     * Error decorator: adds a red border and a tooltip to the control.
+     * Key point: the Tooltip instance is saved in a member Map, and the same reference is passed
+     * to uninstall() on remove; do not pass null (otherwise the installed Tooltip cannot be removed).
+     */
     private Decoration decorateError(ValidationMessage message) {
         return new Decoration() {
             @Override
             public void add(Node target) {
                 target.setStyle("-fx-border-color: red; -fx-border-width: 2;");
-                // Can add a Tooltip to display error message
-                if (target instanceof Control control) {
-                    Tooltip tooltip = new Tooltip(message.getText());
-                    tooltip.setStyle("-fx-background-color: #f44336; -fx-text-fill: white;");
-                    Tooltip.install(control, tooltip);
-                }
+                // create and save the Tooltip reference
+                Tooltip tooltip = new Tooltip(message.getText());
+                tooltip.setStyle("-fx-background-color: #f44336; -fx-text-fill: white;");
+                Tooltip.install(target, tooltip);
+                errorTooltips.put(target, tooltip);
             }
 
             @Override
             public void remove(Node target) {
                 target.setStyle("");
-                if (target instanceof Control control) {
-                    Tooltip.uninstall(control, null);
+                // when uninstalling, you must pass the same Tooltip instance used during install
+                Tooltip tooltip = errorTooltips.remove(target);
+                if (tooltip != null) {
+                    Tooltip.uninstall(target, tooltip);
                 }
             }
         };
@@ -438,6 +471,8 @@ public class FormController {
     }
 }
 ```
+
+> Note: The second parameter of `Tooltip.uninstall(Node, Tooltip)` must be the same `Tooltip` instance used during `Tooltip.install`; passing `null` does not uninstall any Tooltip, which is a common mistake.
 
 ---
 
@@ -622,11 +657,70 @@ public class MainApp extends Application {
 
 ---
 
-## 9. FXGL
+## 9. AtlantaFX
+
+AtlantaFX is a modern Flat-style theme library with several built-in high-quality themes (such as Casper, Primer, etc.), providing a unified, refined flat appearance for standard JavaFX controls, out of the box.
+
+### 9.1 Key Features
+
+| Feature               | Description                                                        |
+|-----------------------|--------------------------------------------------------------------|
+| Flat-style themes     | Ships with multiple themes: Casper, Primer Light/Dark, Atlanta Dark, etc. |
+| Zero CSS              | Directly replaces the user-agent stylesheet; no hand-written CSS needed |
+| High-fidelity controls | Covers almost all standard JavaFX controls, including hover/focus/disabled states |
+| Light / Dark          | One-click switching via the `Style` enum or different theme classes |
+| Compatible with ControlsFX | Provides theme adaptations for some extended controls        |
+
+### 9.2 Maven Coordinates
+
+```xml
+<dependency>
+    <groupId>io.github.mkpaz</groupId>
+    <artifactId>atlantafx-base</artifactId>
+    <version>2.0.1</version>
+</dependency>
+```
+
+### 9.3 Usage Example
+
+```java
+import atlantafx.base.theme.Casper;
+import atlantafx.base.theme.PrimerLight;
+import atlantafx.base.theme.PrimerDark;
+import javafx.application.Application;
+
+public class MainApp extends Application {
+    @Override
+    public void start(Stage stage) throws IOException {
+        // Set the user-agent stylesheet before creating any UI
+        Application.setUserAgentStylesheet(new Casper().getUserAgentStylesheet());
+
+        Scene scene = new Scene(FXMLLoader.load(url), 800, 600);
+        stage.setScene(scene);
+        stage.show();
+    }
+}
+```
+
+Switching to a dark theme:
+
+```java
+// Switch to Primer Dark at runtime
+Application.setUserAgentStylesheet(new PrimerDark().getUserAgentStylesheet());
+
+// Or use Primer Light
+Application.setUserAgentStylesheet(new PrimerLight().getUserAgentStylesheet());
+```
+
+> Tip: AtlantaFX takes effect globally via `setUserAgentStylesheet`; all standard controls automatically get the Flat appearance, with no need to load additional CSS on the Scene.
+
+---
+
+## 10. FXGL
 
 FXGL is a 2D game development engine based on JavaFX, providing complete features including game loop, physics engine, animation, AI, particle system, and more.
 
-### 9.1 Maven Coordinates
+### 10.1 Maven Coordinates
 
 ```xml
 <dependency>
@@ -636,7 +730,7 @@ FXGL is a 2D game development engine based on JavaFX, providing complete feature
 </dependency>
 ```
 
-### 9.2 Usage Example
+### 10.2 Usage Example
 
 ```java
 import com.almasb.fxgl.app.GameApplication;
@@ -683,42 +777,45 @@ public class SimpleGame extends GameApplication {
 
 ---
 
-## 10. Compatibility Matrix
+## 11. Compatibility Matrix
 
 The table below shows the compatibility of each third-party library with JavaFX versions (compiled from public information; please consult the latest documentation before actual use).
 
-| Library      | Maven Version | JavaFX 17 | JavaFX 21 | JavaFX 24+   | Notes                            |
-|--------------|---------------|-----------|-----------|--------------|----------------------------------|
+| Library      | Maven Version | JavaFX 17 | JavaFX 21 | JavaFX 24+        | Notes                            |
+|--------------|---------------|-----------|-----------|-------------------|----------------------------------|
 | ControlsFX   | 11.2.1        | Compatible | Compatible | Mostly compatible | Mature and stable, widely used |
-| MaterialFX   | 11.17.0       | Compatible | Compatible | Needs testing | Requires JavaFX 17+              |
-| RichTextFX   | 0.11.3        | Compatible | Compatible | Needs testing | Depends on ReactFX / Flowless    |
+| MaterialFX   | 11.17.0       | Compatible | Compatible | Known compatible | Requires JavaFX 17+; significant control API differences |
+| RichTextFX   | 0.11.5        | Compatible | Compatible | Known compatible | Depends on ReactFX / Flowless    |
 | Ikonli       | 12.3.1        | Compatible | Compatible | Compatible   | Pure Java, good compatibility    |
-| ValidatorFX  | 0.4.0         | Compatible | Compatible | Needs testing | Lightweight                      |
-| TestFX       | 4.0.18        | Compatible | Compatible | Needs testing | Testing framework                |
-| JMetro       | 11.6.16       | Compatible | Compatible | Needs testing | Theme library                    |
+| ValidatorFX  | 0.4.0         | Compatible | Compatible | Known compatible | Lightweight, pure Java          |
+| TestFX       | 4.0.18        | Compatible | Compatible | Requires --add-opens | Testing framework; reflectively accesses JavaFX modules |
+| JMetro       | 11.6.16       | Compatible | Compatible | Known compatible | Theme library                    |
 | BootstrapFX  | 0.4.0         | Compatible | Compatible | Compatible   | Pure CSS, good compatibility     |
-| FXGL         | 17.3          | Compatible | Compatible | Needs testing | Game engine, requires JavaFX 17+ |
+| AtlantaFX    | 2.0.1         | Compatible | Compatible | Known compatible | Requires JavaFX 17+; Flat theme library |
+| FXGL         | 17.3          | Compatible | Compatible | Known compatible | Game engine, requires JavaFX 17+ |
 
 ### Compatibility Notes
 
 1. **JavaFX 24+ `--enable-native-access`**: Some libraries that depend on native code may require additional JVM argument configuration.
-2. **Modular conflicts**: Non-modular libraries may cause errors during jlink packaging; handle them via `--add-modules` or by converting the library to an automatic module.
-3. **Version pinning**: It is recommended to uniformly pin the JavaFX version and library versions in `pom.xml` to avoid transitive dependency conflicts.
-4. **Test verification**: After upgrading the JavaFX version, be sure to regression-test all third-party library functionality.
+2. **`--add-opens` arguments**: Libraries such as TestFX that reflectively access JavaFX internal members require arguments like `--add-opens javafx.graphics/com.sun.javafx.application=ALL-UNNAMED` on higher JDK versions, otherwise an `InaccessibleObjectException` is thrown.
+3. **Modular conflicts**: Non-modular libraries may cause errors during jlink packaging; handle them via `--add-modules` or by converting the library to an automatic module.
+4. **Version pinning**: It is recommended to uniformly pin the JavaFX version and library versions in `pom.xml` to avoid transitive dependency conflicts.
+5. **Test verification**: After upgrading the JavaFX version, be sure to regression-test all third-party library functionality.
 
 ---
 
-## 11. Library Selection Recommendations
+## 12. Library Selection Recommendations
 
 | Requirement Scenario                 | Recommended Library                 |
 |--------------------------------------|-------------------------------------|
-| Dialogs / notifications / advanced controls | ControlsFX                          |
+| Dialogs / notifications / advanced controls | ControlsFX (prefer native Alert for dialogs) |
 | Material Design style UI             | MaterialFX                          |
 | Code editor / rich text              | RichTextFX                          |
 | Font icons                           | Ikonli                              |
 | Form validation                      | ValidatorFX or native BooleanBinding |
 | UI automation testing                | TestFX                              |
 | Modern theme (Metro style)           | JMetro                              |
+| Modern Flat-style theme              | AtlantaFX                           |
 | Bootstrap style                      | BootstrapFX                         |
 | 2D game development                  | FXGL                                |
 | Multi-select dropdown                | ControlsFX (CheckComboBox)          |

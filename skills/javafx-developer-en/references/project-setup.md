@@ -10,16 +10,18 @@ Since being independently maintained by the OpenJFX project, JavaFX adopts a six
 
 | JavaFX Version | Release Date   | Corresponding JDK | LTS Status | Key Features / Notes                                                |
 |----------------|-----------------|--------------------|------------|---------------------------------------------------------------------|
-| 17             | 2021-09-14      | JDK 17             | LTS        | Long-term support version, preferred for enterprise use; stable and mature with the best third-party library compatibility. |
-| 21             | 2023-09-19      | JDK 21             | LTS        | LTS version; adds subscription-based listener API, performance and stability improvements. |
-| 24             | 2025-03-18      | JDK 24             | Non-LTS    | Introduces `--enable-native-access` requirement for accessing the native rendering layer; multi-monitor improvements. |
-| 25             | 2025-09-16 (planned) | JDK 25        | LTS (expected) | Next expected LTS; continues to refine features from 24 and enhances stability. |
-| 26             | 2026-03 (planned)   | JDK 26        | Non-LTS    | Short-term support version, follows the latest JDK features.        |
+| 17             | 2021-09-14      | JDK 17             | LTS (until Oct 2026) | Long-term support version, stable and mature; best third-party library compatibility, suitable for legacy system maintenance. |
+| 21             | 2023-09-19      | JDK 17             | LTS        | LTS version; adds subscription-based listener API, performance and stability improvements. |
+| 24             | 2025-03-18      | JDK 22             | Non-LTS    | Introduces `--enable-native-access` requirement for accessing the native rendering layer; multi-monitor improvements. |
+| 25             | 2025-09-16      | JDK 23             | LTS        | Latest LTS; continues to refine features from 24 and enhances stability. Current latest patch 25.0.3. |
+| 26             | 2026-03-17      | JDK 24             | Non-LTS    | Short-term support version, follows the latest JDK features. Current latest patch 26.0.1.        |
 
 ### Version Selection Recommendations
 
-- **Production / Enterprise applications**: Prefer **JavaFX 21 LTS** or **JavaFX 17 LTS** for the best stability and ecosystem support.
-- **New projects wanting the latest features**: Can use **JavaFX 24+**, but note the `--enable-native-access` flag requirement.
+- **New projects (preferred)**: **JavaFX 25 LTS** (latest LTS, JDK 23+) — enjoy the latest features and long-term support.
+- **Production / Conservative choice**: **JavaFX 21 LTS** (mature LTS, JDK 17+) — best ecosystem support.
+- **Legacy system maintenance**: **JavaFX 17 LTS** (until Oct 2026) — suitable for projects that are inconvenient to upgrade.
+- **Trying the latest features**: **JavaFX 26** (JDK 24+), but note the `--enable-native-access` flag requirement.
 - **Long-term maintenance**: Follow the JDK LTS cadence, i.e., JavaFX 17 -> 21 -> 25.
 
 ---
@@ -57,7 +59,7 @@ The following is a complete Maven project configuration based on JavaFX 21, supp
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.source>21</maven.compiler.source>
         <maven.compiler.target>21</maven.compiler.target>
-        <javafx.version>21.0.4</javafx.version>
+        <javafx.version>21.0.11</javafx.version>
         <main.class>com.example.javafxapp.MainApp</main.class>
     </properties>
 
@@ -158,7 +160,7 @@ repositories {
 }
 
 javafx {
-    version = "21.0.4"
+    version = "21.0.11"
     modules = ['javafx.controls', 'javafx.fxml', 'javafx.graphics', 'javafx.web', 'javafx.media']
 }
 
@@ -197,7 +199,7 @@ repositories {
 }
 
 javafx {
-    version = "21.0.4"
+    version = "21.0.11"
     modules = listOf("javafx.controls", "javafx.fxml", "javafx.graphics")
 }
 
@@ -252,7 +254,7 @@ module com.example.javafxapp {
     opens com.example.javafxapp.view to javafx.fxml;
 
     // If using a dependency injection framework (e.g., Guice), open the relevant packages
-    opens com.example.javafxapp to com.google.guice;
+    opens com.example.javafxapp to com.google.inject;
 }
 ```
 
@@ -340,7 +342,7 @@ By default, `javafx-maven-plugin` and Maven automatically select the classifier 
 <dependency>
     <groupId>org.openjfx</groupId>
     <artifactId>javafx-graphics</artifactId>
-    <version>21.0.4</version>
+    <version>21.0.11</version>
     <classifier>linux</classifier>
 </dependency>
 ```
@@ -430,7 +432,7 @@ Parameter descriptions:
 | `--add-modules`    | Root modules to include in the image.                              |
 | `--output`         | Output directory.                                                  |
 | `--strip-debug`    | Strips debug information to reduce image size.                     |
-| `--compress`       | Compression level (`zip-0` to `zip-9`, or `zip-6`).                |
+| `--compress`       | Compression level (JDK 21+: `zip-0` to `zip-9`; older versions: `0`-`2`). |
 | `--no-header-files`| Excludes header files.                                             |
 | `--no-man-pages`   | Excludes man pages.                                                |
 | `--bind-services`  | Links service providers (if ServiceLoader is needed).              |
@@ -654,3 +656,39 @@ while command-line `mvn compile` compiles normally.
 3. **Check the Maven importer JDK**: Settings -> Build -> Build Tools -> Maven -> Importing -> JDK for importer, ensure it matches the project.
 
 > **Tip**: This is a classic error caused by a mismatch between Lombok and the JDK version. Lombok 1.18.30+ supports JDK 21, but the IDE's Lombok plugin may not have been updated accordingly. Ensure that the IDE's JDK selection, the Lombok plugin version, and the `java.version` in `pom.xml` are all consistent.
+
+### Q8: Blurry UI on HiDPI / 4K Screens
+
+**Scenario**: On high-resolution screens (4K monitors, Retina displays), the JavaFX application UI is blurry or fonts are unclear.
+
+**Cause**: JavaFX supports HiDPI scaling by default, but in some cases HiDPI is explicitly disabled or the display is not detected correctly.
+
+**Solution**:
+1. Make sure **not** to set `-Dprism.allowhidpi=false` (the default is true; explicitly setting it to false disables HiDPI).
+2. On Windows, check the scaling settings: right-click the app -> Properties -> Compatibility -> Change high DPI settings -> check "Override high DPI scaling behavior" -> select "Application".
+3. If using a `.properties` configuration, you can add `-Dprism.allowhidpi=true` to ensure it is enabled.
+
+### Q9: Chinese Characters Show as Squares (Tofu) on Linux
+
+**Scenario**: Running a JavaFX application on a Linux system, Chinese characters display as squares or garbled text.
+
+**Cause**: The system does not have Chinese fonts installed, or the JavaFX font rendering engine (Pango/Freetype) cannot find Chinese fonts.
+
+**Solution**:
+1. Install Chinese fonts: `sudo apt install fonts-noto-cjk` or `sudo apt install fonts-wqy-microhei`.
+2. Confirm fontconfig is configured correctly: `fc-list :lang=zh` should list Chinese fonts.
+3. If using a container (Docker), install fonts in the image.
+
+### Q10: Non-modular Project Reports "JavaFX runtime components missing" with `java -jar`
+
+**Scenario**: A non-modular project (no `module-info.java`), built as a fat JAR and run with `java -jar app.jar`, reports an error.
+
+**Cause**: A normal JAR from a non-modular project does not contain the JavaFX modules, and `java -jar` does not automatically add JavaFX to the module path.
+
+**Solution**: Build a fat JAR with `maven-shade-plugin`, and specify the JavaFX SDK path via `--module-path` at startup:
+```bash
+java --module-path /path/to/javafx-sdk/lib \
+     --add-modules javafx.controls,javafx.fxml \
+     -jar app.jar
+```
+Or use `maven-shade-plugin` to bundle all dependencies (including JavaFX) into a fat JAR, but note that JavaFX's platform native libraries still need additional configuration.

@@ -31,10 +31,13 @@ Use this skill when:
 |----------------|---------|-----|-----------------|
 | 26.x | JDK 24 | No | Latest features (Metal renderer, Headless preview) |
 | 25.x | JDK 23 | **Yes** | Production preferred choice |
+| 24.x | JDK 22 | No | Transitional version (introduces `--enable-native-access` requirement) |
 | 21.x | JDK 17 | **Yes** | Conservative stable option |
 | 17.x | JDK 11 | Yes (until 2026.10) | Legacy system maintenance |
 
-**Default recommendation**: JavaFX 21 (LTS, JDK 17+) unless user requests otherwise.
+> **Note**: The "Min JDK" in this table refers to the minimum JDK required to run that JavaFX version; the "Corresponding JDK" in the version table of `project-setup.md` refers to the `--release` level used when compiling that JavaFX. The two have different bases but the data is consistent.
+
+**Default recommendation**: New projects prefer JavaFX 25 LTS (JDK 23+), conservative choice JavaFX 21 LTS (JDK 17+), unless user requests otherwise.
 
 ### Build Tools
 - **Maven** (default): `javafx-maven-plugin` 0.0.8
@@ -351,11 +354,11 @@ public class UserController implements Initializable {
 
 | Library | Purpose | Maven Coordinate |
 |---------|---------|-----------------|
-| ControlsFX | Dialogs, notifications, validation | `org.controlsfx:controlsfx:11.2.0` |
+| ControlsFX | Dialogs, notifications, validation | `org.controlsfx:controlsfx:11.2.1` |
 | MaterialFX | Material Design controls | `io.github.palexdev:materialfx:11.17.0` |
-| RichTextFX | Rich text editor, code highlighting | `org.fxmisc.richtext:richtextfx:0.11.2` |
+| RichTextFX | Rich text editor, code highlighting | `org.fxmisc.richtext:richtextfx:0.11.5` |
 | Ikonli | Font icons (FontAwesome, Material) | `org.kordamp.ikonli:ikonli-javafx:12.3.1` |
-| ValidatorFX | Form validation framework | `net.synedra:validatorfx:1.0.2` |
+| ValidatorFX | Form validation framework | `net.synedra:validatorfx:0.4.0` |
 | TestFX | UI automated testing | `org.testfx:testfx-junit5:4.0.18` |
 
 For detailed integration guides, see `references/third-party-libraries.md`.
@@ -470,6 +473,7 @@ For in-depth guidance, refer to these documents in the `references/` directory:
 - `references/data-binding-patterns.md` — Property types, binding modes, form validation
 - `references/third-party-libraries.md` — Library integration guides, compatibility matrix
 - `references/packaging-deployment.md` — jpackage, jlink, CI/CD integration
+- `EVALUATE.md` — Evaluation test cases, used to quantify skill output quality
 
 ## Template Library
 
@@ -482,7 +486,10 @@ Reusable code templates in `templates/` directory:
 - `templates/fxml/dialog.fxml` — Dialog FXML template
 - `templates/controller/MainController.java` — Controller template
 - `templates/controller/BaseController.java` — Base controller template
+- `templates/controller/DialogController.java` — Dialog controller template
 - `templates/model/ObservableModel.java` — Model template
+- `templates/viewmodel/UserViewModel.java` — ViewModel template (MVVM pattern)
+- `templates/service/Service.java` — Service layer template
 - `templates/css/light-theme.css` — Light theme CSS
 - `templates/css/dark-theme.css` — Dark theme CSS
 - `templates/packaging/jpackage-config.properties` — Packaging config

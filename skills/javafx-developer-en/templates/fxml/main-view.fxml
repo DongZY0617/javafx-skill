@@ -9,7 +9,7 @@
 <?import javafx.scene.layout.HBox?>
 <?import javafx.scene.layout.VBox?>
 
-<BorderPane maxHeight="-Infinity" maxWidth="-Infinity" minHeight="400.0" minWidth="600.0" prefHeight="600.0" prefWidth="900.0" stylesheets="@../css/light-theme.css" xmlns="http://javafx.com/javafx/${javafxVersion}" xmlns:fx="http://javafx.com/fxml/1" fx:controller="${packageName}.controller.MainController">
+<BorderPane fx:id="root" maxHeight="-Infinity" maxWidth="-Infinity" minHeight="400.0" minWidth="600.0" prefHeight="600.0" prefWidth="900.0" stylesheets="@../css/light-theme.css" xmlns="http://javafx.com/javafx/{{javafxVersion}}" xmlns:fx="http://javafx.com/fxml/1" fx:controller="{{packageName}}.controller.MainController">
     <top>
         <MenuBar BorderPane.alignment="CENTER">
             <menus>

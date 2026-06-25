@@ -13,24 +13,37 @@ JavaFX CSS is based on CSS syntax, but has several key differences. Understandin
 | Property prefix      | No prefix (e.g., `color`)        | Most properties use the `-fx-` prefix (e.g., `-fx-text-fill`) |
 | Color properties     | `color` (text), `background-color` | `-fx-text-fill` (text), `-fx-background-color` |
 | Size units           | Supports `px`, `em`, `rem`, `%`, etc. | Supports `px`, `em`, `pt`, but not `rem`      |
-| Selector types       | Tag, class, ID, attribute, pseudo-class | Type selectors use class names (e.g., `.button`), ID, pseudo-class |
+| Selector types       | Tag, class, ID, attribute, pseudo-class | Type selectors (e.g., `Button`), style classes (e.g., `.button`), ID, pseudo-class |
 | Pseudo-classes       | `:hover`, `:focus`, etc.         | `:hover`, `:focused`, `:pressed`, `:armed`, etc. |
-| Variables (custom properties) | `--var` + `var()`        | `-fx-var` (JavaFX 17+), or set via code       |
+| Variables (custom properties) | `--var` + `var()`        | Looked-up colors; defined on `.root` with the `-fx-` prefix and referenced by name by child nodes, no `var()` needed |
 | Layout properties    | `display`, `flex`, `grid`        | JavaFX layout is managed by Layout containers; CSS only controls appearance |
 | Functions            | `calc()`, `rgb()`, etc.          | `derive()`, `ladder()`, and other JavaFX-specific functions |
 | Inheritance          | Some properties inherit          | Properties like `-fx-font-*` can inherit      |
 
-### 1.1 Type Selector Notes
+> Note: JavaFX CSS **does not support** the `var()` function (that is a Web CSS feature). JavaFX's "looked-up color" mechanism lets you define custom properties on `.root` with the `-fx-` prefix; child nodes reference them directly by name, with no `var()` wrapper needed.
 
-In Web CSS, `button` selects the tag name, whereas in JavaFX CSS, type selectors use the control's style class name (all lowercase), for example:
+### 1.1 Type Selectors vs. Style Class Selectors
+
+In Web CSS, `button` selects the tag name, whereas in JavaFX CSS you must distinguish two kinds of selectors:
+
+- **Type selectors**: written without a dot, using the control's class name directly. In JavaFX, `Node.getTypeSelector()` returns the simple class name by default (e.g., `Button`, `Label`, `TextField`), so the type selector is written as `Button`.
+- **Style class selectors**: written with a dot (e.g., `.button`), matching nodes whose `getStyleClass()` contains that name. Standard JavaFX controls register style classes that are generally all-lowercase (e.g., `button`, `label`, `text-field`).
 
 ```css
-/* In JavaFX, .button is equivalent to matching all Button controls */
+/* Type selector: no dot, matches all Button controls */
+Button {
+    -fx-background-color: #4a90d9;
+    -fx-text-fill: white;
+}
+
+/* Style class selector: with dot, matches nodes whose style class contains "button" */
 .button {
     -fx-background-color: #4a90d9;
     -fx-text-fill: white;
 }
 ```
+
+> Tip: A standard `Button` control also has the `button` style class by default, so both `Button` and `.button` match it; however the two have different specificity, and the type selector has lower priority than the style class selector.
 
 ### 1.2 Common JavaFX CSS Property Mapping
 
@@ -48,15 +61,15 @@ In Web CSS, `button` selects the tag name, whereas in JavaFX CSS, type selectors
 
 ---
 
-## 2. CSS Variables (Custom Properties)
+## 2. CSS Variables (Looked-up Colors)
 
-JavaFX 17+ supports CSS custom properties (variables), defined with the `-fx-` prefix and referenced via `var()`. This makes centralized management of theme colors possible.
+JavaFX supports custom color properties through the "looked-up color" mechanism: after defining them on `.root` with the `-fx-` prefix, child nodes can reference them directly by name (**no `var()` wrapper needed**; JavaFX CSS does not support the `var()` function), enabling centralized management of theme colors.
 
 ### 2.1 Definition and Usage
 
 ```css
 .root {
-    /* Define theme variables */
+    /* Define theme variables (looked-up colors) */
     -fx-primary-color: #2196f3;
     -fx-accent-color: #ff9800;
     -fx-bg-color: #ffffff;
@@ -64,13 +77,16 @@ JavaFX 17+ supports CSS custom properties (variables), defined with the `-fx-` p
     -fx-radius: 8;
 }
 
-/* Reference variables */
+/* Reference variables: colors are referenced directly by name */
 .button-primary {
-    -fx-background-color: var(-fx-primary-color);
+    -fx-background-color: -fx-primary-color;
     -fx-text-fill: white;
-    -fx-background-radius: var(-fx-radius);
+    /* Referencing a looked-up color for size properties is unreliable; use a literal value instead */
+    -fx-background-radius: 8;
 }
 ```
+
+> Note: Looked-up colors are primarily intended for **color** values. Using a looked-up color directly for size properties such as `-fx-background-radius` and `-fx-border-radius` is unreliable in JavaFX; use literal numeric values instead (e.g., `8`, `4`).
 
 ### 2.2 Variable Scope
 
@@ -88,7 +104,7 @@ JavaFX 17+ supports CSS custom properties (variables), defined with the `-fx-` p
 
 ## 3. Theme Variable Architecture (Light / Dark)
 
-Build a complete theme system through CSS variables, enabling unified management of light and dark themes.
+Build a complete theme system through looked-up colors, enabling unified management of light and dark themes.
 
 ### 3.1 Light Theme Variable Definition
 
@@ -119,7 +135,7 @@ Build a complete theme system through CSS variables, enabling unified management
     -fx-border-color: #e0e0e0;
     -fx-divider-color: #eeeeee;
 
-    /* Radius and spacing */
+    /* Radius and spacing (reference constants only; use literals for size properties) */
     -fx-radius-sm: 4;
     -fx-radius-md: 8;
     -fx-radius-lg: 12;
@@ -160,35 +176,35 @@ Build a complete theme system through CSS variables, enabling unified management
 
 ```css
 .button {
-    -fx-background-color: var(-fx-bg-secondary);
-    -fx-text-fill: var(-fx-text-primary);
-    -fx-background-radius: var(-fx-radius-md);
+    -fx-background-color: -fx-bg-secondary;
+    -fx-text-fill: -fx-text-primary;
+    -fx-background-radius: 8;
     -fx-padding: 8 16 8 16;
 }
 
 .button:hover {
-    -fx-background-color: var(-fx-bg-tertiary);
+    -fx-background-color: -fx-bg-tertiary;
 }
 
 .button-primary {
-    -fx-background-color: var(-fx-accent);
+    -fx-background-color: -fx-accent;
     -fx-text-fill: white;
 }
 
 .button-primary:hover {
-    -fx-background-color: var(-fx-accent-hover);
+    -fx-background-color: -fx-accent-hover;
 }
 
 .text-field {
-    -fx-background-color: var(-fx-bg-primary);
-    -fx-text-fill: var(-fx-text-primary);
-    -fx-border-color: var(-fx-border-color);
+    -fx-background-color: -fx-bg-primary;
+    -fx-text-fill: -fx-text-primary;
+    -fx-border-color: -fx-border-color;
     -fx-border-width: 1;
-    -fx-background-radius: var(-fx-radius-sm);
+    -fx-background-radius: 4;
 }
 
 .label {
-    -fx-text-fill: var(-fx-text-primary);
+    -fx-text-fill: -fx-text-primary;
 }
 ```
 
@@ -202,17 +218,17 @@ JavaFX CSS follows specificity rules similar to Web CSS. Priority from highest t
 2. **ID selectors** (`#myId`)
 3. **Style class + pseudo-class selectors** (`.button:hover`)
 4. **Style class selectors** (`.button`)
-5. **Type selectors** (`.button` matches all Buttons)
+5. **Type selectors** (`Button` matches all Button controls)
 
 ### 4.1 Priority Example
 
 ```css
-/* Type selector: lowest priority */
-.button {
+/* Type selector: no dot, lowest priority */
+Button {
     -fx-background-color: gray;
 }
 
-/* Style class selector: higher priority than type selector */
+/* Style class selector: with dot, higher priority than the type selector */
 .danger-button {
     -fx-background-color: red;
 }
@@ -230,7 +246,13 @@ saveButton.setStyle("-fx-background-color: blue;");
 
 ### 4.2 !important
 
-JavaFX CSS does not support `!important`. To force an override, use a higher-priority selector or inline style.
+JavaFX CSS supports `!important`, which can be used to raise the priority of a style rule. For day-to-day work, prefer managing overrides via higher-priority selectors or inline styles; use `!important` sparingly as a last resort.
+
+```css
+.button {
+    -fx-background-color: -fx-accent !important;
+}
+```
 
 ### 4.3 Multiple Style Class Stacking
 
@@ -248,7 +270,7 @@ button.getStyleClass().addAll("button", "primary", "large");
 
 ```css
 .button {
-    -fx-background-color: var(-fx-accent);
+    -fx-background-color: -fx-accent;
     -fx-text-fill: white;
     -fx-font-size: 14px;
     -fx-font-weight: bold;
@@ -259,11 +281,11 @@ button.getStyleClass().addAll("button", "primary", "large");
 }
 
 .button:hover {
-    -fx-background-color: var(-fx-accent-hover);
+    -fx-background-color: -fx-accent-hover;
 }
 
 .button:pressed {
-    -fx-background-color: var(-fx-accent-pressed);
+    -fx-background-color: -fx-accent-pressed;
 }
 
 .button:disabled {
@@ -274,10 +296,10 @@ button.getStyleClass().addAll("button", "primary", "large");
 /* Outlined secondary button */
 .button-outline {
     -fx-background-color: transparent;
-    -fx-border-color: var(-fx-accent);
+    -fx-border-color: -fx-accent;
     -fx-border-width: 1.5;
     -fx-border-radius: 6;
-    -fx-text-fill: var(-fx-accent);
+    -fx-text-fill: -fx-accent;
 }
 ```
 
@@ -285,10 +307,10 @@ button.getStyleClass().addAll("button", "primary", "large");
 
 ```css
 .text-field {
-    -fx-background-color: var(-fx-bg-primary);
-    -fx-text-fill: var(-fx-text-primary);
-    -fx-prompt-text-fill: var(-fx-text-disabled);
-    -fx-border-color: var(-fx-border-color);
+    -fx-background-color: -fx-bg-primary;
+    -fx-text-fill: -fx-text-primary;
+    -fx-prompt-text-fill: -fx-text-disabled;
+    -fx-border-color: -fx-border-color;
     -fx-border-width: 1;
     -fx-border-radius: 4;
     -fx-background-radius: 4;
@@ -297,12 +319,12 @@ button.getStyleClass().addAll("button", "primary", "large");
 }
 
 .text-field:focused {
-    -fx-border-color: var(-fx-accent);
+    -fx-border-color: -fx-accent;
     -fx-border-width: 2;
 }
 
 .text-field.error {
-    -fx-border-color: var(-fx-danger);
+    -fx-border-color: -fx-danger;
 }
 ```
 
@@ -310,34 +332,34 @@ button.getStyleClass().addAll("button", "primary", "large");
 
 ```css
 .table-view {
-    -fx-background-color: var(--fx-bg-primary);
-    -fx-border-color: var(--fx-border-color);
+    -fx-background-color: -fx-bg-primary;
+    -fx-border-color: -fx-border-color;
     -fx-border-width: 1;
 }
 
 /* Table header */
 .table-view .column-header {
-    -fx-background-color: var(--fx-bg-secondary);
-    -fx-border-color: var(--fx-divider-color);
+    -fx-background-color: -fx-bg-secondary;
+    -fx-border-color: -fx-divider-color;
 }
 
 .table-view .column-header .label {
-    -fx-text-fill: var(--fx-text-primary);
+    -fx-text-fill: -fx-text-primary;
     -fx-font-weight: bold;
 }
 
 /* Rows */
 .table-row-cell {
-    -fx-background-color: var(--fx-bg-primary);
-    -fx-border-color: var(--fx-divider-color);
+    -fx-background-color: -fx-bg-primary;
+    -fx-border-color: -fx-divider-color;
 }
 
 .table-row-cell:odd {
-    -fx-background-color: var(--fx-bg-secondary);
+    -fx-background-color: -fx-bg-secondary;
 }
 
 .table-row-cell:selected {
-    -fx-background-color: var(--fx-accent);
+    -fx-background-color: -fx-accent;
 }
 
 .table-row-cell:selected .text {
@@ -346,7 +368,7 @@ button.getStyleClass().addAll("button", "primary", "large");
 
 /* Empty table placeholder */
 .table-view .placeholder .label {
-    -fx-text-fill: var(--fx-text-secondary);
+    -fx-text-fill: -fx-text-secondary;
 }
 ```
 
@@ -354,24 +376,24 @@ button.getStyleClass().addAll("button", "primary", "large");
 
 ```css
 .list-view {
-    -fx-background-color: var(-fx-bg-primary);
-    -fx-border-color: var(--fx-border-color);
+    -fx-background-color: -fx-bg-primary;
+    -fx-border-color: -fx-border-color;
     -fx-border-width: 1;
     -fx-background-radius: 4;
 }
 
 .list-cell {
     -fx-background-color: transparent;
-    -fx-text-fill: var(-fx-text-primary);
+    -fx-text-fill: -fx-text-primary;
     -fx-padding: 8 12 8 12;
 }
 
 .list-cell:filled:hover {
-    -fx-background-color: var(-fx-bg-tertiary);
+    -fx-background-color: -fx-bg-tertiary;
 }
 
 .list-cell:filled:selected {
-    -fx-background-color: var(-fx-accent);
+    -fx-background-color: -fx-accent;
     -fx-text-fill: white;
 }
 ```
@@ -380,18 +402,18 @@ button.getStyleClass().addAll("button", "primary", "large");
 
 ```css
 .combo-box {
-    -fx-background-color: var(-fx-bg-primary);
-    -fx-border-color: var(--fx-border-color);
+    -fx-background-color: -fx-bg-primary;
+    -fx-border-color: -fx-border-color;
     -fx-border-radius: 4;
     -fx-background-radius: 4;
 }
 
 .combo-box .arrow-button {
-    -fx-background-color: var(-fx-bg-secondary);
+    -fx-background-color: -fx-bg-secondary;
 }
 
 .combo-box .list-cell {
-    -fx-text-fill: var(-fx-text-primary);
+    -fx-text-fill: -fx-text-primary;
 }
 ```
 
@@ -403,12 +425,12 @@ button.getStyleClass().addAll("button", "primary", "large");
 }
 
 .scroll-bar .thumb {
-    -fx-background-color: var(-fx-text-disabled);
+    -fx-background-color: -fx-text-disabled;
     -fx-background-radius: 4;
 }
 
 .scroll-bar .thumb:hover {
-    -fx-background-color: var(-fx-text-secondary);
+    -fx-background-color: -fx-text-secondary;
 }
 
 .scroll-bar .increment-button,
@@ -422,25 +444,227 @@ button.getStyleClass().addAll("button", "primary", "large");
 
 ```css
 .menu-bar {
-    -fx-background-color: var(-fx-bg-secondary);
-    -fx-border-color: var(--fx-divider-color);
+    -fx-background-color: -fx-bg-secondary;
+    -fx-border-color: -fx-divider-color;
     -fx-border-width: 0 0 1 0;
 }
 
 .menu-bar .label {
-    -fx-text-fill: var(-fx-text-primary);
+    -fx-text-fill: -fx-text-primary;
 }
 
 .menu-item .label {
-    -fx-text-fill: var(-fx-text-primary);
+    -fx-text-fill: -fx-text-primary;
 }
 
 .menu-item:focused {
-    -fx-background-color: var(-fx-accent);
+    -fx-background-color: -fx-accent;
 }
 
 .menu-item:focused .label {
     -fx-text-fill: white;
+}
+```
+
+### 5.8 CheckBox / RadioButton / ToggleButton
+
+```css
+/* Check box */
+.check-box {
+    -fx-text-fill: -fx-text-primary;
+    -fx-font-size: 14px;
+}
+.check-box .box {
+    -fx-background-color: -fx-bg-primary;
+    -fx-border-color: -fx-border-color;
+    -fx-border-radius: 3;
+    -fx-background-radius: 3;
+}
+.check-box:selected .box {
+    -fx-background-color: -fx-accent;
+    -fx-border-color: -fx-accent;
+}
+
+/* Radio button */
+.radio-button {
+    -fx-text-fill: -fx-text-primary;
+    -fx-font-size: 14px;
+}
+.radio-button .radio {
+    -fx-background-color: -fx-bg-primary;
+    -fx-border-color: -fx-border-color;
+    -fx-border-radius: 1em;
+}
+.radio-button:selected .radio {
+    -fx-border-color: -fx-accent;
+}
+.radio-button:selected .dot {
+    -fx-background-color: -fx-accent;
+}
+
+/* Toggle button */
+.toggle-button {
+    -fx-background-color: -fx-bg-secondary;
+    -fx-text-fill: -fx-text-primary;
+    -fx-background-radius: 4;
+    -fx-cursor: hand;
+}
+.toggle-button:selected {
+    -fx-background-color: -fx-accent;
+    -fx-text-fill: white;
+}
+.toggle-button:disabled {
+    -fx-opacity: 0.5;
+}
+```
+
+### 5.9 ProgressBar / ProgressIndicator
+
+```css
+.progress-bar {
+    -fx-background-color: -fx-bg-tertiary;
+    -fx-background-radius: 4;
+    -fx-pref-height: 8;
+}
+.progress-bar .track {
+    -fx-background-color: transparent;
+}
+.progress-bar .bar {
+    -fx-background-color: -fx-accent;
+    -fx-background-radius: 4;
+}
+.progress-bar:disabled .bar {
+    -fx-background-color: -fx-text-disabled;
+}
+
+/* Circular progress indicator */
+.progress-indicator {
+    -fx-progress-color: -fx-accent;
+}
+```
+
+### 5.10 TabPane
+
+```css
+.tab-pane .tab-header-area {
+    -fx-background-color: -fx-bg-secondary;
+}
+.tab-pane .tab {
+    -fx-background-color: transparent;
+    -fx-padding: 6 14 6 14;
+    -fx-background-radius: 4 4 0 0;
+}
+.tab-pane .tab:selected {
+    -fx-background-color: -fx-bg-primary;
+}
+.tab-pane .tab-label {
+    -fx-text-fill: -fx-text-secondary;
+}
+.tab-pane .tab:selected .tab-label {
+    -fx-text-fill: -fx-text-primary;
+    -fx-font-weight: bold;
+}
+.tab-pane .tab-close-button {
+    -fx-background-color: -fx-text-secondary;
+}
+```
+
+### 5.11 Spinner
+
+```css
+.spinner {
+    -fx-background-color: -fx-bg-primary;
+    -fx-border-color: -fx-border-color;
+    -fx-border-radius: 4;
+    -fx-background-radius: 4;
+}
+.spinner .text-field {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+}
+.spinner .increment-arrow-button,
+.spinner .decrement-arrow-button {
+    -fx-background-color: -fx-bg-secondary;
+    -fx-background-radius: 0;
+}
+.spinner .increment-arrow-button:hover,
+.spinner .decrement-arrow-button:hover {
+    -fx-background-color: -fx-bg-tertiary;
+}
+.spinner .increment-arrow,
+.spinner .decrement-arrow {
+    -fx-background-color: -fx-text-secondary;
+}
+```
+
+### 5.12 Tooltip
+
+```css
+.tooltip {
+    -fx-background-color: #333333;
+    -fx-text-fill: white;
+    -fx-background-radius: 4;
+    -fx-border-color: transparent;
+    -fx-font-size: 12px;
+    -fx-padding: 6 10 6 10;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.3), 6, 0, 0, 2);
+}
+```
+
+### 5.13 TreeView
+
+```css
+.tree-view {
+    -fx-background-color: -fx-bg-primary;
+    -fx-border-color: -fx-border-color;
+    -fx-border-width: 1;
+    -fx-background-radius: 4;
+}
+.tree-cell {
+    -fx-background-color: transparent;
+    -fx-text-fill: -fx-text-primary;
+    -fx-padding: 4 8 4 8;
+}
+.tree-cell:filled:hover {
+    -fx-background-color: -fx-bg-tertiary;
+}
+.tree-cell:filled:selected {
+    -fx-background-color: -fx-accent;
+    -fx-text-fill: white;
+}
+.tree-cell:expanded {
+    -fx-font-weight: bold;
+}
+```
+
+### 5.14 DatePicker
+
+```css
+.date-picker {
+    -fx-background-color: -fx-bg-primary;
+    -fx-border-color: -fx-border-color;
+    -fx-border-radius: 4;
+    -fx-background-radius: 4;
+}
+.date-picker .arrow-button {
+    -fx-background-color: -fx-bg-secondary;
+}
+.date-picker:focused {
+    -fx-border-color: -fx-accent;
+}
+
+/* Popup calendar */
+.date-picker-popup .day-cell:selected {
+    -fx-background-color: -fx-accent;
+    -fx-text-fill: white;
+}
+.date-picker-popup .today {
+    -fx-border-color: -fx-accent;
+    -fx-border-width: 1;
+}
+.date-picker-popup .previous-month,
+.date-picker-popup .next-month {
+    -fx-text-fill: -fx-text-disabled;
 }
 ```
 
@@ -806,11 +1030,36 @@ private void applyThemeWithTransition(boolean dark) {
 
 ---
 
-## 11. CSS Best Practices Summary
+## 11. @import and Splitting Large CSS Files
+
+JavaFX CSS supports the `@import` rule since **8u20**, which can be used to split large CSS files into multiple modules for easier maintenance and reuse.
+
+```css
+/* app.css — main stylesheet, imports modules in order */
+@import "variables.css";     /* looked-up colors / theme variables */
+@import "buttons.css";       /* button-related styles */
+@import "tables.css";        /* table-related styles */
+@import "forms.css";         /* form control styles */
+
+.root {
+    /* only rules specific to the main stylesheet go here */
+}
+```
+
+Notes:
+
+- `@import` must appear at the **top** of the CSS file (before any other rules), otherwise it is ignored.
+- The import path is resolved relative to the location of the current CSS file; this rule also applies when loading via `getResourceAsStream`.
+- You only need to register the main stylesheet in `scene.getStylesheets()`; files brought in via `@import` are loaded automatically.
+- Using `@import` you can physically split theme variables from control styles, which works even more flexibly together with the runtime theme switching in section 10.
+
+---
+
+## 12. CSS Best Practices Summary
 
 | Practice                              | Description                                                          |
 |---------------------------------------|----------------------------------------------------------------------|
-| Use CSS variables to manage theme colors | Define colors centrally in `.root` for easy modification and theme switching. |
+| Use looked-up colors to manage theme colors | Define colors centrally in `.root`; child nodes reference them by name, making modification and theme switching easy. |
 | Avoid inline styles                   | Inline styles have the highest priority and are hard to maintain; use only for dynamic debugging. |
 | Semantic style class names            | Use `.button-primary` instead of `.blue-button`, decoupling from visuals. |
 | Separate theme variables from control styles | Theme files only define variables; control files reference variables, making themes pluggable. |
@@ -819,3 +1068,4 @@ private void applyThemeWithTransition(boolean dark) {
 | Provide styles for all interaction states | Including `:hover`, `:pressed`, `:focused`, `:disabled`.          |
 | Use Scene Builder for visual debugging | Real-time preview improves style development efficiency.             |
 | Manage CSS with comment sections      | Divide blocks with comments (buttons, tables, forms, etc.) for maintainability. |
+| Use @import to split CSS              | Supported since 8u20; split large stylesheets by module for easier maintenance and reuse. |

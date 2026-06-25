@@ -185,6 +185,45 @@ dateField.textProperty().bindBidirectional(date, new StringConverter<>() {
 });
 ```
 
+### 3.4 Content Binding
+
+Content binding is used to synchronize the **contents** of two `ObservableList` / `ObservableMap` / `ObservableSet`, rather than binding one property to another. It is implemented through `bindContent()` (unidirectional) and `bindContentBidirectional()` (bidirectional), and is commonly used when multiple views share the same data source or for master-detail list synchronization.
+
+> Note: Content binding operates on the collections themselves; the caller must be a `ListProperty` / `MapProperty`, etc. (wrapped via `SimpleListProperty`). A plain `ObservableList` does not directly support `bindContent`.
+
+```java
+ObservableList<String> sourceList = FXCollections.observableArrayList("A", "B", "C");
+ListProperty<String> targetList = new SimpleListProperty<>(FXCollections.observableArrayList());
+
+// Unidirectional content binding: changes in the source list sync to the target list (target becomes read-only)
+targetList.bindContent(sourceList);
+
+sourceList.add("D");
+System.out.println(targetList.get());  // [A, B, C, D]
+```
+
+```java
+ListProperty<String> list1 = new SimpleListProperty<>(FXCollections.observableArrayList("1", "2"));
+ListProperty<String> list2 = new SimpleListProperty<>(FXCollections.observableArrayList());
+
+// Bidirectional content binding: the two lists sync both ways
+list1.bindContentBidirectional(list2);
+
+list2.add("3");
+System.out.println(list1.get());  // [1, 2, 3]
+
+list1.remove("1");
+System.out.println(list2.get());  // [2, 3]
+```
+
+**Applicable Scenarios**
+
+- **Multiple views sharing the same data source**: The master data list stays in sync with the local lists of multiple sub-views; when any view modifies the data, the others update automatically.
+- **Master-detail list synchronization**: The detail list driven by the master table's selection is bidirectionally bound to a cache list, avoiding manual element copying.
+- **Aggregation views**: Gather the contents of multiple source lists into a single display list.
+
+> Difference from normal property binding: `bindContent` synchronizes the collection elements; adding/removing elements in the source list is reflected in the target. However, if the source list's elements themselves change their own properties, you must use an extractor to trigger updates.
+
 ---
 
 ## 4. Computed Bindings
@@ -249,7 +288,15 @@ ObjectBinding<String> selectedName = Bindings.createObjectBinding(
 ```java
 // Access properties of nested objects
 ObjectProperty<Person> person = new SimpleObjectProperty<>(new Person("Alice"));
-StringBinding name = person.select(p -> p.nameProperty());
+
+// Method 1: Bindings.select (string-based, deprecated but works)
+StringBinding name1 = Bindings.selectString(person, "name");
+
+// Method 2 (recommended): createStringBinding with null safety
+StringBinding name2 = Bindings.createStringBinding(
+    () -> person.get() == null ? "" : person.get().getName(),
+    person
+);
 // Automatically updates when person or person.name changes
 ```
 
@@ -625,11 +672,86 @@ nameProperty.addListener(new WeakChangeListener<>((obs, oldVal, newVal) -> {
 
 | Scenario                                                | Countermeasure                                              |
 |---------------------------------------------------------|-------------------------------------------------------------|
-| Listeners added in Controller not removed               | Remove in `@FXML`-annotated `dispose()` or on unload        |
+| Listeners added in Controller not removed               | Remove in a custom `dispose()` method, triggered manually via `stage.setOnCloseRequest()` or view-switch callbacks |
 | Short-lived object listening to long-lived property     | Use `WeakChangeListener`                                    |
 | Listeners on static properties                          | Explicitly remove on application shutdown                   |
 | Bidirectional binding not unbound                       | Call `unbindBidirectional()` when no longer needed          |
 | ObservableList extractor listener                       | Be mindful of element listener release when clearing or replacing list |
+
+### 10.6 Binding Chain Memory Leak Special Topic
+
+The following three are subtle and frequent memory leak scenarios in JavaFX data binding, explained separately for easier troubleshooting.
+
+#### 10.6.1 Strong Reference Problem in Bindings.createXxxBinding()
+
+`Bindings.createStringBinding(calc, deps...)` **holds strong references** to all dependencies (deps) passed in, as well as the objects captured in the computation callback. If the dependencies are long-lived objects (e.g., a global ViewModel, static properties), and the resulting binding is subscribed by a short-lived node (e.g., a temporary popup), that node cannot be GC'd.
+
+```java
+// Leak example: after the popup closes, detailLabel is still held by the binding on the global vm
+Label detailLabel = new Label();
+detailLabel.textProperty().bind(Bindings.createStringBinding(
+    () -> globalVM.currentUserProperty().get().getName(),
+    globalVM.currentUserProperty()   // strong reference to a long-lived object
+));
+
+// Correct approach: actively unbind when the popup closes
+popup.setOnHidden(e -> detailLabel.textProperty().unbind());
+```
+
+#### 10.6.2 Binding Chains Between ObjectProperty<UI controls> Prevent UI Subtree GC
+
+When multiple UI controls are chained together via `bind()` (e.g., `A.bind(B); B.bind(C);`), as long as any one of them is still alive, none of the controls involved in the chain will be reclaimed. This commonly occurs in dynamically built menus, tabs, and cached node trees.
+
+```java
+// Leak example: the cached panel's content is bound to the main panel's; after the main panel is destroyed, the cached panel still holds the reference
+cachedPanel.titleProperty().bind(mainPanel.titleProperty());
+
+// Correct approach: unbind node by node when switching views or destroying
+mainPanel.titleProperty().unbind();   // if upstream bindings remain, unbind recursively
+```
+
+#### 10.6.3 Listener Cleanup in TableView / ListView cellFactory
+
+Cells are reused at high frequency. If you add listeners to the cell data inside `updateItem()` but do not clean them up during reuse, the same data object gets listened to repeatedly and listeners accumulate indefinitely, eventually leaking.
+
+```java
+// Leak example: a new listener is added on every reuse and never removed
+listView.setCellFactory(lv -> new ListCell<Item>() {
+    @Override
+    protected void updateItem(Item item, boolean empty) {
+        super.updateItem(item, empty);
+        if (item != null) {
+            item.nameProperty().addListener((obs, o, n) -> setText(n)); // repeated additions, leak!
+        }
+    }
+});
+
+// Correct approach: track the previously listened data and listener, and remove the old listener on reuse
+listView.setCellFactory(lv -> new ListCell<Item>() {
+    private Item lastItem;
+    private ChangeListener<String> nameListener;
+
+    @Override
+    protected void updateItem(Item item, boolean empty) {
+        super.updateItem(item, empty);
+        // first clean up the previous round's listener
+        if (lastItem != null && nameListener != null) {
+            lastItem.nameProperty().removeListener(nameListener);
+        }
+        if (empty || item == null) {
+            setText(null);
+            lastItem = null;
+            return;
+        }
+        setText(item.getName());
+        nameListener = (obs, o, n) -> setText(n);
+        item.nameProperty().addListener(nameListener);
+        lastItem = item;
+    }
+});
+```
+
+> Summary: Whenever you use `createXxxBinding`, cross-control `bind` chains, or cell reuse scenarios, make sure to actively `unbind()` / `removeListener()` before the node is destroyed or reused; otherwise the binding chain will keep holding references to the UI subtree.
 
 ---
 
@@ -664,7 +786,7 @@ Subscription sub2 = property.subscribe(newValue -> {
 });
 
 // Subscribe to invalidation (invalidity notification)
-Subscription sub3 = property.subscribeInvalidations(observable -> {
+Subscription sub3 = property.subscribe((InvalidationListener) observable -> {
     System.out.println("Property invalidated");
 });
 ```

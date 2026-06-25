@@ -1,4 +1,4 @@
-package ${packageName}.controller;
+package {{packageName}}.controller;
 
 import java.net.URL;
 import java.util.ResourceBundle;
@@ -6,8 +6,10 @@ import java.util.ResourceBundle;
 import javafx.application.Platform;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
-import javafx.fxml.Initializable;
+import javafx.scene.control.Label;
 import javafx.scene.control.MenuItem;
+import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 
 /**
@@ -16,7 +18,10 @@ import javafx.scene.layout.VBox;
  * Wires up the menu bar actions and manages the central content area.
  * </p>
  */
-public class MainController implements Initializable {
+public class MainController extends BaseController {
+
+    @FXML
+    private BorderPane root;
 
     @FXML
     private MenuItem newMenuItem;
@@ -33,10 +38,21 @@ public class MainController implements Initializable {
     @FXML
     private VBox contentArea;
 
+    @FXML
+    private HBox statusBar;
+
+    @FXML
+    private Label statusLabel;
+
     @Override
     public void initialize(URL location, ResourceBundle resources) {
         // Perform any initialization logic here.
         // This method is called automatically after the FXML has been loaded.
+    }
+
+    @Override
+    protected BorderPane getRoot() {
+        return root;
     }
 
     /**

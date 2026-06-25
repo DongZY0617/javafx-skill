@@ -202,7 +202,7 @@ private boolean showUserDialog(User user) {
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.2.5</version>
+        <version>3.4.0</version>
         <relativePath/>
     </parent>
 
@@ -213,7 +213,7 @@ private boolean showUserDialog(User user) {
 
     <properties>
         <java.version>17</java.version>
-        <javafx.version>17.0.9</javafx.version>
+        <javafx.version>21.0.11</javafx.version>
     </properties>
 
     <dependencies>
@@ -380,12 +380,12 @@ myapp/
 <dependency>
     <groupId>org.mybatis.spring.boot</groupId>
     <artifactId>mybatis-spring-boot-starter</artifactId>
-    <version>3.0.3</version>
+    <version>3.0.4</version>
 </dependency>
 <dependency>
     <groupId>org.xerial</groupId>
     <artifactId>sqlite-jdbc</artifactId>
-    <version>3.45.1.0</version>
+    <version>3.47.0.0</version>
 </dependency>
 ```
 
@@ -581,6 +581,63 @@ com.sun.tools.javac.code.TypeTag :: UNKNOWN
 3. Check the JDK used by Maven Importing (Settings -> Build -> Maven -> Importing -> JDK for importer)
 
 > **Tip**: Lombok 1.18.30+ supports JDK 21, but the IDE's Lombok plugin may not have been updated accordingly. Ensure that the IDE's JDK selection, the Lombok plugin version, and the `java.version` in `pom.xml` are all consistent.
+
+### Pitfall 9: Controller Singleton Causing State Pollution
+
+**Symptom**: When opening multiple windows or dialogs of the same type, the input data from the previous window "leaks" into the next one, or the UI control state in the Controller becomes chaotic.
+
+**Cause**: Spring registers all `@Component` beans as **singletons** (singleton scope) by default. But in JavaFX, each `FXMLLoader.load()` expects a **brand-new** Controller instance. When Spring returns the same singleton bean, the `@FXML` fields get overwritten by the new FXML's controls, the old control references are lost, leading to state pollution and memory leaks.
+
+**Solution**: Add `@Scope("prototype")` to the Controller class to ensure a new instance is created each time it is obtained from the Spring container:
+
+```java
+@Component
+@Scope("prototype")  // Create a new instance on each injection
+public class UserDialogController implements Initializable {
+    // ...
+}
+```
+
+> **Note**: All Controllers that can be loaded multiple times via `FXMLLoader` should use the `prototype` scope. The main window Controller can remain a singleton if there is only one instance, but still be careful not to cache UI state in the Controller.
+
+### Pitfall 10: spring-boot-devtools Causing JavaFX Abnormal Restart
+
+**Symptom**: During development, after modifying code, the JavaFX window suddenly closes or duplicate windows, `Stage already showing`, and similar exceptions appear.
+
+**Cause**: `spring-boot-devtools`'s auto-restart mechanism monitors classpath changes and triggers a Spring container restart when files change. But JavaFX's `Application` lifecycle is not synchronized with the Spring container; a container restart does not re-invoke `Application.launch()`, leading to inconsistent state.
+
+**Solution**:
+1. **Exclude the devtools dependency** (recommended): Set devtools to `optional` in `pom.xml` or remove it directly.
+2. **Disable auto-restart**: Configure `spring.devtools.restart.enabled: false` in `application.yml`.
+3. **Only disable the JavaFX class trigger**: Configure `spring.devtools.restart.exclude: static/**,public/**` in `application.yml` (exclude resource directories).
+
+```xml
+<!-- If devtools must be used, set it to optional -->
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-devtools</artifactId>
+    <scope>runtime</scope>
+    <optional>true</optional>
+</dependency>
+```
+
+### Pitfall 11: Startup Failure After Upgrading to JavaFX 24+
+
+**Symptom**: After upgrading the JavaFX version from 21 to 24+, `mvn spring-boot:run` reports an `IllegalCallerException` on startup.
+
+**Cause**: JavaFX 24+'s graphics rendering layer accesses native code via JNI, which under JDK 24+'s strict module encapsulation requires `--enable-native-access=javafx.graphics`. But Spring Boot's `spring-boot-maven-plugin` does not pass this parameter by default.
+
+**Solution**: Add the JVM argument in the `spring-boot-maven-plugin` configuration:
+
+```xml
+<plugin>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-maven-plugin</artifactId>
+    <configuration>
+        <jvmArguments>--enable-native-access=javafx.graphics</jvmArguments>
+    </configuration>
+</plugin>
+```
 
 ---
 
