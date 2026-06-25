@@ -1,29 +1,29 @@
-# JavaFX 数据绑定模式指南
+# JavaFX Data Binding Patterns Guide
 
-本指南全面介绍 JavaFX 的属性系统、单向与双向绑定、计算绑定、数值绑定、ObservableList/Map、TableView 数据绑定、表单校验模式、内存管理以及 JavaFX 21+ 的订阅式监听器。
+This guide comprehensively introduces JavaFX's property system, unidirectional and bidirectional binding, computed bindings, number bindings, ObservableList/Map, TableView data binding, form validation patterns, memory management, and JavaFX 21+ subscription-based listeners.
 
 ---
 
-## 一、属性类型系统（Property Type System）
+## 1. Property Type System
 
-JavaFX 的核心是一套类型化的属性系统，每种基本数据类型都有对应的 Property 接口和实现。
+The core of JavaFX is a typed property system, where each primitive data type has a corresponding Property interface and implementation.
 
-### 1.1 属性类型对照表
+### 1.1 Property Type Reference Table
 
-| 数据类型 | Property 接口            | 简单实现类                | 只读包装类               |
-|----------|--------------------------|---------------------------|--------------------------|
-| String   | `StringProperty`         | `SimpleStringProperty`    | `ReadOnlyStringWrapper`  |
-| int      | `IntegerProperty`        | `SimpleIntegerProperty`   | `ReadOnlyIntegerWrapper` |
-| long     | `LongProperty`           | `SimpleLongProperty`      | `ReadOnlyLongWrapper`    |
-| float    | `FloatProperty`          | `SimpleFloatProperty`     | `ReadOnlyFloatWrapper`   |
-| double   | `DoubleProperty`         | `SimpleDoubleProperty`    | `ReadOnlyDoubleWrapper`  |
-| boolean  | `BooleanProperty`        | `SimpleBooleanProperty`   | `ReadOnlyBooleanWrapper` |
-| 任意对象 | `ObjectProperty<T>`      | `SimpleObjectProperty<T>` | `ReadOnlyObjectWrapper<T>`|
-| List     | `ListProperty<E>`        | `SimpleListProperty<E>`   | `ReadOnlyListWrapper<E>` |
-| Map      | `MapProperty<K,V>`       | `SimpleMapProperty<K,V>`  | `ReadOnlyMapWrapper<K,V>`|
-| Set      | `SetProperty<E>`         | `SimpleSetProperty<E>`    | `ReadOnlySetWrapper<E>`  |
+| Data Type  | Property Interface       | Simple Implementation Class | Read-Only Wrapper Class      |
+|------------|--------------------------|-----------------------------|------------------------------|
+| String     | `StringProperty`         | `SimpleStringProperty`      | `ReadOnlyStringWrapper`      |
+| int        | `IntegerProperty`        | `SimpleIntegerProperty`     | `ReadOnlyIntegerWrapper`     |
+| long       | `LongProperty`           | `SimpleLongProperty`        | `ReadOnlyLongWrapper`        |
+| float      | `FloatProperty`          | `SimpleFloatProperty`       | `ReadOnlyFloatWrapper`       |
+| double     | `DoubleProperty`         | `SimpleDoubleProperty`      | `ReadOnlyDoubleWrapper`      |
+| boolean    | `BooleanProperty`        | `SimpleBooleanProperty`     | `ReadOnlyBooleanWrapper`     |
+| Any Object | `ObjectProperty<T>`      | `SimpleObjectProperty<T>`   | `ReadOnlyObjectWrapper<T>`   |
+| List       | `ListProperty<E>`        | `SimpleListProperty<E>`     | `ReadOnlyListWrapper<E>`     |
+| Map        | `MapProperty<K,V>`       | `SimpleMapProperty<K,V>`    | `ReadOnlyMapWrapper<K,V>`    |
+| Set        | `SetProperty<E>`         | `SimpleSetProperty<E>`      | `ReadOnlySetWrapper<E>`      |
 
-### 1.2 SimpleXxxProperty 基本用法
+### 1.2 SimpleXxxProperty Basic Usage
 
 ```java
 public class Person {
@@ -34,11 +34,11 @@ public class Person {
     private final ObjectProperty<LocalDate> birthday =
         new SimpleObjectProperty<>(this, "birthday", LocalDate.now());
 
-    // 构造函数参数说明：(bean, name, initialValue)
-    // bean 通常为属性所属的对象（this），便于属性溯源
-    // name 为属性名称，用于调试和反射
+    // Constructor parameter description: (bean, name, initialValue)
+    // bean is usually the object the property belongs to (this), for property traceability
+    // name is the property name, used for debugging and reflection
 
-    // 标准 Property 访问器模式
+    // Standard Property accessor pattern
     public StringProperty nameProperty() { return name; }
     public String getName() { return name.get(); }
     public void setName(String value) { name.set(value); }
@@ -63,77 +63,77 @@ public class Person {
 
 ### 1.3 SimpleXxxProperty vs ReadOnlyXxxProperty
 
-当属性仅允许内部修改、外部只读时，使用 `ReadOnlyXxxWrapper` 暴露只读视图。
+When a property only allows internal modification and is read-only externally, use `ReadOnlyXxxWrapper` to expose a read-only view.
 
 ```java
 public class Account {
-    // 内部可写的 Wrapper
+    // Internally writable Wrapper
     private final ReadOnlyDoubleWrapper balance = new ReadOnlyDoubleWrapper(this, "balance", 0.0);
 
-    // 对外暴露只读 Property
+    // Expose read-only Property externally
     public ReadOnlyDoubleProperty balanceProperty() { return balance.getReadOnlyProperty(); }
     public double getBalance() { return balance.get(); }
 
-    // 仅内部方法可修改
+    // Only internal methods can modify
     public void deposit(double amount) {
         balance.set(balance.get() + amount);
     }
 
     public void withdraw(double amount) {
         if (amount > balance.get()) {
-            throw new IllegalStateException("余额不足");
+            throw new IllegalStateException("Insufficient balance");
         }
         balance.set(balance.get() - amount);
     }
 }
 ```
 
-> 关键区别：`SimpleXxxProperty` 对外完全可读写；`ReadOnlyXxxWrapper` 通过 `getReadOnlyProperty()` 返回只读视图，外部无法 `set()`，但内部仍可通过 wrapper 修改。
+> Key difference: `SimpleXxxProperty` is fully read-write externally; `ReadOnlyXxxWrapper` returns a read-only view via `getReadOnlyProperty()`, external code cannot call `set()`, but internal code can still modify through the wrapper.
 
 ---
 
-## 二、单向绑定（Unidirectional Binding）
+## 2. Unidirectional Binding
 
-单向绑定使目标属性自动跟随源属性变化，方向为 **源 → 目标**。目标变为只读。
+Unidirectional binding makes the target property automatically follow changes in the source property, with direction **source → target**. The target becomes read-only.
 
-### 2.1 基本单向绑定
+### 2.1 Basic Unidirectional Binding
 
 ```java
 StringProperty source = new SimpleStringProperty("Hello");
 StringProperty target = new SimpleStringProperty();
 
-// target 绑定到 source：source 变化时 target 自动更新
+// target is bound to source: when source changes, target updates automatically
 target.bind(source);
 
 System.out.println(target.get());  // "Hello"
 source.set("World");
 System.out.println(target.get());  // "World"
 
-// 绑定后 target 变为只读，调用 set() 会抛出 RuntimeException
-// target.set("Error");  // ❌ 抛出异常
+// After binding, target becomes read-only, calling set() will throw RuntimeException
+// target.set("Error");  // ❌ throws exception
 ```
 
-### 2.2 UI 控件单向绑定示例
+### 2.2 UI Control Unidirectional Binding Example
 
 ```java
-// Label 显示 TextField 的内容（单向）
+// Label displays the content of TextField (unidirectional)
 label.textProperty().bind(textField.textProperty());
 
-// 进度条绑定到进度值
+// Progress bar bound to progress value
 progressBar.progressProperty().bind(task.progressProperty());
 
-// 标签显示滑块当前值
+// Label displays the slider's current value
 valueLabel.textProperty().bind(
-    slider.valueProperty().asString("当前值: %.1f"));
+    slider.valueProperty().asString("Current value: %.1f"));
 ```
 
 ---
 
-## 三、双向绑定（Bidirectional Binding）
+## 3. Bidirectional Binding
 
-双向绑定使两个属性互相同步，任一方变化都会更新另一方。
+Bidirectional binding synchronizes two properties with each other, a change in either one updates the other.
 
-### 3.1 基本双向绑定
+### 3.1 Basic Bidirectional Binding
 
 ```java
 StringProperty propA = new SimpleStringProperty("A");
@@ -141,7 +141,7 @@ StringProperty propB = new SimpleStringProperty("B");
 
 propA.bindBidirectional(propB);
 
-System.out.println(propA.get());  // "A"（保持原值，不立即同步）
+System.out.println(propA.get());  // "A" (keeps original value, no immediate sync)
 propB.set("NewValue");
 System.out.println(propA.get());  // "NewValue"
 
@@ -149,24 +149,24 @@ propA.set("Another");
 System.out.println(propB.get());  // "Another"
 ```
 
-### 3.2 类型转换的双向绑定
+### 3.2 Bidirectional Binding with Type Conversion
 
-不同类型属性间的双向绑定需提供转换器：
+Bidirectional binding between properties of different types requires a converter:
 
 ```java
-// TextField（String）与 IntegerProperty 双向绑定
+// Bidirectional binding between TextField (String) and IntegerProperty
 TextField ageField = new TextField();
 IntegerProperty age = new SimpleIntegerProperty(25);
 
 ageField.textProperty().bindBidirectional(age, new NumberStringConverter());
 
-// 现在两者互相同步，输入框输入数字会更新 age，修改 age 会更新输入框
+// Now both sync with each other, entering numbers in the input field updates age, modifying age updates the input field
 ```
 
-### 3.3 自定义格式化双向绑定
+### 3.3 Custom Formatted Bidirectional Binding
 
 ```java
-// 日期与字符串双向绑定，指定格式
+// Bidirectional binding between date and string, with specified format
 ObjectProperty<LocalDate> date = new SimpleObjectProperty<>(LocalDate.now());
 TextField dateField = new TextField();
 
@@ -187,25 +187,25 @@ dateField.textProperty().bindBidirectional(date, new StringConverter<>() {
 
 ---
 
-## 四、计算绑定（Computed Bindings）
+## 4. Computed Bindings
 
-`Bindings` 工具类提供工厂方法，基于一个或多个源属性创建派生的只读绑定。
+The `Bindings` utility class provides factory methods to create derived read-only bindings based on one or more source properties.
 
 ### 4.1 createStringBinding
 
 ```java
-StringProperty firstName = new SimpleStringProperty("张");
-StringProperty lastName = new SimpleStringProperty("三");
+StringProperty firstName = new SimpleStringProperty("John");
+StringProperty lastName = new SimpleStringProperty("Doe");
 
-// 拼接全名，依赖 firstName 和 lastName
+// Concatenate full name, depends on firstName and lastName
 StringBinding fullName = Bindings.createStringBinding(
     () -> firstName.get() + lastName.get(),
     firstName, lastName
 );
 
-System.out.println(fullName.get());  // "张三"
-lastName.set("四");
-System.out.println(fullName.get());  // "张四"
+System.out.println(fullName.get());  // "JohnDoe"
+lastName.set("Smith");
+System.out.println(fullName.get());  // "JohnSmith"
 ```
 
 ### 4.2 createBooleanBinding
@@ -214,14 +214,14 @@ System.out.println(fullName.get());  // "张四"
 StringProperty username = new SimpleStringProperty();
 StringProperty password = new SimpleStringProperty();
 
-// 表单是否有效
+// Whether the form is valid
 BooleanBinding formValid = Bindings.createBooleanBinding(
     () -> username.get() != null && username.get().length() >= 3
        && password.get() != null && password.get().length() >= 6,
     username, password
 );
 
-// 绑定到按钮禁用状态
+// Bind to button disabled state
 loginButton.disableProperty().bind(formValid.not());
 ```
 
@@ -230,46 +230,46 @@ loginButton.disableProperty().bind(formValid.not());
 ```java
 ObservableList<Item> items = FXCollections.observableArrayList();
 
-// 计算列表中已完成项的数量
+// Count the number of completed items in the list
 IntegerBinding completedCount = Bindings.createIntegerBinding(
     () -> (int) items.stream().filter(Item::isCompleted).count(),
     items
 );
 
-// 计算选中项的对象
+// Compute the object of the selected item
 ObjectProperty<Item> selected = new SimpleObjectProperty<>();
 ObjectBinding<String> selectedName = Bindings.createObjectBinding(
-    () -> selected.get() == null ? "无选中" : selected.get().getName(),
+    () -> selected.get() == null ? "None selected" : selected.get().getName(),
     selected
 );
 ```
 
-### 4.4 selectBinding（嵌套属性访问）
+### 4.4 selectBinding (Nested Property Access)
 
 ```java
-// 访问嵌套对象的属性
+// Access properties of nested objects
 ObjectProperty<Person> person = new SimpleObjectProperty<>(new Person("Alice"));
 StringBinding name = person.select(p -> p.nameProperty());
-// 当 person 或 person.name 变化时自动更新
+// Automatically updates when person or person.name changes
 ```
 
 ---
 
-## 五、数值绑定（NumberBinding）
+## 5. Number Binding
 
-数值属性支持算术运算绑定，结果为 `NumberBinding`。
+Numeric properties support arithmetic operation bindings, the result is a `NumberBinding`.
 
-### 5.1 算术运算
+### 5.1 Arithmetic Operations
 
 ```java
 IntegerProperty quantity = new SimpleIntegerProperty(5);
 DoubleProperty price = new SimpleDoubleProperty(19.99);
 
-// 乘法：总价
+// Multiplication: total price
 NumberBinding total = quantity.multiply(price);
 System.out.println(total.doubleValue());  // 99.95
 
-// 加法
+// Addition
 IntegerProperty a = new SimpleIntegerProperty(10);
 IntegerProperty b = new SimpleIntegerProperty(3);
 NumberBinding sum = a.add(b);        // 13
@@ -278,14 +278,14 @@ NumberBinding product = a.multiply(b); // 30
 NumberBinding quotient = a.divide(b);  // 3.333...
 ```
 
-### 5.2 链式运算
+### 5.2 Chained Operations
 
 ```java
 DoubleProperty basePrice = new SimpleDoubleProperty(100.0);
-DoubleProperty taxRate = new SimpleDoubleProperty(0.08);   // 8% 税率
-DoubleProperty discount = new SimpleDoubleProperty(10.0);  // 折扣
+DoubleProperty taxRate = new SimpleDoubleProperty(0.08);   // 8% tax rate
+DoubleProperty discount = new SimpleDoubleProperty(10.0);  // discount
 
-// 最终价格 = (basePrice - discount) * (1 + taxRate)
+// Final price = (basePrice - discount) * (1 + taxRate)
 NumberBinding finalPrice = basePrice
     .subtract(discount)
     .multiply(taxRate.add(1.0));
@@ -293,42 +293,42 @@ NumberBinding finalPrice = basePrice
 System.out.println(finalPrice.doubleValue());  // (100-10) * 1.08 = 97.2
 ```
 
-### 5.3 数值比较绑定
+### 5.3 Numeric Comparison Binding
 
 ```java
 IntegerProperty stock = new SimpleIntegerProperty(5);
 IntegerProperty threshold = new SimpleIntegerProperty(10);
 
-// 库存是否低于阈值
+// Whether stock is below threshold
 BooleanBinding lowStock = stock.lessThan(threshold);
 warningLabel.visibleProperty().bind(lowStock);
 ```
 
-### 5.4 条件绑定（when/then/otherwise）
+### 5.4 Conditional Binding (when/then/otherwise)
 
 ```java
 IntegerProperty score = new SimpleIntegerProperty(75);
 
-// 根据分数返回及格/不及格文字
+// Return pass/fail text based on score
 StringBinding result = Bindings.when(score.greaterThanOrEqualTo(60))
-    .then("及格")
-    .otherwise("不及格");
+    .then("Pass")
+    .otherwise("Fail");
 ```
 
 ---
 
-## 六、ObservableList 与 ListChangeListener
+## 6. ObservableList and ListChangeListener
 
-`ObservableList` 是可观察的列表，任何增删改操作都会通知监听器。
+`ObservableList` is an observable list, any add/remove/update operation notifies listeners.
 
-### 6.1 创建与基本操作
+### 6.1 Creation and Basic Operations
 
 ```java
 ObservableList<String> names = FXCollections.observableArrayList();
 names.add("Alice");
 names.addAll("Bob", "Charlie");
 names.remove("Bob");
-names.set(0, "Alicia");  // 替换
+names.set(0, "Alicia");  // replace
 ```
 
 ### 6.2 ListChangeListener
@@ -337,27 +337,27 @@ names.set(0, "Alicia");  // 替换
 names.addListener((ListChangeListener<String>) change -> {
     while (change.next()) {
         if (change.wasAdded()) {
-            System.out.println("添加: " + change.getAddedSubList());
+            System.out.println("Added: " + change.getAddedSubList());
         }
         if (change.wasRemoved()) {
-            System.out.println("移除: " + change.getRemoved());
+            System.out.println("Removed: " + change.getRemoved());
         }
         if (change.wasUpdated()) {
-            System.out.println("更新: 索引 " + change.getFrom() + " 到 " + change.getTo());
+            System.out.println("Updated: index " + change.getFrom() + " to " + change.getTo());
         }
         if (change.wasReplaced()) {
-            System.out.println("替换操作");
+            System.out.println("Replace operation");
         }
     }
 });
 ```
 
-### 6.3 使用 extractors 自动观察元素属性
+### 6.3 Using Extractors to Automatically Observe Element Properties
 
-默认情况下，ObservableList 仅监听列表结构变化（增删）。若需监听元素内部属性变化，需使用 extractor：
+By default, ObservableList only listens to list structural changes (add/remove). To listen to internal property changes of elements, you need to use an extractor:
 
 ```java
-// 当 Task 的 title 或 completed 属性变化时也触发列表更新事件
+// Also triggers list update events when Task's title or completed property changes
 ObservableList<Task> tasks = FXCollections.observableArrayList(
     task -> new Observable[]{ task.titleProperty(), task.completedProperty() }
 );
@@ -365,46 +365,46 @@ ObservableList<Task> tasks = FXCollections.observableArrayList(
 tasks.addListener((ListChangeListener<Task>) c -> {
     while (c.next()) {
         if (c.wasUpdated()) {
-            System.out.println("任务属性被修改: " + c.getList().subList(c.getFrom(), c.getTo()));
+            System.out.println("Task property modified: " + c.getList().subList(c.getFrom(), c.getTo()));
         }
     }
 });
 
-Task t = new Task("学习");
+Task t = new Task("Study");
 tasks.add(t);
-t.setCompleted(true);  // 触发 wasUpdated 事件
+t.setCompleted(true);  // triggers wasUpdated event
 ```
 
 ---
 
-## 七、ObservableMap 与 MapChangeListener
+## 7. ObservableMap and MapChangeListener
 
 ```java
 ObservableMap<String, Integer> scores = FXCollections.observableHashMap();
 
 scores.addListener((MapChangeListener<String, Integer>) change -> {
     if (change.wasAdded()) {
-        System.out.println("添加/更新键: " + change.getKey()
+        System.out.println("Added/Updated key: " + change.getKey()
             + " = " + change.getValueAdded());
     }
     if (change.wasRemoved()) {
-        System.out.println("移除键: " + change.getKey()
-            + " 旧值: " + change.getValueRemoved());
+        System.out.println("Removed key: " + change.getKey()
+            + " old value: " + change.getValueRemoved());
     }
 });
 
-scores.put("Math", 95);    // 触发 wasAdded
-scores.put("Math", 98);    // 触发 wasAdded + wasRemoved（更新）
-scores.remove("Math");     // 触发 wasRemoved
+scores.put("Math", 95);    // triggers wasAdded
+scores.put("Math", 98);    // triggers wasAdded + wasRemoved (update)
+scores.remove("Math");     // triggers wasRemoved
 ```
 
 ---
 
-## 八、TableView 数据绑定（FilteredList + SortedList）
+## 8. TableView Data Binding (FilteredList + SortedList)
 
-`FilteredList` 和 `SortedList` 是 TableView 实现搜索过滤与排序的标准模式。
+`FilteredList` and `SortedList` are the standard patterns for implementing search filtering and sorting in TableView.
 
-### 8.1 完整示例
+### 8.1 Complete Example
 
 ```java
 public class UserTableController implements Initializable {
@@ -415,15 +415,15 @@ public class UserTableController implements Initializable {
     @FXML private TextField searchField;
     @FXML private ComboBox<String> ageFilterCombo;
 
-    // 原始数据
+    // Original data
     private final ObservableList<User> masterData = FXCollections.observableArrayList();
 
-    // 过滤后的数据
+    // Filtered data
     private final FilteredList<User> filteredData = new FilteredList<>(masterData, p -> true);
 
     @Override
     public void initialize(URL location, ResourceBundle resources) {
-        // 加载初始数据
+        // Load initial data
         masterData.addAll(
             new User("Alice", 25),
             new User("Bob", 30),
@@ -431,20 +431,20 @@ public class UserTableController implements Initializable {
             new User("David", 35)
         );
 
-        // 排序后的数据（包装 FilteredList）
+        // Sorted data (wrapping FilteredList)
         SortedList<User> sortedData = new SortedList<>(filteredData);
         sortedData.comparatorProperty().bind(userTable.comparatorProperty());
 
-        // 绑定到 TableView
+        // Bind to TableView
         userTable.setItems(sortedData);
 
-        // 列映射
+        // Column mapping
         nameCol.setCellValueFactory(c -> c.getValue().nameProperty());
         ageCol.setCellValueFactory(c -> c.getValue().ageProperty().asObject());
 
-        // 搜索过滤：按姓名包含关键字
+        // Search filter: by name containing keyword
         searchField.textProperty().addListener((obs, oldVal, newVal) -> updateFilter());
-        ageFilterCombo.getItems().addAll("全部", "<30", ">=30");
+        ageFilterCombo.getItems().addAll("All", "<30", ">=30");
         ageFilterCombo.getSelectionModel().selectedItemProperty()
             .addListener((obs, oldVal, newVal) -> updateFilter());
     }
@@ -454,11 +454,11 @@ public class UserTableController implements Initializable {
         String ageFilter = ageFilterCombo.getValue();
 
         filteredData.setPredicate(user -> {
-            // 姓名过滤
+            // Name filter
             boolean nameMatch = keyword == null || keyword.isEmpty()
                 || user.getName().toLowerCase().contains(keyword.toLowerCase());
 
-            // 年龄过滤
+            // Age filter
             boolean ageMatch = true;
             if (">=30".equals(ageFilter)) {
                 ageMatch = user.getAge() >= 30;
@@ -472,27 +472,27 @@ public class UserTableController implements Initializable {
 }
 ```
 
-### 8.2 数据流
+### 8.2 Data Flow
 
 ```
 masterData (ObservableList)
-    ↓ 过滤
+    ↓ filter
 filteredData (FilteredList)
-    ↓ 排序
+    ↓ sort
 sortedData (SortedList)
-    ↓ 绑定
+    ↓ bind
 userTable (TableView)
 ```
 
-> 关键点：`SortedList` 的 comparator 绑定到 TableView 的 comparator，这样点击列头排序时自动生效。
+> Key point: `SortedList`'s comparator is bound to TableView's comparator, so clicking column headers to sort takes effect automatically.
 
 ---
 
-## 九、表单校验模式
+## 9. Form Validation Patterns
 
-利用绑定实现声明式表单校验。
+Use bindings to implement declarative form validation.
 
-### 9.1 校验绑定示例
+### 9.1 Validation Binding Example
 
 ```java
 public class RegistrationForm {
@@ -502,7 +502,7 @@ public class RegistrationForm {
     private final StringProperty password = new SimpleStringProperty();
     private final StringProperty confirmPassword = new SimpleStringProperty();
 
-    // 各字段校验结果
+    // Validation result for each field
     private final BooleanBinding usernameValid = Bindings.createBooleanBinding(
         () -> username.get() != null && username.get().matches("[a-zA-Z0-9_]{3,20}"),
         username
@@ -524,23 +524,23 @@ public class RegistrationForm {
         password, confirmPassword
     );
 
-    // 整体表单是否有效
+    // Whether the entire form is valid
     private final BooleanBinding formValid = usernameValid
         .and(emailValid)
         .and(passwordValid)
         .and(passwordsMatch);
 
-    // 错误提示
+    // Error messages
     private final StringBinding usernameError = Bindings.when(usernameValid)
-        .then("").otherwise("用户名需为3-20位字母数字下划线");
+        .then("").otherwise("Username must be 3-20 alphanumeric characters or underscores");
     private final StringBinding emailError = Bindings.when(emailValid)
-        .then("").otherwise("邮箱格式不正确");
+        .then("").otherwise("Invalid email format");
     private final StringBinding passwordError = Bindings.when(passwordValid)
-        .then("").otherwise("密码至少8位，含大写字母和数字");
+        .then("").otherwise("Password must be at least 8 characters, with uppercase letters and numbers");
     private final StringBinding confirmError = Bindings.when(passwordsMatch)
-        .then("").otherwise("两次密码不一致");
+        .then("").otherwise("Passwords do not match");
 
-    // 在 Controller 中绑定到 UI
+    // Bind to UI in Controller
     public void bindToUI(TextField userField, TextField emailField,
                          TextField passField, TextField confirmField,
                          Label userErrLabel, Label emailErrLabel,
@@ -556,13 +556,13 @@ public class RegistrationForm {
         passErrLabel.textProperty().bind(passwordError);
         confirmErrLabel.textProperty().bind(confirmError);
 
-        // 错误标签可见性
+        // Error label visibility
         userErrLabel.visibleProperty().bind(usernameValid.not());
         emailErrLabel.visibleProperty().bind(emailValid.not());
         passErrLabel.visibleProperty().bind(passwordValid.not());
         confirmErrLabel.visibleProperty().bind(passwordsMatch.not());
 
-        // 提交按钮启用状态
+        // Submit button enabled state
         submitButton.disableProperty().bind(formValid.not());
     }
 }
@@ -570,178 +570,178 @@ public class RegistrationForm {
 
 ---
 
-## 十、内存管理：解绑与监听器移除
+## 10. Memory Management: Unbinding and Listener Removal
 
-绑定和监听器会持有对象引用，若不及时清理会导致内存泄漏。
+Bindings and listeners hold object references, failing to clean them up in time leads to memory leaks.
 
-### 10.1 解除单向绑定
+### 10.1 Unbinding Unidirectional Binding
 
 ```java
 StringProperty target = new SimpleStringProperty();
 target.bind(source);
 
-// 解除绑定
+// Unbind
 target.unbind();
-// 解绑后 target 恢复可写，不再跟随 source
+// After unbinding, target becomes writable again, no longer follows source
 ```
 
-### 10.2 解除双向绑定
+### 10.2 Unbinding Bidirectional Binding
 
 ```java
 propA.bindBidirectional(propB);
-// 解除双向绑定
+// Unbind bidirectional binding
 propA.unbindBidirectional(propB);
 ```
 
-### 10.3 移除 ChangeListener / InvalidationListener
+### 10.3 Removing ChangeListener / InvalidationListener
 
 ```java
 ChangeListener<String> listener = (obs, oldVal, newVal) -> {
-    System.out.println("变化: " + oldVal + " -> " + newVal);
+    System.out.println("Changed: " + oldVal + " -> " + newVal);
 };
 
 nameProperty.addListener(listener);
 
-// 必须移除同一引用的监听器
+// Must remove the listener with the same reference
 nameProperty.removeListener(listener);
 ```
 
-> 注意：使用 Lambda 表达式添加监听器时，必须保存引用才能移除。匿名内部类同理。
+> Note: When adding listeners using Lambda expressions, you must save the reference to remove them. The same applies to anonymous inner classes.
 
-### 10.4 使用 WeakChangeListener 避免泄漏
+### 10.4 Using WeakChangeListener to Avoid Leaks
 
-当无法保证移除监听器时，使用弱引用监听器：
+When you cannot guarantee listener removal, use weak reference listeners:
 
 ```java
-// WeakChangeListener 不会阻止监听器对象被 GC 回收
+// WeakChangeListener does not prevent the listener object from being GC'd
 nameProperty.addListener(new WeakChangeListener<>((obs, oldVal, newVal) -> {
-    System.out.println("弱监听: " + newVal);
+    System.out.println("Weak listener: " + newVal);
 }));
 ```
 
-> 弱监听器适合监听器生命周期短于被监听属性的场景。但需注意：若监听器 Lambda 没有其他强引用，可能被过早回收。
+> Weak listeners are suitable for scenarios where the listener's lifecycle is shorter than the observed property. But note: if the listener Lambda has no other strong references, it may be collected prematurely.
 
-### 10.5 常见内存泄漏场景与对策
+### 10.5 Common Memory Leak Scenarios and Countermeasures
 
-| 场景                                   | 对策                                              |
-|----------------------------------------|---------------------------------------------------|
-| Controller 中添加监听器未移除          | 在 `@FXML` 标注的 `dispose()` 或卸载时移除        |
-| 短生命周期对象监听长生命周期属性       | 使用 `WeakChangeListener`                         |
-| 静态属性上的监听器                     | 应用关闭时显式移除                                |
-| 双向绑定未解除                         | 不再需要时调用 `unbindBidirectional()`            |
-| ObservableList 的 extractor 监听       | 列表清空或替换时注意元素监听器释放                |
+| Scenario                                                | Countermeasure                                              |
+|---------------------------------------------------------|-------------------------------------------------------------|
+| Listeners added in Controller not removed               | Remove in `@FXML`-annotated `dispose()` or on unload        |
+| Short-lived object listening to long-lived property     | Use `WeakChangeListener`                                    |
+| Listeners on static properties                          | Explicitly remove on application shutdown                   |
+| Bidirectional binding not unbound                       | Call `unbindBidirectional()` when no longer needed          |
+| ObservableList extractor listener                       | Be mindful of element listener release when clearing or replacing list |
 
 ---
 
-## 十一、JavaFX 21+ 订阅式监听器（Subscription-based Listeners）
+## 11. JavaFX 21+ Subscription-based Listeners
 
-JavaFX 21 引入了基于 `Subscription` 的监听器 API，提供更现代、更安全的资源管理方式，替代传统的 `addListener` / `removeListener` 模式。
+JavaFX 21 introduced a `Subscription`-based listener API, providing a more modern and safer resource management approach, replacing the traditional `addListener` / `removeListener` pattern.
 
-### 11.1 基本用法
+### 11.1 Basic Usage
 
 ```java
-// JavaFX 21+：subscribe 返回 Subscription
+// JavaFX 21+: subscribe returns a Subscription
 Subscription subscription = nameProperty.subscribe((obs, oldVal, newVal) -> {
-    System.out.println("名称变化: " + oldVal + " -> " + newVal);
+    System.out.println("Name changed: " + oldVal + " -> " + newVal);
 });
 
-// 不再需要时取消订阅
+// Unsubscribe when no longer needed
 subscription.unsubscribe();
-// 取消后监听器自动移除，且 unsubscribe() 是幂等的（可重复调用）
+// After unsubscribing, the listener is automatically removed, and unsubscribe() is idempotent (can be called repeatedly)
 ```
 
-### 11.2 ObservableValue 的订阅方法
+### 11.2 Subscription Methods of ObservableValue
 
 ```java
-// 订阅值变化（含旧值和新值）
+// Subscribe to value changes (with old and new values)
 Subscription sub1 = property.subscribe((observable, oldValue, newValue) -> {
-    System.out.println("变化: " + oldValue + " -> " + newValue);
+    System.out.println("Changed: " + oldValue + " -> " + newValue);
 });
 
-// 订阅仅新值
+// Subscribe to only the new value
 Subscription sub2 = property.subscribe(newValue -> {
-    System.out.println("新值: " + newValue);
+    System.out.println("New value: " + newValue);
 });
 
-// 订阅 invalidation（失效通知）
+// Subscribe to invalidation (invalidity notification)
 Subscription sub3 = property.subscribeInvalidations(observable -> {
-    System.out.println("属性已失效");
+    System.out.println("Property invalidated");
 });
 ```
 
-### 11.3 ObservableList 的订阅方法
+### 11.3 Subscription Methods of ObservableList
 
 ```java
 ObservableList<String> list = FXCollections.observableArrayList();
 
-// 订阅列表变化
+// Subscribe to list changes
 Subscription sub = list.subscribe(change -> {
     while (change.next()) {
         if (change.wasAdded()) {
-            System.out.println("添加: " + change.getAddedSubList());
+            System.out.println("Added: " + change.getAddedSubList());
         }
         if (change.wasRemoved()) {
-            System.out.println("移除: " + change.getRemoved());
+            System.out.println("Removed: " + change.getRemoved());
         }
     }
 });
 ```
 
-### 11.4 组合订阅管理
+### 11.4 Combined Subscription Management
 
-多个 Subscription 可合并管理：
+Multiple Subscriptions can be merged for management:
 
 ```java
 Subscription sub1 = propA.subscribe(...);
 Subscription sub2 = propB.subscribe(...);
 Subscription sub3 = list.subscribe(...);
 
-// 合并为一个 Subscription
+// Merge into a single Subscription
 Subscription combined = Subscription.combine(sub1, sub2, sub3);
 
-// 一次性取消所有
+// Unsubscribe all at once
 combined.unsubscribe();
 ```
 
-### 11.5 try-with-resources 模式
+### 11.5 try-with-resources Pattern
 
-`Subscription` 实现 `AutoCloseable`，支持 try-with-resources：
+`Subscription` implements `AutoCloseable`, supporting try-with-resources:
 
 ```java
 try (Subscription sub = property.subscribe(val -> update(val))) {
-    // 在此作用域内监听生效
+    // Listener is active within this scope
     doWork();
-} // 自动 unsubscribe
+} // automatically unsubscribes
 ```
 
-### 11.6 传统 API 与 Subscription API 对比
+### 11.6 Traditional API vs Subscription API Comparison
 
-| 特性            | addListener / removeListener          | subscribe (Subscription)              |
-|-----------------|---------------------------------------|----------------------------------------|
-| 移除方式        | 需保存监听器引用手动 remove           | 调用 `subscription.unsubscribe()`      |
-| 幂等性          | 重复 remove 无害但需注意引用一致性    | `unsubscribe()` 幂等，可安全多次调用   |
-| 组合管理        | 需手动逐个移除                        | `Subscription.combine()` 一键管理      |
-| 资源安全        | 易遗漏 remove 导致泄漏                | 配合 try-with-resources 更安全         |
-| 可用版本        | 所有 JavaFX 版本                      | JavaFX 21+                             |
+| Feature        | addListener / removeListener              | subscribe (Subscription)                |
+|----------------|-------------------------------------------|-----------------------------------------|
+| Removal method | Need to save listener reference, manual remove | Call `subscription.unsubscribe()`       |
+| Idempotency    | Repeated remove is harmless but watch for reference consistency | `unsubscribe()` is idempotent, safe to call multiple times |
+| Combined management | Need to remove one by one manually   | `Subscription.combine()` for one-click management |
+| Resource safety | Easy to forget remove, causing leaks    | Safer with try-with-resources           |
+| Available version | All JavaFX versions                    | JavaFX 21+                              |
 
-### 11.7 迁移建议
+### 11.7 Migration Recommendations
 
-- 新项目（JavaFX 21+）优先使用 `subscribe` API。
-- 需兼容 JavaFX 17 的项目继续使用 `addListener`，但务必配套 `removeListener`。
-- 混合使用时保持一致性，同一模块内统一风格。
+- New projects (JavaFX 21+) should prefer the `subscribe` API.
+- Projects needing JavaFX 17 compatibility should continue using `addListener`, but must pair it with `removeListener`.
+- When mixing, maintain consistency, use a unified style within the same module.
 
 ---
 
-## 十二、绑定模式最佳实践总结
+## 12. Summary of Binding Pattern Best Practices
 
-| 实践                              | 说明                                                       |
-|-----------------------------------|------------------------------------------------------------|
-| 优先使用声明式绑定                | 用 `bind()` / `Bindings.createXxxBinding()` 代替手动监听刷新 |
-| 区分单向与双向                    | 仅展示用单向，表单输入用双向                                |
-| 计算属性用 createXxxBinding        | 避免在监听器中手动计算，用绑定声明依赖关系                  |
-| 数值运算用 NumberBinding           | 链式算术绑定清晰表达计算逻辑                                |
-| TableView 用 FilteredList+SortedList | 标准过滤排序模式，避免手动操作列表                        |
-| 表单校验用 BooleanBinding 组合     | 声明式校验，自动驱动 UI 状态                                |
-| 及时解绑与移除监听器              | 防止内存泄漏，JavaFX 21+ 优先用 Subscription               |
-| 使用 extractor 观察元素属性        | ObservableList 需 extractor 才能监听元素内部变化            |
-| 只读属性用 ReadOnlyXxxWrapper      | 保护内部状态，仅暴露只读视图                                |
+| Practice                               | Description                                                       |
+|----------------------------------------|-------------------------------------------------------------------|
+| Prefer declarative binding             | Use `bind()` / `Bindings.createXxxBinding()` instead of manual listener refresh |
+| Distinguish unidirectional vs bidirectional | Use unidirectional for display only, bidirectional for form input |
+| Use createXxxBinding for computed properties | Avoid manual computation in listeners, declare dependencies with bindings |
+| Use NumberBinding for numeric operations | Chained arithmetic bindings clearly express computation logic   |
+| Use FilteredList+SortedList for TableView | Standard filtering and sorting pattern, avoid manual list manipulation |
+| Use BooleanBinding composition for form validation | Declarative validation, automatically drives UI state |
+| Unbind and remove listeners in time    | Prevent memory leaks, prefer Subscription in JavaFX 21+          |
+| Use extractor to observe element properties | ObservableList needs extractor to listen to internal element changes |
+| Use ReadOnlyXxxWrapper for read-only properties | Protect internal state, only expose read-only view       |
