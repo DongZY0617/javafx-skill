@@ -1,6 +1,9 @@
 package {{packageName}}.viewmodel;
 
-import javafx.beans.property.*;
+import javafx.beans.property.BooleanProperty;
+import javafx.beans.property.SimpleBooleanProperty;
+import javafx.beans.property.SimpleStringProperty;
+import javafx.beans.property.StringProperty;
 import {{packageName}}.model.ObservableModel;
 
 /**

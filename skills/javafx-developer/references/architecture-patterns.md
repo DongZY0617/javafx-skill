@@ -336,11 +336,15 @@ View (FXML + 瘦Controller) ←双向绑定→ ViewModel (Property/Command)
 
 ### 选择建议
 
+### 3.1 MVC 与 MVVM 的选择建议
+
 - **小型应用 / 工具类**：使用 MVC，快速直接。
 - **中大型应用 / 需要单元测试**：使用 MVVM，ViewModel 可独立测试。
 - **混合使用**：简单页面用 MVC，复杂页面用 MVVM，两者可在同一项目中共存。
 
-### 3.1 MVP 模式（Model-View-Presenter）
+---
+
+## 四、MVP 模式（Model-View-Presenter）
 
 MVP（Model-View-Presenter）是介于 MVC 与 MVVM 之间的架构模式。它将 UI 逻辑完全从 View 中抽离到 Presenter，但不像 MVVM 那样依赖数据绑定，View 与 Presenter 之间通过接口显式交互。
 
@@ -407,9 +411,9 @@ public class TaskController implements TaskView {
 
 ---
 
-## 四、需避免的反模式（Anti-patterns）
+## 五、需避免的反模式（Anti-patterns）
 
-### 4.1 胖控制器（Fat Controller）
+### 5.1 胖控制器（Fat Controller）
 
 **问题**：Controller 中堆积大量业务逻辑、数据访问、校验代码，导致难以维护和测试。
 
@@ -439,7 +443,7 @@ private void handleLogin() {
 }
 ```
 
-### 4.2 FXML 中嵌入业务逻辑
+### 5.2 FXML 中嵌入业务逻辑
 
 **问题**：在 FXML 的 `onAction` 中通过脚本（如 JavaScript）编写逻辑，或在 FXML Controller 中通过复杂内联表达式处理业务。
 
@@ -455,7 +459,7 @@ private void handleLogin() {
 
 FXML 应保持纯声明式，所有逻辑放到 Controller 或 ViewModel 中。
 
-### 4.3 紧耦合（Tight Coupling）
+### 5.3 紧耦合（Tight Coupling）
 
 **问题**：Controller 直接 `new` 具体依赖类，导致无法替换和测试。
 
@@ -480,7 +484,7 @@ public class OrderController {
 }
 ```
 
-### 4.4 其他常见反模式
+### 5.4 其他常见反模式
 
 | 反模式                     | 说明与改进                                                         |
 |----------------------------|--------------------------------------------------------------------|
@@ -491,18 +495,18 @@ public class OrderController {
 
 ---
 
-## 五、服务层设计（Service Layer）
+## 六、服务层设计（Service Layer）
 
 服务层封装业务逻辑与数据访问，作为 Controller/ViewModel 与数据层之间的中间层，保持 UI 层的简洁与可测试性。
 
-### 5.1 服务层职责
+### 6.1 服务层职责
 
 - 封装业务规则与事务边界。
 - 协调多个 Repository / DAO。
 - 提供 UI 无关的 API，返回领域对象。
 - 处理异常并转换为业务语义。
 
-### 5.2 服务层实现示例
+### 6.2 服务层实现示例
 
 ```java
 package com.example.service;
@@ -547,7 +551,7 @@ public class TaskService {
 }
 ```
 
-### 5.3 异步服务调用
+### 6.3 异步服务调用
 
 耗时服务调用应在后台线程执行，避免阻塞 UI 线程：
 
@@ -573,11 +577,11 @@ private void handleLoadTasks() {
 
 ---
 
-## 六、依赖注入（Dependency Injection）
+## 七、依赖注入（Dependency Injection）
 
 依赖注入用于解耦组件之间的依赖关系，便于测试和替换实现。JavaFX 中有三种常见方案。
 
-### 6.1 手动依赖注入
+### 7.1 手动依赖注入
 
 适用于小型项目，通过工厂或构造方法手动传递依赖。
 
@@ -597,7 +601,7 @@ loader.setControllerFactory(c -> AppFactory.createMainController());
 Parent root = loader.load();
 ```
 
-### 6.2 Guice 依赖注入
+### 7.2 Guice 依赖注入
 
 Google Guice 是轻量级 DI 框架，适合中小型 JavaFX 项目。
 
@@ -666,7 +670,7 @@ public class MainController implements Initializable {
 
 > 注意：使用 Guice 时，`module-info.java` 需 `opens` Controller 包给 Guice 模块以支持反射。
 
-### 6.3 Spring Framework 依赖注入
+### 7.3 Spring Framework 依赖注入
 
 Spring Boot 可与 JavaFX 结合，适合已有 Spring 生态的项目。
 
@@ -742,7 +746,7 @@ public class MainController implements Initializable {
 }
 ```
 
-### 6.4 三种 DI 方案对比
+### 7.4 三种 DI 方案对比
 
 | 方案   | 复杂度 | 适用场景                       | 优点                     | 缺点                     |
 |--------|--------|--------------------------------|--------------------------|--------------------------|
@@ -752,11 +756,11 @@ public class MainController implements Initializable {
 
 ---
 
-## 七、事件总线模式（Event Bus）
+## 八、事件总线模式（Event Bus）
 
 事件总线用于实现组件间的松耦合通信，特别适合多个不直接关联的模块需要响应同一事件的场景（如：用户登录后刷新多个视图）。
 
-### 7.1 简单事件总线实现
+### 8.1 简单事件总线实现
 
 ```java
 package com.example.eventbus;
@@ -809,7 +813,7 @@ public class EventBus {
 }
 ```
 
-### 7.2 定义事件
+### 8.2 定义事件
 
 ```java
 package com.example.event;
@@ -824,7 +828,7 @@ public record TaskCompletedEvent(Long taskId) {}
 public record DataRefreshEvent(String source) {}
 ```
 
-### 7.3 使用示例
+### 8.3 使用示例
 
 ```java
 public class HeaderController implements Initializable {
@@ -860,14 +864,14 @@ public class SidebarController implements Initializable {
 }
 ```
 
-### 7.4 事件总线使用注意事项
+### 8.4 事件总线使用注意事项
 
 1. **及时注销监听器**：Controller 销毁时调用 `unsubscribe`，防止内存泄漏。
 2. **线程安全**：上述实现使用 `CopyOnWriteArrayList` 保证并发安全；若事件处理涉及 UI 更新，应使用 `Platform.runLater()` 切换到 UI 线程。
 3. **避免循环事件**：事件处理中发布新事件可能导致无限循环，需谨慎设计。
 4. **成熟方案**：生产环境可考虑使用 Google Guava 的 `EventBus` 或 Apache DeltaSpike 的事件机制。
 
-### 7.5 Guava EventBus 集成示例
+### 8.5 Guava EventBus 集成示例
 
 ```xml
 <dependency>
@@ -899,7 +903,7 @@ eventBus.post(new UserLoggedInEvent("admin", System.currentTimeMillis()));
 
 ---
 
-## 八、架构模式选择决策树
+## 九、架构模式选择决策树
 
 ```
 应用规模？
