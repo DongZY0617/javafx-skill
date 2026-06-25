@@ -28,27 +28,44 @@ npx skills add https://github.com/YOUR_USERNAME/javafx-skill --skill javafx-deve
 ```
 javafx-skill/
 ├── README.md
+├── README.zh-CN.md
 ├── LICENSE
 ├── .gitignore
 └── skills/
-    └── javafx-developer/
-        ├── SKILL.md                          # Skill entry point with metadata
-        ├── references/                       # In-depth reference docs
-        │   ├── architecture-patterns.md      # MVC/MVVM patterns
-        │   ├── css-best-practices.md         # CSS theming guide
-        │   ├── data-binding-patterns.md      # Property binding guide
-        │   ├── packaging-deployment.md       # jpackage/jlink guide
-        │   ├── project-setup.md             # Maven/Gradle setup
-        │   ├── spring-boot-integration.md    # Spring Boot + JavaFX guide
-        │   └── third-party-libraries.md      # Library integration
-        └── templates/                        # Reusable code templates
-            ├── controller/                   # Controller templates
-            ├── css/                          # Light/dark theme CSS
-            ├── fxml/                         # FXML layout templates
-            ├── gradle/                       # Gradle build template
-            ├── maven/                        # Maven POM + module-info
-            ├── model/                        # Observable model template
-            └── packaging/                    # jpackage config
+    ├── javafx-developer/                  # Chinese version (中文版)
+    │   ├── SKILL.md                          # Skill entry point (Chinese)
+    │   ├── references/                       # In-depth reference docs
+    │   │   ├── architecture-patterns.md      # MVC/MVVM patterns
+    │   │   ├── css-best-practices.md         # CSS theming guide
+    │   │   ├── data-binding-patterns.md      # Property binding guide
+    │   │   ├── packaging-deployment.md       # jpackage/jlink guide
+    │   │   ├── project-setup.md             # Maven/Gradle setup
+    │   │   ├── spring-boot-integration.md    # Spring Boot + JavaFX guide
+    │   │   └── third-party-libraries.md      # Library integration
+    │   └── templates/                        # Reusable code templates
+    │       ├── controller/                   # Controller templates
+    │       ├── css/                          # Light/dark theme CSS
+    │       ├── fxml/                         # FXML layout templates
+    │       ├── gradle/                       # Gradle build template
+    │       ├── maven/                        # Maven POM + module-info
+    │       ├── model/                        # Observable model template
+    │       └── packaging/                    # jpackage config
+    └── javafx-developer-en/               # English version
+        ├── SKILL.md                          # Skill entry point (English)
+        ├── references/                       # Shared reference docs
+        └── templates/                        # Shared code templates
+```
+
+## Installation
+
+### Chinese version (中文版)
+```bash
+npx skills add https://github.com/DongZY0617/javafx-skill --skill javafx-developer
+```
+
+### English version
+```bash
+npx skills add https://github.com/DongZY0617/javafx-skill --skill javafx-developer-en
 ```
 
 ## Technology Stack
