@@ -73,7 +73,7 @@
 - 保存按钮的 `disableProperty` 绑定到验证 Binding
 
 **验证标准**：
-- [ ] 对话框 Controller 可通过 `getResult()` 获取用户输入
+- [ ] 对话框 Controller 可通过 `getName()`/`getDescription()` 获取用户输入
 - [ ] 验证逻辑使用 `Bindings.createBooleanBinding()` 或 `isEmpty().or()` 组合
 - [ ] 使用 JavaFX 原生 `Alert` 或 `Dialog`（不使用 ControlsFX 旧 `Dialogs.create()` API）
 - [ ] 对话框关闭后资源正确释放

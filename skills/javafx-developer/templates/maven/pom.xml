@@ -15,8 +15,6 @@
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
-        <maven.compiler.source>{{jdkVersion}}</maven.compiler.source>
-        <maven.compiler.target>{{jdkVersion}}</maven.compiler.target>
         <javafx.version>{{javafxVersion}}</javafx.version>
         <main.class>{{mainClass}}</main.class>
     </properties>

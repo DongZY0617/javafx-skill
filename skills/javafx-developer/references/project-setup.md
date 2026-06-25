@@ -342,7 +342,7 @@ JavaFX 的 `javafx.graphics` 模块包含平台相关的本地二进制库，因
 <dependency>
     <groupId>org.openjfx</groupId>
     <artifactId>javafx-graphics</artifactId>
-    <version>21.0.4</version>
+    <version>21.0.11</version>
     <classifier>linux</classifier>
 </dependency>
 ```
