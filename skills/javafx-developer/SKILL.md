@@ -34,7 +34,7 @@ description: |
 | 21.x | JDK 17 | **是** | 保守稳定方案 |
 | 17.x | JDK 11 | 是（至 2026.10） | 遗留系统维护 |
 
-**默认推荐**：JavaFX 21（LTS，JDK 17+），除非用户另有要求。
+**默认推荐**：新项目首选 JavaFX 25 LTS（JDK 23+），保守方案选 JavaFX 21 LTS（JDK 17+），除非用户另有要求。
 
 ### 构建工具
 - **Maven**（默认）：`javafx-maven-plugin` 0.0.8
@@ -351,11 +351,11 @@ public class UserController implements Initializable {
 
 | 库 | 用途 | Maven 坐标 |
 |----|------|-----------|
-| ControlsFX | 对话框、通知、验证 | `org.controlsfx:controlsfx:11.2.0` |
+| ControlsFX | 对话框、通知、验证 | `org.controlsfx:controlsfx:11.2.1` |
 | MaterialFX | Material Design 控件 | `io.github.palexdev:materialfx:11.17.0` |
-| RichTextFX | 富文本编辑器、代码高亮 | `org.fxmisc.richtext:richtextfx:0.11.2` |
+| RichTextFX | 富文本编辑器、代码高亮 | `org.fxmisc.richtext:richtextfx:0.11.5` |
 | Ikonli | 字体图标（FontAwesome、Material） | `org.kordamp.ikonli:ikonli-javafx:12.3.1` |
-| ValidatorFX | 表单验证框架 | `net.synedra:validatorfx:1.0.2` |
+| ValidatorFX | 表单验证框架 | `net.synedra:validatorfx:0.4.0` |
 | TestFX | UI 自动化测试 | `org.testfx:testfx-junit5:4.0.18` |
 
 详细集成指南见 `references/third-party-libraries.md`。
@@ -470,6 +470,7 @@ mvn javafx:run
 - `references/data-binding-patterns.md` — Property 类型、绑定模式、表单验证
 - `references/third-party-libraries.md` — 库集成指南、兼容性矩阵
 - `references/packaging-deployment.md` — jpackage、jlink、CI/CD 集成
+- `EVALUATE.md` — 评估用例集，用于量化技能输出质量
 
 ## 模板库
 
@@ -482,7 +483,10 @@ mvn javafx:run
 - `templates/fxml/dialog.fxml` — 对话框 FXML 模板
 - `templates/controller/MainController.java` — Controller 模板
 - `templates/controller/BaseController.java` — 基类 Controller 模板
+- `templates/controller/DialogController.java` — 对话框 Controller 模板
 - `templates/model/ObservableModel.java` — Model 模板
+- `templates/viewmodel/UserViewModel.java` — ViewModel 模板（MVVM 模式）
+- `templates/service/Service.java` — Service 层模板
 - `templates/css/light-theme.css` — 亮色主题 CSS
 - `templates/css/dark-theme.css` — 暗色主题 CSS
 - `templates/packaging/jpackage-config.properties` — 打包配置

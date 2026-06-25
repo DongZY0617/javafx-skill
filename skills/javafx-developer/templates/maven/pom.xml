@@ -5,31 +5,31 @@
                              http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>${groupId}</groupId>
-    <artifactId>${artifactId}</artifactId>
-    <version>${version}</version>
+    <groupId>{{groupId}}</groupId>
+    <artifactId>{{artifactId}}</artifactId>
+    <version>{{version}}</version>
     <packaging>jar</packaging>
 
-    <name>${artifactId}</name>
+    <name>{{artifactId}}</name>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
-        <maven.compiler.source>${jdkVersion}</maven.compiler.source>
-        <maven.compiler.target>${jdkVersion}</maven.compiler.target>
-        <javafx.version>${javafxVersion}</javafx.version>
-        <main.class>${mainClass}</main.class>
+        <maven.compiler.source>{{jdkVersion}}</maven.compiler.source>
+        <maven.compiler.target>{{jdkVersion}}</maven.compiler.target>
+        <javafx.version>{{javafxVersion}}</javafx.version>
+        <main.class>{{mainClass}}</main.class>
     </properties>
 
     <dependencies>
-        <!-- JavaFX Controls -->
+        <!-- JavaFX 控件模块 -->
         <dependency>
             <groupId>org.openjfx</groupId>
             <artifactId>javafx-controls</artifactId>
             <version>${javafx.version}</version>
         </dependency>
 
-        <!-- JavaFX FXML -->
+        <!-- JavaFX FXML 模块 -->
         <dependency>
             <groupId>org.openjfx</groupId>
             <artifactId>javafx-fxml</artifactId>
@@ -38,27 +38,31 @@
     </dependencies>
 
     <build>
-        <finalName>${artifactId}-${version}</finalName>
+        <finalName>{{artifactId}}-{{version}}</finalName>
         <plugins>
-            <!-- Maven Compiler Plugin -->
+            <!-- Maven 编译插件 -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.11.0</version>
+                <version>3.13.0</version>
                 <configuration>
-                    <source>${jdkVersion}</source>
-                    <target>${jdkVersion}</target>
+                    <!-- 使用 release 统一编译目标版本（替代 source/target） -->
+                    <release>{{jdkVersion}}</release>
                     <encoding>UTF-8</encoding>
                 </configuration>
             </plugin>
 
-            <!-- JavaFX Maven Plugin -->
+            <!-- JavaFX Maven 插件（运行与调试） -->
             <plugin>
                 <groupId>org.openjfx</groupId>
                 <artifactId>javafx-maven-plugin</artifactId>
                 <version>0.0.8</version>
                 <configuration>
-                    <mainClass>${mainClass}</mainClass>
+                    <mainClass>{{mainClass}}</mainClass>
+                    <options>
+                        <!-- 启用对本机访问的支持：JavaFX 21 无害，JavaFX 24+ 必需 -->
+                        <option>--enable-native-access=javafx.graphics</option>
+                    </options>
                 </configuration>
             </plugin>
         </plugins>

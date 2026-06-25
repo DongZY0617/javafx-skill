@@ -1,4 +1,4 @@
-package ${packageName}.model;
+package {{packageName}}.model;
 
 import java.time.LocalDateTime;
 import java.util.Objects;
@@ -9,10 +9,10 @@ import javafx.beans.property.SimpleStringProperty;
 import javafx.beans.property.StringProperty;
 
 /**
- * Generic observable model providing standard JavaFX property support.
+ * 通用可观察模型，提供标准的 JavaFX 属性支持。
  * <p>
- * Uses {@link StringProperty} for the name and {@link ObjectProperty} for
- * the creation timestamp, enabling automatic UI binding and change tracking.
+ * 名称使用 {@link StringProperty}，创建时间使用 {@link ObjectProperty}，
+ * 从而支持自动的 UI 绑定与变更跟踪。
  * </p>
  */
 public class ObservableModel {
@@ -22,16 +22,16 @@ public class ObservableModel {
             new SimpleObjectProperty<>(this, "createdAt");
 
     /**
-     * Creates a new model with a default name and the current timestamp.
+     * 创建一个使用默认名称与当前时间戳的新模型。
      */
     public ObservableModel() {
         this.createdAt.set(LocalDateTime.now());
     }
 
     /**
-     * Creates a new model with the given name and the current timestamp.
+     * 创建一个使用给定名称与当前时间戳的新模型。
      *
-     * @param name the initial name
+     * @param name 初始名称
      */
     public ObservableModel(String name) {
         this();
@@ -39,46 +39,46 @@ public class ObservableModel {
     }
 
     /**
-     * @return the name property
+     * @return 名称属性
      */
     public final StringProperty nameProperty() {
         return name;
     }
 
     /**
-     * @return the current name value
+     * @return 当前名称值
      */
     public final String getName() {
         return name.get();
     }
 
     /**
-     * Sets the name value.
+     * 设置名称值。
      *
-     * @param name the new name
+     * @param name 新名称
      */
     public final void setName(String name) {
         this.name.set(name);
     }
 
     /**
-     * @return the creation timestamp property
+     * @return 创建时间属性
      */
     public final ObjectProperty<LocalDateTime> createdAtProperty() {
         return createdAt;
     }
 
     /**
-     * @return the creation timestamp value
+     * @return 创建时间值
      */
     public final LocalDateTime getCreatedAt() {
         return createdAt.get();
     }
 
     /**
-     * Sets the creation timestamp.
+     * 设置创建时间。
      *
-     * @param createdAt the new creation timestamp
+     * @param createdAt 新的创建时间
      */
     public final void setCreatedAt(LocalDateTime createdAt) {
         this.createdAt.set(createdAt);

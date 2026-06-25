@@ -185,6 +185,45 @@ dateField.textProperty().bindBidirectional(date, new StringConverter<>() {
 });
 ```
 
+### 3.4 内容绑定（Content Binding）
+
+内容绑定用于同步两个 `ObservableList` / `ObservableMap` / `ObservableSet` 的**内容**，而非把一个属性绑定到另一个属性。它通过 `bindContent()`（单向）和 `bindContentBidirectional()`（双向）实现，常用于多个视图共享同一数据源或主从列表同步。
+
+> 注意：内容绑定作用于集合本身，调用方必须是 `ListProperty` / `MapProperty` 等（通过 `SimpleListProperty` 包装），普通 `ObservableList` 不直接支持 `bindContent`。
+
+```java
+ObservableList<String> sourceList = FXCollections.observableArrayList("A", "B", "C");
+ListProperty<String> targetList = new SimpleListProperty<>(FXCollections.observableArrayList());
+
+// 单向内容绑定：源列表变化同步到目标列表（目标变为只读）
+targetList.bindContent(sourceList);
+
+sourceList.add("D");
+System.out.println(targetList.get());  // [A, B, C, D]
+```
+
+```java
+ListProperty<String> list1 = new SimpleListProperty<>(FXCollections.observableArrayList("1", "2"));
+ListProperty<String> list2 = new SimpleListProperty<>(FXCollections.observableArrayList());
+
+// 双向内容绑定：两个列表双向同步
+list1.bindContentBidirectional(list2);
+
+list2.add("3");
+System.out.println(list1.get());  // [1, 2, 3]
+
+list1.remove("1");
+System.out.println(list2.get());  // [2, 3]
+```
+
+**适用场景**
+
+- **多视图共享同一数据源**：主数据列表与多个子视图的局部列表保持同步，任一视图修改数据后其他视图自动更新。
+- **主从列表同步**：主表选中项驱动的明细列表与缓存列表双向绑定，避免手动复制元素。
+- **聚合视图**：将多个来源列表的内容汇聚到一个展示列表。
+
+> 与普通属性绑定的区别：`bindContent` 同步的是集合元素，源列表增删元素会反映到目标；但若源列表元素自身属性变化，需配合 extractor 才能触发更新。
+
 ---
 
 ## 四、计算绑定（Computed Bindings）
@@ -249,7 +288,15 @@ ObjectBinding<String> selectedName = Bindings.createObjectBinding(
 ```java
 // 访问嵌套对象的属性
 ObjectProperty<Person> person = new SimpleObjectProperty<>(new Person("Alice"));
-StringBinding name = person.select(p -> p.nameProperty());
+
+// 方式1：Bindings.select（字符串方式，已过时但可用）
+StringBinding name1 = Bindings.selectString(person, "name");
+
+// 方式2（推荐）：createStringBinding + null 安全
+StringBinding name2 = Bindings.createStringBinding(
+    () -> person.get() == null ? "" : person.get().getName(),
+    person
+);
 // 当 person 或 person.name 变化时自动更新
 ```
 
@@ -625,11 +672,79 @@ nameProperty.addListener(new WeakChangeListener<>((obs, oldVal, newVal) -> {
 
 | 场景                                   | 对策                                              |
 |----------------------------------------|---------------------------------------------------|
-| Controller 中添加监听器未移除          | 在 `@FXML` 标注的 `dispose()` 或卸载时移除        |
+| Controller 中添加监听器未移除          | 在自定义 `dispose()` 方法中移除监听器，并通过 `stage.setOnCloseRequest()` 或视图切换回调手动触发 |
 | 短生命周期对象监听长生命周期属性       | 使用 `WeakChangeListener`                         |
 | 静态属性上的监听器                     | 应用关闭时显式移除                                |
 | 双向绑定未解除                         | 不再需要时调用 `unbindBidirectional()`            |
 | ObservableList 的 extractor 监听       | 列表清空或替换时注意元素监听器释放                |
+
+### 10.6 绑定链内存泄漏专题
+
+绑定链（binding chain）是指多个 Binding/Property 相互依赖形成的引用链。一旦链中某个节点无法被 GC，整条链及其依赖的 UI 控件都可能无法回收，是 JavaFX 内存泄漏的高发区。
+
+**1. `Bindings.createXxxBinding()` 的强引用问题**
+
+`Bindings.createStringBinding(...)` 等工厂方法返回的 Binding 对象会**强引用**传入的依赖属性（用于注册监听并计算值）。如果该 Binding 被绑定到某个长生命周期属性（如静态属性、单例 ViewModel 的字段），那么所有依赖属性都会被间接持有而无法回收。
+
+```java
+// ❌ 危险：binding 被长生命周期属性持有，依赖的 sourceA/sourceB 也无法释放
+staticProperty.bind(Bindings.createStringBinding(
+    () -> sourceA.get() + sourceB.get(),
+    sourceA, sourceB
+));
+// 解绑时必须显式 unbind，否则 binding 仍持有 sourceA/sourceB
+staticProperty.unbind();
+```
+
+对策：长生命周期目标上的临时 Binding，使用完毕后及时 `unbind()`；或改用 `WeakReference` 包装依赖。
+
+**2. `ObjectProperty<UI控件>` 之间的绑定链导致 UI 子树无法 GC**
+
+当多个 `ObjectProperty<Node>` 通过 `bind()` 形成链路时，目标属性持有 Binding，Binding 持有源属性，源属性又可能持有 UI 控件。一旦链路中某个 Property 被长生命周期对象引用，整条 UI 子树都无法被 GC 回收，即使该子树已从场景图中移除。
+
+```java
+// ❌ 反模式：动态创建的子节点属性绑定到长生命周期的父属性
+parentProperty.bind(childProperty);
+// child 从 Scene 移除后，若 parentProperty 仍存活且未解绑，child 整棵子树无法回收
+```
+
+对策：动态 UI 子树从场景图移除时，务必调用 `unbind()` / `unbindBidirectional()` 断开与长生命周期属性的连接。
+
+**3. `TableView` / `ListView` cellFactory 中的监听器清理**
+
+`cellFactory` 在 cell 复用时会被反复调用 `updateItem()`。如果在 `updateItem()` 中为 cell 内部控件添加监听器却不清理，每次复用都会累积一层监听器，导致 cell 持有的旧数据对象无法释放，并造成重复触发。
+
+```java
+// ❌ 反模式：每次 updateItem 都新增监听器，从不移除
+@Override
+protected void updateItem(Task task, boolean empty) {
+    super.updateItem(task, empty);
+    if (empty || task == null) { return; }
+    task.titleProperty().addListener((obs, o, n) -> setText(n));  // 复用 N 次后累积 N 个监听器
+}
+
+// ✅ 正确做法：在 empty/旧数据分支中移除旧监听器，或使用 WeakChangeListener
+private Task previousTask;
+private ChangeListener<String> titleListener;
+@Override
+protected void updateItem(Task task, boolean empty) {
+    super.updateItem(task, empty);
+    if (titleListener != null && previousTask != null) {
+        previousTask.titleProperty().removeListener(titleListener);  // 清理上一个 cell 数据的监听器
+        titleListener = null;
+    }
+    if (empty || task == null) {
+        setText(null);
+    } else {
+        setText(task.getTitle());
+        titleListener = (obs, o, n) -> setText(n);
+        task.titleProperty().addListener(titleListener);
+        previousTask = task;
+    }
+}
+```
+
+> 最佳实践：cellFactory 中优先使用 **数据绑定**（`textProperty().bind(task.titleProperty())`）并在 `updateItem` 的 empty 分支 `unbind()`，而非手动 `addListener`，可从根源避免监听器累积。
 
 ---
 
@@ -664,7 +779,7 @@ Subscription sub2 = property.subscribe(newValue -> {
 });
 
 // 订阅 invalidation（失效通知）
-Subscription sub3 = property.subscribeInvalidations(observable -> {
+Subscription sub3 = property.subscribe((InvalidationListener) observable -> {
     System.out.println("属性已失效");
 });
 ```

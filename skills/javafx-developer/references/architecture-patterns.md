@@ -115,6 +115,24 @@ public class TaskController implements Initializable {
 }
 ```
 
+```java
+// 在 TaskController 中添加（需 import javafx.scene.control.ListCell;）
+// 自定义列表单元格
+public static class TaskListCell extends ListCell<Task> {
+    @Override
+    protected void updateItem(Task task, boolean empty) {
+        super.updateItem(task, empty);
+        if (empty || task == null) {
+            setText(null);
+            setGraphic(null);
+        } else {
+            setText(task.getTitle());
+            setStyle(task.isCompleted() ? "-fx-text-fill: gray;" : "-fx-text-fill: black;");
+        }
+    }
+}
+```
+
 ### 1.3 MVC 数据流
 
 ```
@@ -322,6 +340,71 @@ View (FXML + 瘦Controller) ←双向绑定→ ViewModel (Property/Command)
 - **中大型应用 / 需要单元测试**：使用 MVVM，ViewModel 可独立测试。
 - **混合使用**：简单页面用 MVC，复杂页面用 MVVM，两者可在同一项目中共存。
 
+### 3.1 MVP 模式（Model-View-Presenter）
+
+MVP（Model-View-Presenter）是介于 MVC 与 MVVM 之间的架构模式。它将 UI 逻辑完全从 View 中抽离到 Presenter，但不像 MVVM 那样依赖数据绑定，View 与 Presenter 之间通过接口显式交互。
+
+**两种变体**
+
+- **Passive View（被动视图）**：View 完全被动，所有 UI 状态更新都由 Presenter 通过 View 接口的方法调用完成。View 不包含任何逻辑，甚至连简单的格式化也交给 Presenter。可测试性最高，但 Presenter 代码量较大。
+- **Supervising Controller（监督控制器）**：Presenter 负责主要 UI 逻辑，但允许 View 通过简单绑定（如直接属性绑定）处理部分显示逻辑，Presenter 仅干预复杂交互。代码量较少，是实践中更常用的变体。
+
+**何时选择 MVP**
+
+- 需要 MVC 与 MVVM 之间的折中：既想要完整的 UI 逻辑分离（提升可测试性），又不想引入 MVVM 的数据绑定机制（避免绑定链带来的复杂度与内存管理负担）。
+- View 逻辑复杂但难以用声明式绑定表达（如依赖大量条件分支、动画协调）。
+- 团队对 Presenter 接口风格更熟悉，或需要在不同 UI 框架间复用 Presenter。
+
+**Presenter 示例**
+
+```java
+// View 接口：抽象出 View 暴露给 Presenter 的能力
+public interface TaskView {
+    String getInputText();
+    void setTaskList(List<Task> tasks);
+    void showEmptyInputError();
+}
+
+// Presenter：持有 View 接口引用，不依赖任何 JavaFX 控件，可独立单元测试
+public class TaskPresenter {
+    private final TaskView view;
+    private final TaskService service;
+
+    public TaskPresenter(TaskView view, TaskService service) {
+        this.view = view;
+        this.service = service;
+    }
+
+    public void onAddTask() {
+        String title = view.getInputText();
+        if (title == null || title.isBlank()) {
+            view.showEmptyInputError();
+            return;
+        }
+        Task task = new Task(title);
+        service.saveTask(task);
+        view.setTaskList(service.loadTasks());  // 通过接口更新 View
+    }
+}
+
+// Controller 实现 View 接口，仅做 UI 操作，逻辑全部委托 Presenter
+public class TaskController implements TaskView {
+    private final TaskPresenter presenter;
+
+    public TaskController(TaskService service) {
+        this.presenter = new TaskPresenter(this, service);
+    }
+
+    @FXML private void handleAddTask() { presenter.onAddTask(); }
+
+    @Override public String getInputText() { return titleField.getText(); }
+    @Override public void setTaskList(List<Task> tasks) {
+        taskListView.setItems(FXCollections.observableArrayList(tasks));
+    }
+    @Override public void showEmptyInputError() { statusLabel.setText("标题不能为空"); }
+}
+```
+
 ---
 
 ## 四、需避免的反模式（Anti-patterns）
@@ -363,10 +446,10 @@ private void handleLogin() {
 ```xml
 <!-- ❌ 反模式：FXML 中嵌入脚本逻辑 -->
 <Button text="计算" onAction="#calculate">
-    <script>
+    <fx:script>
         var result = parseInt(a) + parseInt(b);
         label.setText(result);
-    </script>
+    </fx:script>
 </Button>
 ```
 
@@ -601,7 +684,7 @@ Spring Boot 可与 JavaFX 结合，适合已有 Spring 生态的项目。
 <dependency>
     <groupId>org.springframework.boot</groupId>
     <artifactId>spring-boot-starter</artifactId>
-    <version>3.3.0</version>
+    <version>3.4.0</version>
 </dependency>
 ```
 
@@ -678,6 +761,7 @@ public class MainController implements Initializable {
 ```java
 package com.example.eventbus;
 
+import javafx.application.Platform;
 import java.util.*;
 import java.util.concurrent.*;
 
@@ -686,6 +770,9 @@ import java.util.concurrent.*;
  * 事件分发在 JavaFX Application Thread 上执行。
  */
 public class EventBus {
+
+    private static final EventBus INSTANCE = new EventBus();
+    public static EventBus getInstance() { return INSTANCE; }
 
     private final Map<Class<?>, List<EventListener<?>>> listeners =
         new ConcurrentHashMap<>();
@@ -710,7 +797,7 @@ public class EventBus {
         List<EventListener<?>> list = listeners.get(event.getClass());
         if (list != null) {
             for (EventListener<?> listener : list) {
-                ((EventListener<T>) listener).onEvent(event);
+                Platform.runLater(() -> ((EventListener<T>) listener).onEvent(event));
             }
         }
     }

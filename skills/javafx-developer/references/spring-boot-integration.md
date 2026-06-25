@@ -202,7 +202,7 @@ private boolean showUserDialog(User user) {
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.2.5</version>
+        <version>3.4.0</version>
         <relativePath/>
     </parent>
 
@@ -213,7 +213,7 @@ private boolean showUserDialog(User user) {
 
     <properties>
         <java.version>17</java.version>
-        <javafx.version>17.0.9</javafx.version>
+        <javafx.version>21.0.11</javafx.version>
     </properties>
 
     <dependencies>
@@ -380,12 +380,12 @@ myapp/
 <dependency>
     <groupId>org.mybatis.spring.boot</groupId>
     <artifactId>mybatis-spring-boot-starter</artifactId>
-    <version>3.0.3</version>
+    <version>3.0.4</version>
 </dependency>
 <dependency>
     <groupId>org.xerial</groupId>
     <artifactId>sqlite-jdbc</artifactId>
-    <version>3.45.1.0</version>
+    <version>3.47.0.0</version>
 </dependency>
 ```
 
@@ -581,6 +581,63 @@ com.sun.tools.javac.code.TypeTag :: UNKNOWN
 3. 检查 Maven Importing 使用的 JDK（Settings → Build → Maven → Importing → JDK for importer）
 
 > **提示**：Lombok 1.18.30+ 支持 JDK 21，但 IDE 的 Lombok 插件可能未同步更新。确保 IDE 的 JDK 选择、Lombok 插件版本、`pom.xml` 中的 `java.version` 三者一致。
+
+### 陷阱 9：Controller 单例导致状态污染
+
+**现象**：打开多个相同类型的窗口或对话框时，前一个窗口的输入数据"泄漏"到后一个窗口，或 Controller 中的 UI 控件状态混乱。
+
+**原因**：Spring 默认将所有 `@Component` 注册为**单例**（singleton scope）。但 JavaFX 中每次 `FXMLLoader.load()` 都期望获得一个**全新的** Controller 实例。当 Spring 返回同一个单例 Bean 时，`@FXML` 字段会被新 FXML 的控件覆盖，旧控件引用丢失，导致状态污染和内存泄漏。
+
+**解决**：在 Controller 类上添加 `@Scope("prototype")`，确保每次从 Spring 容器获取时都创建新实例：
+
+```java
+@Component
+@Scope("prototype")  // 每次注入创建新实例
+public class UserDialogController implements Initializable {
+    // ...
+}
+```
+
+> **注意**：所有可通过 `FXMLLoader` 多次加载的 Controller 都应使用 `prototype` 作用域。主窗口 Controller 如果只有一个实例可保持单例，但仍需注意不要在 Controller 中缓存 UI 状态。
+
+### 陷阱 10：spring-boot-devtools 导致 JavaFX 异常重启
+
+**现象**：开发时修改代码后，JavaFX 窗口突然关闭或出现重复窗口、`Stage already showing` 等异常。
+
+**原因**：`spring-boot-devtools` 的自动重启机制监听 classpath 变化，文件变更时触发 Spring 容器重启。但 JavaFX 的 `Application` 生命周期与 Spring 容器不同步，容器重启不会重新调用 `Application.launch()`，导致状态不一致。
+
+**解决**：
+1. **排除 devtools 依赖**（推荐）：在 `pom.xml` 中将 devtools 设为 `optional` 或直接移除。
+2. **禁用自动重启**：在 `application.yml` 中配置 `spring.devtools.restart.enabled: false`。
+3. **仅禁用 JavaFX 类的触发**：在 `application.yml` 中配置 `spring.devtools.restart.exclude: static/**,public/**`（排除资源目录）。
+
+```xml
+<!-- 如必须使用 devtools，设为 optional -->
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-devtools</artifactId>
+    <scope>runtime</scope>
+    <optional>true</optional>
+</dependency>
+```
+
+### 陷阱 11：升级 JavaFX 24+ 后启动失败
+
+**现象**：将 JavaFX 版本从 21 升级到 24+ 后，`mvn spring-boot:run` 启动报 `IllegalCallerException`。
+
+**原因**：JavaFX 24+ 的图形渲染层通过 JNI 访问本地代码，在 JDK 24+ 的严格模块封装下需要 `--enable-native-access=javafx.graphics`。但 Spring Boot 的 `spring-boot-maven-plugin` 默认不传递此参数。
+
+**解决**：在 `spring-boot-maven-plugin` 配置中添加 JVM 参数：
+
+```xml
+<plugin>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-maven-plugin</artifactId>
+    <configuration>
+        <jvmArguments>--enable-native-access=javafx.graphics</jvmArguments>
+    </configuration>
+</plugin>
+```
 
 ---
 
