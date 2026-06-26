@@ -81,14 +81,15 @@ Use this skill when:
 
 ### Step 3: Architecture Design
 
-1. **Evaluate complexity**: Recommend MVC for simple apps, MVVM for complex ones
-2. **Design layering**: Define Model, View, Controller/ViewModel responsibilities
+1. **Evaluate complexity**: Recommend MVC for simple apps, MVVM for complex ones, MVP for high testability
+2. **Design layering**: Define Model, View, Controller/ViewModel/Presenter responsibilities
 3. **Plan file structure**: Organize classes, FXML, CSS files
 4. **Select UI patterns**: Choose from preset UI component patterns
 
-**MVC vs MVVM decision**:
+**MVC / MVVM / MVP decision**:
 - **MVC**: Simple CRUD apps, admin panels, small tools → Controller directly manipulates UI
 - **MVVM**: Complex business logic, multi-view apps → ViewModel exposes Properties, View binds to them
+- **MVP**: High testability needed but data binding undesirable → Presenter explicitly controls UI via a View interface, Controller implements the interface and delegates logic to Presenter
 
 ### Step 4: Code Generation & Template Filling
 
@@ -145,6 +146,29 @@ src/main/java/com/example/
 │   └── UserViewModel.java      # Exposes Properties, commands
 ├── view/
 │   └── UserController.java     # Binds UI to ViewModel
+└── service/
+    └── UserService.java
+
+src/main/resources/
+├── fxml/
+│   └── user-view.fxml
+└── css/
+    └── style.css
+```
+
+### MVP Pattern (High Testability Apps)
+
+```
+src/main/java/com/example/
+├── App.java
+├── model/
+│   └── User.java               # Pure data model
+├── view/
+│   └── UserView.java           # View interface (abstracts UI operations)
+├── presenter/
+│   └── UserPresenter.java      # Holds View interface ref, no JavaFX dependency
+├── controller/
+│   └── UserController.java     # Implements View interface, delegates to Presenter
 └── service/
     └── UserService.java
 
@@ -474,7 +498,7 @@ Before delivering, verify:
 For in-depth guidance, refer to these documents in the `references/` directory:
 
 - `references/project-setup.md` — Maven/Gradle configuration, version matrix, modular setup
-- `references/architecture-patterns.md` — MVC/MVVM detailed comparison, anti-patterns
+- `references/architecture-patterns.md` — MVC/MVVM/MVP detailed comparison, anti-patterns
 - `references/spring-boot-integration.md` — Spring Boot + JavaFX integration, startup class splitting, DI, common pitfalls
 - `references/css-best-practices.md` — CSS selectors, theme variables, responsive layout
 - `references/data-binding-patterns.md` — Property types, binding modes, form validation
@@ -499,6 +523,8 @@ Reusable code templates in `templates/` directory:
 - `templates/viewmodel/UserViewModel.java` — ViewModel template (MVVM pattern)
 - `templates/service/Service.java` — Service layer template
 - `templates/service/Repository.java` — Repository interface template
+- `templates/presenter/Presenter.java` — Presenter template (MVP pattern)
+- `templates/presenter/View.java` — View interface template (MVP pattern)
 - `templates/css/light-theme.css` — Light theme CSS
 - `templates/css/dark-theme.css` — Dark theme CSS
 - `templates/packaging/jpackage-config.properties` — Packaging config

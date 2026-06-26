@@ -81,14 +81,15 @@ metadata:
 
 ### 步骤 3：架构设计
 
-1. **评估复杂度**：简单应用推荐 MVC，复杂应用推荐 MVVM
-2. **设计分层**：定义 Model、View、Controller/ViewModel 的职责
+1. **评估复杂度**：简单应用推荐 MVC，复杂应用推荐 MVVM，高可测试性需求推荐 MVP
+2. **设计分层**：定义 Model、View、Controller/ViewModel/Presenter 的职责
 3. **规划文件结构**：组织类、FXML、CSS 文件
 4. **选择 UI 模式**：从预设 UI 组件模式中选择
 
-**MVC vs MVVM 决策**：
+**MVC / MVVM / MVP 决策**：
 - **MVC**：简单 CRUD 应用、管理面板、小工具 → Controller 直接操作 UI
 - **MVVM**：复杂业务逻辑、多视图应用 → ViewModel 暴露 Properties，View 绑定到它们
+- **MVP**：需要高可测试性但不想引入数据绑定 → Presenter 通过 View 接口显式控制 UI，Controller 实现 View 接口并委托逻辑给 Presenter
 
 ### 步骤 4：代码生成与模板填充
 
@@ -145,6 +146,29 @@ src/main/java/com/example/
 │   └── UserViewModel.java      # 暴露 Properties、命令
 ├── view/
 │   └── UserController.java     # 将 UI 绑定到 ViewModel
+└── service/
+    └── UserService.java
+
+src/main/resources/
+├── fxml/
+│   └── user-view.fxml
+└── css/
+    └── style.css
+```
+
+### MVP 模式（高可测试性应用）
+
+```
+src/main/java/com/example/
+├── App.java
+├── model/
+│   └── User.java               # 纯数据模型
+├── view/
+│   └── UserView.java           # View 接口（抽象 UI 操作）
+├── presenter/
+│   └── UserPresenter.java      # 持有 View 接口引用，不含 JavaFX 依赖
+├── controller/
+│   └── UserController.java     # 实现 View 接口，委托逻辑给 Presenter
 └── service/
     └── UserService.java
 
@@ -474,7 +498,7 @@ mvn javafx:run
 如需深入指导，请参阅 `references/` 目录中的以下文档：
 
 - `references/project-setup.md` — Maven/Gradle 配置、版本矩阵、模块化设置
-- `references/architecture-patterns.md` — MVC/MVVM 详细对比、反模式
+- `references/architecture-patterns.md` — MVC/MVVM/MVP 详细对比、反模式
 - `references/spring-boot-integration.md` — Spring Boot + JavaFX 整合、启动类拆分、依赖注入、常见陷阱
 - `references/css-best-practices.md` — CSS 选择器、主题变量、响应式布局
 - `references/data-binding-patterns.md` — Property 类型、绑定模式、表单验证
@@ -499,6 +523,8 @@ mvn javafx:run
 - `templates/viewmodel/UserViewModel.java` — ViewModel 模板（MVVM 模式）
 - `templates/service/Service.java` — Service 层模板
 - `templates/service/Repository.java` — Repository 接口模板
+- `templates/presenter/Presenter.java` — Presenter 模板（MVP 模式）
+- `templates/presenter/View.java` — View 接口模板（MVP 模式）
 - `templates/css/light-theme.css` — 亮色主题 CSS
 - `templates/css/dark-theme.css` — 暗色主题 CSS
 - `templates/packaging/jpackage-config.properties` — 打包配置
