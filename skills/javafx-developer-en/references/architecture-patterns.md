@@ -690,7 +690,7 @@ Spring Boot can be integrated with JavaFX, suitable for projects already in the 
 <dependency>
     <groupId>org.springframework.boot</groupId>
     <artifactId>spring-boot-starter</artifactId>
-    <version>3.4.0</version>
+    <version>3.5.0</version>
 </dependency>
 ```
 

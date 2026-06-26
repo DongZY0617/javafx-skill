@@ -531,7 +531,7 @@ class MainAppTest extends ApplicationTest {
         });
 
         // Verify the status label updates
-        verifyThat("#statusLabel", hasText("1 task in total"));
+        verifyThat("#statusLabel", hasText("Total 1 tasks"));
     }
 
     @Test

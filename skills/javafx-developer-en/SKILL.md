@@ -5,6 +5,11 @@ description: |
   MVC/MVVM architecture, data binding, CSS theming, and cross-platform packaging.
   Invoke when: building JavaFX apps, creating FXML layouts, designing desktop UIs,
   implementing data binding, integrating ControlsFX/RichTextFX, or packaging JavaFX apps.
+license: Apache-2.0
+compatibility: Requires JDK 17+. Supports JavaFX 17/21/24/25/26.
+metadata:
+  author: DongZY0617
+  version: "1.0"
 ---
 
 # JavaFX Developer
@@ -33,7 +38,7 @@ Use this skill when:
 | 25.x | JDK 23 | **Yes** | Production preferred choice |
 | 24.x | JDK 22 | No | Transitional version (introduces `--enable-native-access` requirement) |
 | 21.x | JDK 17 | **Yes** | Conservative stable option |
-| 17.x | JDK 11 | Yes (until 2026.10) | Legacy system maintenance |
+| 17.x | JDK 11 | Yes (until 2026.10) | Legacy maintenance (expiring soon, not recommended for new projects) |
 
 > **Note**: The "Min JDK" in this table refers to the minimum JDK required to run that JavaFX version; the "Corresponding JDK" in the version table of `project-setup.md` refers to the `--release` level used when compiling that JavaFX. The two have different bases but the data is consistent.
 
@@ -461,6 +466,8 @@ Before delivering, verify:
 - [ ] Thread safety: background tasks use `Platform.runLater()`
 - [ ] Resource paths are correct (relative, not absolute)
 - [ ] Javadoc comments on public API
+- [ ] JavaFX 24+ projects configured with `--enable-native-access=javafx.graphics`
+- [ ] Spring Boot Controllers annotated with `@Scope("prototype")`
 
 ## Reference Documents
 
@@ -481,6 +488,7 @@ Reusable code templates in `templates/` directory:
 
 - `templates/maven/pom.xml` — Maven POM template
 - `templates/maven/module-info.java` — Module descriptor template
+- `templates/maven/Application.java` — Application entry point template
 - `templates/gradle/build.gradle` — Gradle build template
 - `templates/fxml/main-view.fxml` — Main window FXML template
 - `templates/fxml/dialog.fxml` — Dialog FXML template
@@ -490,6 +498,7 @@ Reusable code templates in `templates/` directory:
 - `templates/model/ObservableModel.java` — Model template
 - `templates/viewmodel/UserViewModel.java` — ViewModel template (MVVM pattern)
 - `templates/service/Service.java` — Service layer template
+- `templates/service/Repository.java` — Repository interface template
 - `templates/css/light-theme.css` — Light theme CSS
 - `templates/css/dark-theme.css` — Dark theme CSS
 - `templates/packaging/jpackage-config.properties` — Packaging config

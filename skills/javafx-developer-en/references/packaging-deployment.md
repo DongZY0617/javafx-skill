@@ -465,7 +465,9 @@ GraalVM Native Image does not support cross-compilation, it needs to be built on
 
 ### 7.6 ARM64 and macOS Universal Binary Packaging
 
-### 7.7 Windows ARM64
+This section covers ARM64 architecture and macOS Universal Binary packaging, including Windows ARM64 and macOS multi-architecture merge scenarios.
+
+#### 7.7 Windows ARM64
 
 JDK 24+ supports the Windows ARM64 target platform. When packaging, you need to use the ARM64 versions of the JDK and JavaFX SDK:
 
@@ -483,7 +485,7 @@ jpackage \
 
 > Note: Windows ARM64 must be built on an ARM64 device or emulator; jpackage does not support cross-compilation.
 
-### 7.8 macOS Universal Binary (x64 + aarch64 Merge)
+#### 7.8 macOS Universal Binary (x64 + aarch64 Merge)
 
 macOS supports Universal Binary, which can include both Intel and Apple Silicon versions in the same application bundle:
 

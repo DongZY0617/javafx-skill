@@ -465,7 +465,9 @@ GraalVM Native Image 不支持交叉编译，需在目标平台上构建。Gluon
 
 ### 7.6 ARM64 与 macOS Universal Binary 打包
 
-### 7.7 Windows ARM64
+本节讨论 ARM64 架构和 macOS Universal Binary 的打包方案，覆盖 Windows ARM64 和 macOS 多架构合并两个场景。
+
+#### 7.7 Windows ARM64
 
 JDK 24+ 支持 Windows ARM64 目标平台。打包时需使用 ARM64 版本的 JDK 和 JavaFX SDK：
 
@@ -483,7 +485,7 @@ jpackage \
 
 > 注意：Windows ARM64 需在 ARM64 设备或模拟器上构建，jpackage 不支持交叉编译。
 
-### 7.8 macOS Universal Binary（x64 + aarch64 合并）
+#### 7.8 macOS Universal Binary（x64 + aarch64 合并）
 
 macOS 支持 Universal Binary，可在同一应用包中同时包含 Intel 和 Apple Silicon 版本：
 

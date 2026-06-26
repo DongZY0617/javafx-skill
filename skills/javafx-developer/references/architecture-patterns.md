@@ -334,8 +334,6 @@ View (FXML + 瘦Controller) ←双向绑定→ ViewModel (Property/Command)
 | 学习曲线       | 平缓                                 | 较陡，需理解绑定机制                       |
 | 团队协作       | View 与逻辑易混杂                    | 前端/逻辑可并行开发                        |
 
-### 选择建议
-
 ### 3.1 MVC 与 MVVM 的选择建议
 
 - **小型应用 / 工具类**：使用 MVC，快速直接。
@@ -688,7 +686,7 @@ Spring Boot 可与 JavaFX 结合，适合已有 Spring 生态的项目。
 <dependency>
     <groupId>org.springframework.boot</groupId>
     <artifactId>spring-boot-starter</artifactId>
-    <version>3.4.0</version>
+    <version>3.5.0</version>
 </dependency>
 ```
 

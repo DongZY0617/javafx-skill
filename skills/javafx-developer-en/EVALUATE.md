@@ -18,7 +18,7 @@ This file defines the acceptance test cases for the JavaFX Developer skill, used
 **Verification standards**:
 - [ ] The `TableView`'s `TableColumn` binds to the Model's Properties via `cellValueFactory`
 - [ ] The FXML `fx:id` corresponds one-to-one with the Controller's `@FXML` fields
-- [ ] `module-info.java` includes `opens model to javafx.base` (to support PropertyValueFactory reflection)
+- [ ] `module-info.java` includes `opens model to javafx.controls` (to support PropertyValueFactory reflection)
 - [ ] The code compiles without syntax errors
 - [ ] CSS styles do not use the `var()` function
 

@@ -5,6 +5,11 @@ description: |
   MVC/MVVM 架构、数据绑定、CSS 主题和跨平台打包。
   触发条件：构建 JavaFX 应用、创建 FXML 布局、设计桌面界面、
   实现数据绑定、集成 ControlsFX/RichTextFX 或打包 JavaFX 应用。
+license: Apache-2.0
+compatibility: Requires JDK 17+. Supports JavaFX 17/21/24/25/26.
+metadata:
+  author: DongZY0617
+  version: "1.0"
 ---
 
 # JavaFX Developer
@@ -33,7 +38,7 @@ description: |
 | 25.x | JDK 23 | **是** | 生产环境首选 |
 | 24.x | JDK 22 | 否 | 过渡版本（引入 `--enable-native-access` 要求） |
 | 21.x | JDK 17 | **是** | 保守稳定方案 |
-| 17.x | JDK 11 | 是（至 2026.10） | 遗留系统维护 |
+| 17.x | JDK 11 | 是（至 2026.10） | 遗留系统维护（即将到期，新项目不建议选用） |
 
 > **说明**：此表"最低 JDK"指运行该 JavaFX 版本所需的最低 JDK；`project-setup.md` 版本表中的"对应 JDK"指该 JavaFX 编译时使用的 `--release` 级别，两者口径不同但数据一致。
 
@@ -461,6 +466,8 @@ mvn javafx:run
 - [ ] 线程安全：后台任务使用 `Platform.runLater()`
 - [ ] 资源路径正确（相对路径，非绝对路径）
 - [ ] 公共 API 有 Javadoc 注释
+- [ ] JavaFX 24+ 项目已配置 `--enable-native-access=javafx.graphics`
+- [ ] Spring Boot 项目中 Controller 已标注 `@Scope("prototype")`
 
 ## 参考文档
 
@@ -481,6 +488,7 @@ mvn javafx:run
 
 - `templates/maven/pom.xml` — Maven POM 模板
 - `templates/maven/module-info.java` — 模块描述符模板
+- `templates/maven/Application.java` — 应用入口类模板
 - `templates/gradle/build.gradle` — Gradle 构建模板
 - `templates/fxml/main-view.fxml` — 主窗口 FXML 模板
 - `templates/fxml/dialog.fxml` — 对话框 FXML 模板
@@ -490,6 +498,7 @@ mvn javafx:run
 - `templates/model/ObservableModel.java` — Model 模板
 - `templates/viewmodel/UserViewModel.java` — ViewModel 模板（MVVM 模式）
 - `templates/service/Service.java` — Service 层模板
+- `templates/service/Repository.java` — Repository 接口模板
 - `templates/css/light-theme.css` — 亮色主题 CSS
 - `templates/css/dark-theme.css` — 暗色主题 CSS
 - `templates/packaging/jpackage-config.properties` — 打包配置

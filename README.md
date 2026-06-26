@@ -17,12 +17,6 @@ This is an [Agent Skill](https://agentskills.io) that teaches AI agents how to b
 - **Packaging & Deployment**: jpackage, jlink, CI/CD integration
 - **Code Templates**: Ready-to-use templates for pom.xml, module-info.java, controllers, models, FXML, CSS
 
-## Installation
-
-```bash
-npx skills add https://github.com/YOUR_USERNAME/javafx-skill --skill javafx-developer
-```
-
 ## Skill Structure
 
 ```
@@ -52,8 +46,8 @@ javafx-skill/
     │       └── packaging/                    # jpackage config
     └── javafx-developer-en/               # English version
         ├── SKILL.md                          # Skill entry point (English)
-        ├── references/                       # Shared reference docs
-        └── templates/                        # Shared code templates
+        ├── references/                       # Independent reference docs
+        └── templates/                        # Independent code templates
 ```
 
 ## Installation
@@ -86,7 +80,7 @@ This skill documents the critical pitfall of Spring Boot + JavaFX integration: *
 
 ### Complete Template Library
 
-Includes production-ready templates for all common JavaFX patterns: CRUD table views, login dialogs, master-detail views, navigation drawers, light/dark themes, and more.
+Includes production-ready templates for common JavaFX patterns: base/main/dialog controllers, observable models, viewmodels, service layer, FXML layouts, light/dark themes, Maven/Gradle build configs, and jpackage deployment config.
 
 ## License
 

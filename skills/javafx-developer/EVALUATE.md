@@ -18,7 +18,7 @@
 **验证标准**：
 - [ ] `TableView` 的 `TableColumn` 通过 `cellValueFactory` 绑定到 Model 的 Properties
 - [ ] FXML 的 `fx:id` 与 Controller 的 `@FXML` 字段一一对应
-- [ ] `module-info.java` 包含 `opens model to javafx.base`（支持 PropertyValueFactory 反射）
+- [ ] `module-info.java` 包含 `opens model to javafx.controls`（支持 PropertyValueFactory 反射）
 - [ ] 代码可编译，无语法错误
 - [ ] CSS 样式不使用 `var()` 函数
 

@@ -17,12 +17,6 @@
 - **打包部署**：jpackage、jlink、CI/CD 集成
 - **代码模板**：开箱即用的 pom.xml、module-info.java、Controller、Model、FXML、CSS 模板
 
-## 安装
-
-```bash
-npx skills add https://github.com/DongZY0617/javafx-skill --skill javafx-developer
-```
-
 ## 技能结构
 
 ```
@@ -52,8 +46,8 @@ javafx-skill/
     │       └── packaging/                    # jpackage 配置
     └── javafx-developer-en/               # 英文版
         ├── SKILL.md                          # 技能入口（英文）
-        ├── references/                       # 共享参考文档
-        └── templates/                        # 共享代码模板
+        ├── references/                       # 独立参考文档
+        └── templates/                        # 独立代码模板
 ```
 
 ## 安装
@@ -86,7 +80,7 @@ npx skills add https://github.com/DongZY0617/javafx-skill --skill javafx-develop
 
 ### 完整模板库
 
-包含所有常见 JavaFX 模式的生产级模板：CRUD 表格视图、登录对话框、主从视图、导航抽屉、亮色/暗色主题等。
+包含常见 JavaFX 模式的生产级模板：基础/主窗口/对话框控制器、可观察模型、ViewModel、Service 层、FXML 布局、亮色/暗色主题、Maven/Gradle 构建配置和 jpackage 打包配置。
 
 ## 许可证
 
