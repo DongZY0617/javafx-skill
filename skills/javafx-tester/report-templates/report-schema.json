@@ -1,0 +1,334 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://javafx-skill.dev/schemas/test-report.json",
+  "title": "JavaFX Test Report (JSON)",
+  "description": "Machine-readable test report schema for javafx-tester. Mirrors the Markdown test-report.md template. Used by javafx-developer Fix Consumption, CI/CD quality gates, and IDE plugins.",
+  "type": "object",
+  "required": [
+    "report_type",
+    "report_version",
+    "generated_at",
+    "project",
+    "test_mode",
+    "round",
+    "summary",
+    "issues",
+    "fix_handoffs",
+    "loop_state"
+  ],
+  "properties": {
+    "report_type": {
+      "type": "string",
+      "const": "test",
+      "description": "Always 'test' to distinguish from review and verification reports"
+    },
+    "report_version": {
+      "type": "string",
+      "const": "1.0"
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "project": { "type": "string" },
+    "test_mode": {
+      "type": "string",
+      "enum": ["full", "targeted", "selective"],
+      "description": "full = all 3 dimensions; targeted = Round 2+ fix-affected only; selective = user-requested subset"
+    },
+    "round": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "conclusion",
+        "pass_rate",
+        "total_issues",
+        "critical_count",
+        "major_count",
+        "minor_count",
+        "info_count",
+        "dimensions"
+      ],
+      "properties": {
+        "conclusion": {
+          "type": "string",
+          "enum": ["Pass", "Conditional Pass", "Fail"]
+        },
+        "pass_rate": { "type": "number", "minimum": 0, "maximum": 1 },
+        "total_issues": { "type": "integer", "minimum": 0 },
+        "critical_count": { "type": "integer", "minimum": 0 },
+        "major_count": { "type": "integer", "minimum": 0 },
+        "minor_count": { "type": "integer", "minimum": 0 },
+        "info_count": { "type": "integer", "minimum": 0 },
+        "dimensions": {
+          "type": "object",
+          "properties": {
+            "performance": {
+              "type": "object",
+              "required": ["conclusion", "issues"],
+              "properties": {
+                "conclusion": { "type": "string", "enum": ["Pass", "Conditional Pass", "Fail", "Skipped"] },
+                "issues": { "type": "integer", "minimum": 0 }
+              }
+            },
+            "security": {
+              "type": "object",
+              "required": ["conclusion", "issues"],
+              "properties": {
+                "conclusion": { "type": "string", "enum": ["Pass", "Conditional Pass", "Fail", "Skipped"] },
+                "issues": { "type": "integer", "minimum": 0 }
+              }
+            },
+            "accessibility": {
+              "type": "object",
+              "required": ["conclusion", "issues"],
+              "properties": {
+                "conclusion": { "type": "string", "enum": ["Pass", "Conditional Pass", "Fail", "Skipped"] },
+                "issues": { "type": "integer", "minimum": 0 }
+              }
+            }
+          }
+        }
+      }
+    },
+    "performance_metrics": {
+      "type": "object",
+      "description": "Performance measurement results. Omitted if performance testing was skipped.",
+      "properties": {
+        "startup_time": {
+          "type": "object",
+          "required": ["cold_startup_median_ms", "result"],
+          "properties": {
+            "cold_startup_median_ms": { "type": "number", "minimum": 0 },
+            "warm_startup_median_ms": { "type": "number", "minimum": 0 },
+            "jvm_start_ms": { "type": "number", "minimum": 0 },
+            "javafx_init_ms": { "type": "number", "minimum": 0 },
+            "fxml_load_ms": { "type": "number", "minimum": 0 },
+            "result": { "type": "string", "enum": ["Pass", "Minor", "Major", "Critical"] }
+          }
+        },
+        "ui_response_latency": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["interaction", "response_ms", "result"],
+            "properties": {
+              "interaction": { "type": "string" },
+              "response_ms": { "type": "number", "minimum": 0 },
+              "result": { "type": "string", "enum": ["Pass", "Minor", "Major", "Critical"] }
+            }
+          }
+        },
+        "memory_footprint": {
+          "type": "object",
+          "required": ["baseline_mb", "net_growth_mb", "result"],
+          "properties": {
+            "baseline_mb": { "type": "number", "minimum": 0 },
+            "after_usage_mb": { "type": "number", "minimum": 0 },
+            "net_growth_mb": { "type": "number" },
+            "full_gc_per_min": { "type": "number", "minimum": 0 },
+            "result": { "type": "string", "enum": ["Pass", "Minor", "Major", "Critical"] }
+          }
+        }
+      }
+    },
+    "security_findings": {
+      "type": "object",
+      "description": "Security testing results. Omitted if security testing was skipped.",
+      "properties": {
+        "dependency_scan": {
+          "type": "object",
+          "required": ["total_cves", "result"],
+          "properties": {
+            "total_cves": { "type": "integer", "minimum": 0 },
+            "critical_cves": { "type": "integer", "minimum": 0 },
+            "high_cves": { "type": "integer", "minimum": 0 },
+            "medium_cves": { "type": "integer", "minimum": 0 },
+            "low_cves": { "type": "integer", "minimum": 0 },
+            "suppression_file": { "type": "string", "enum": ["valid", "invalid", "not_found"] },
+            "scan_tool": { "type": "string" },
+            "cves": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["cve_id", "cvss_score", "severity", "affected_dependency"],
+                "properties": {
+                  "cve_id": { "type": "string" },
+                  "cvss_score": { "type": "number", "minimum": 0, "maximum": 10 },
+                  "severity": { "type": "string", "enum": ["Critical", "Major", "Minor"] },
+                  "affected_dependency": { "type": "string" },
+                  "description": { "type": "string" },
+                  "remediation": { "type": "string" }
+                }
+              }
+            },
+            "result": { "type": "string", "enum": ["Pass", "Major", "Critical"] }
+          }
+        },
+        "fuzz_testing": {
+          "type": "object",
+          "required": ["total_fields_tested", "total_failures", "result"],
+          "properties": {
+            "total_fields_tested": { "type": "integer", "minimum": 0 },
+            "total_patterns": { "type": "integer", "minimum": 0 },
+            "total_failures": { "type": "integer", "minimum": 0 },
+            "results": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["field", "pattern", "result"],
+                "properties": {
+                  "field": { "type": "string" },
+                  "pattern": { "type": "string" },
+                  "result": { "type": "string", "enum": ["Pass", "Fail"] },
+                  "exception": { "type": "string" },
+                  "severity": { "type": "string", "enum": ["Pass", "Minor", "Major", "Critical"] }
+                }
+              }
+            },
+            "result": { "type": "string", "enum": ["Pass", "Major", "Critical"] }
+          }
+        },
+        "webview_security": {
+          "type": "object",
+          "required": ["applicable", "result"],
+          "properties": {
+            "applicable": { "type": "boolean", "description": "false if project does not use WebView" },
+            "javascript_access": { "type": "string", "enum": ["Pass", "Major", "Critical", "N/A"] },
+            "content_validation": { "type": "string", "enum": ["Pass", "Major", "Critical", "N/A"] },
+            "cors_restrictions": { "type": "string", "enum": ["Pass", "Major", "Critical", "N/A"] },
+            "result": { "type": "string", "enum": ["Pass", "Major", "Critical", "Skipped"] }
+          }
+        }
+      }
+    },
+    "accessibility_results": {
+      "type": "object",
+      "description": "Accessibility testing results. Omitted if accessibility testing was skipped.",
+      "properties": {
+        "keyboard_navigation": {
+          "type": "object",
+          "required": ["tab_order", "focus_visibility", "keyboard_shortcuts", "result"],
+          "properties": {
+            "tab_order": { "type": "string", "enum": ["Pass", "Minor", "Major", "Critical"] },
+            "controls_reachable": { "type": "string", "description": "e.g. '15/15'" },
+            "focus_visibility": { "type": "string", "enum": ["Pass", "Minor", "Major"] },
+            "keyboard_shortcuts": { "type": "string", "enum": ["Pass", "Minor", "Major"] },
+            "result": { "type": "string", "enum": ["Pass", "Minor", "Major", "Critical"] }
+          }
+        },
+        "color_contrast": {
+          "type": "object",
+          "required": ["total_checked", "total_passing", "result"],
+          "properties": {
+            "total_checked": { "type": "integer", "minimum": 0 },
+            "total_passing": { "type": "integer", "minimum": 0 },
+            "failures": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["element", "foreground", "background", "ratio", "threshold", "result"],
+                "properties": {
+                  "element": { "type": "string" },
+                  "foreground": { "type": "string" },
+                  "background": { "type": "string" },
+                  "ratio": { "type": "number", "minimum": 1 },
+                  "threshold": { "type": "number" },
+                  "result": { "type": "string", "enum": ["Minor", "Major", "Critical"] }
+                }
+              }
+            },
+            "result": { "type": "string", "enum": ["Pass", "Minor", "Major", "Critical"] }
+          }
+        },
+        "screen_reader": {
+          "type": "object",
+          "required": ["accessible_text_coverage", "result"],
+          "properties": {
+            "accessible_text_coverage": { "type": "number", "minimum": 0, "maximum": 1 },
+            "accessible_help_coverage": { "type": "number", "minimum": 0, "maximum": 1 },
+            "image_alt_text_coverage": { "type": "number", "minimum": 0, "maximum": 1 },
+            "live_region_support": { "type": "string", "enum": ["Pass", "Minor", "Major"] },
+            "result": { "type": "string", "enum": ["Pass", "Minor", "Major"] }
+          }
+        }
+      }
+    },
+    "issues": {
+      "type": "array",
+      "description": "List of all issues found, sorted by severity descending, then by dimension (Performance → Security → Accessibility)",
+      "items": {
+        "type": "object",
+        "required": ["id", "severity", "dimension", "title", "description", "rule_reference"],
+        "properties": {
+          "id": { "type": "integer", "minimum": 1 },
+          "severity": { "type": "string", "enum": ["Critical", "Major", "Minor", "Info"] },
+          "dimension": {
+            "type": "string",
+            "enum": ["Performance Testing", "Security Testing", "Accessibility Testing"]
+          },
+          "title": { "type": "string" },
+          "description": { "type": "string" },
+          "file": { "type": "string" },
+          "lines": { "type": "string", "pattern": "^\\d+(-\\d+)?$" },
+          "rule_reference": { "type": "string" },
+          "problematic_code": { "type": "string" },
+          "root_cause_analysis": { "type": "string" },
+          "corrected_example": { "type": "string" },
+          "escalation_note": { "type": "string" },
+          "fix_handoff": {
+            "type": "object",
+            "required": ["target_file", "target_lines", "fix_type", "fix_priority", "code_fingerprint", "anchor_pattern", "ast_node_signature"],
+            "properties": {
+              "target_file": { "type": "string" },
+              "target_lines": { "type": "string", "pattern": "^\\d+(-\\d+)?$" },
+              "fix_type": { "type": "string", "enum": ["replace", "insert", "delete"] },
+              "fix_priority": { "type": "integer", "minimum": 1 },
+              "code_fingerprint": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+              "anchor_pattern": { "type": "string" },
+              "ast_node_signature": { "type": ["string", "null"], "description": "AST-level anchor: fully qualified method/field/class signature. Null for non-Java files." }
+            }
+          }
+        }
+      }
+    },
+    "fix_handoffs": {
+      "type": "array",
+      "description": "Standalone array of all fix handoffs, sorted by fix_priority ascending. Fully consistent with javafx-code-reviewer and javafx-runner.",
+      "items": {
+        "type": "object",
+        "required": ["target_file", "target_lines", "fix_type", "fix_priority", "code_fingerprint", "anchor_pattern", "ast_node_signature", "issue_id", "severity"],
+        "properties": {
+          "target_file": { "type": "string" },
+          "target_lines": { "type": "string", "pattern": "^\\d+(-\\d+)?$" },
+          "fix_type": { "type": "string", "enum": ["replace", "insert", "delete"] },
+          "fix_priority": { "type": "integer", "minimum": 1 },
+          "code_fingerprint": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+          "anchor_pattern": { "type": "string" },
+          "ast_node_signature": { "type": ["string", "null"], "description": "AST-level anchor: fully qualified method/field/class signature. Null for non-Java files." },
+          "corrected_example": { "type": "string" },
+          "issue_id": { "type": "integer", "minimum": 1 },
+          "severity": { "type": "string", "enum": ["Critical", "Major", "Minor", "Info"] }
+        }
+      }
+    },
+    "loop_state": {
+      "type": "object",
+      "required": ["current_round", "convergence_trend", "next_action"],
+      "properties": {
+        "current_round": { "type": "integer", "minimum": 1 },
+        "convergence_trend": {
+          "type": "array",
+          "items": { "type": "integer" }
+        },
+        "next_action": {
+          "type": "string",
+          "enum": ["fixing", "incremental_test", "passed", "paused"]
+        }
+      }
+    }
+  }
+}

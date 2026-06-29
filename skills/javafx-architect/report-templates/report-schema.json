@@ -1,0 +1,144 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://javafx-skill/architect-report-schema.json",
+  "title": "JavaFX Architect Report",
+  "description": "JSON schema for the architecture design report produced by javafx-architect",
+  "type": "object",
+  "required": [
+    "project",
+    "architect_version",
+    "created_at",
+    "scope",
+    "conclusion",
+    "system_design",
+    "developer_instructions"
+  ],
+  "properties": {
+    "project": {
+      "type": "string",
+      "description": "Project name"
+    },
+    "architect_version": {
+      "type": "string",
+      "const": "1.0"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "scope": {
+      "type": "string",
+      "enum": ["full", "system_design_only", "uml_only", "adr_only"]
+    },
+    "conclusion": {
+      "type": "string",
+      "enum": ["Pass", "Pass with warnings", "Fail"]
+    },
+    "system_design": {
+      "type": "object",
+      "required": [
+        "architecture_pattern",
+        "javafx_version",
+        "build_tool",
+        "modules",
+        "layers",
+        "technology_stack"
+      ],
+      "properties": {
+        "architecture_pattern": {
+          "type": "string",
+          "description": "Selected architecture pattern (e.g., 'MVVM + Service Layer')"
+        },
+        "javafx_version": {
+          "type": "string",
+          "enum": ["17", "21", "24", "25", "26"]
+        },
+        "build_tool": {
+          "type": "string",
+          "enum": ["Maven", "Gradle"]
+        },
+        "modules": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "package", "responsibility"],
+            "properties": {
+              "name": { "type": "string" },
+              "package": { "type": "string" },
+              "responsibility": { "type": "string" },
+              "dependencies": {
+                "type": "array",
+                "items": { "type": "string" }
+              }
+            }
+          }
+        },
+        "layers": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Ordered list of layers (e.g., ['presentation', 'application', 'domain', 'infrastructure'])"
+        },
+        "technology_stack": {
+          "type": "object",
+          "properties": {
+            "database": { "type": "string" },
+            "orm": { "type": "string" },
+            "di": { "type": "string" },
+            "logging": { "type": "string" },
+            "testing": { "type": "string" },
+            "third_party_ui": { "type": "string" }
+          }
+        }
+      }
+    },
+    "uml_artifacts": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "List of PlantUML file paths"
+    },
+    "adr_files": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "List of ADR file paths"
+    },
+    "prototype_results": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["risk", "result", "detail"],
+        "properties": {
+          "risk": { "type": "string" },
+          "result": { "type": "string", "enum": ["passed", "failed", "inconclusive"] },
+          "detail": { "type": "string" }
+        }
+      }
+    },
+    "developer_instructions": {
+      "type": "object",
+      "required": [
+        "package_structure",
+        "layering_rule",
+        "naming_convention",
+        "key_constraints"
+      ],
+      "properties": {
+        "package_structure": { "type": "string" },
+        "layering_rule": { "type": "string" },
+        "naming_convention": { "type": "string" },
+        "key_constraints": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "List of warnings or unresolved risks"
+    },
+    "handoff_file": {
+      "type": "string",
+      "description": "Path to architecture-handoff.json"
+    }
+  }
+}

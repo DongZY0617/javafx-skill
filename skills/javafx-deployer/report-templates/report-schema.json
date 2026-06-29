@@ -1,0 +1,238 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://javafx-skill/deployer/report-schema.json",
+  "title": "JavaFX Deployer Report",
+  "description": "JSON schema for the javafx-deployer deployment report output",
+  "type": "object",
+  "required": ["report_type", "project_info", "deploy_scope", "conclusion", "artifacts", "loop_state"],
+  "properties": {
+    "report_type": {
+      "type": "string",
+      "const": "deployer",
+      "description": "Fixed identifier for deployer reports"
+    },
+    "project_info": {
+      "type": "object",
+      "required": ["project_name", "version", "timestamp"],
+      "properties": {
+        "project_name": { "type": "string" },
+        "version": { "type": "string", "description": "Current project version from pom.xml" },
+        "group_id": { "type": "string" },
+        "artifact_id": { "type": "string" },
+        "javafx_version": { "type": "string" },
+        "jdk_version": { "type": "integer" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      }
+    },
+    "deploy_scope": {
+      "type": "object",
+      "required": ["mode", "dimensions"],
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": ["Full Deployment", "CI/CD Only", "Release Only", "Signing Only", "Monitoring Only"]
+        },
+        "dimensions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["ci_cd", "release", "signing", "auto_update", "monitoring"]
+          }
+        }
+      }
+    },
+    "conclusion": {
+      "type": "string",
+      "enum": ["Pass", "Pass with warnings", "Fail"]
+    },
+    "ci_cd": {
+      "type": "object",
+      "description": "CI/CD pipeline configuration",
+      "properties": {
+        "platform": {
+          "type": "string",
+          "enum": ["github-actions", "gitlab-ci", "both"]
+        },
+        "workflow_file": { "type": "string" },
+        "target_platforms": {
+          "type": "array",
+          "items": { "type": "string", "enum": ["windows", "macos", "linux"] }
+        },
+        "build_matrix": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "platform": { "type": "string" },
+              "runner": { "type": "string" },
+              "installer_format": { "type": "string" },
+              "toolchain": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "release": {
+      "type": "object",
+      "description": "Release management configuration",
+      "properties": {
+        "workflow_file": { "type": "string" },
+        "version_script": { "type": "string" },
+        "current_version": { "type": "string" },
+        "trigger": { "type": "string", "description": "e.g., tag push v*.*.*" },
+        "release_assets": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "platform": { "type": "string" },
+              "asset_name": { "type": "string" },
+              "format": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "signing": {
+      "type": "object",
+      "description": "Code signing configuration",
+      "properties": {
+        "windows": {
+          "type": "object",
+          "properties": {
+            "script": { "type": "string" },
+            "tool": { "type": "string" },
+            "timestamp_url": { "type": "string" },
+            "hash_algorithm": { "type": "string" },
+            "required_secrets": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "macos": {
+          "type": "object",
+          "properties": {
+            "script": { "type": "string" },
+            "tool": { "type": "string" },
+            "entitlements_file": { "type": "string" },
+            "required_secrets": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      }
+    },
+    "auto_update": {
+      "type": "object",
+      "description": "Auto-update configuration",
+      "properties": {
+        "strategy": {
+          "type": "string",
+          "enum": ["server-manifest", "github-releases", "embedded"]
+        },
+        "checker_class": { "type": "string" },
+        "config_file": { "type": "string" },
+        "manifest_template": { "type": "string" },
+        "update_config": {
+          "type": "object",
+          "properties": {
+            "check_on_startup": { "type": "boolean" },
+            "check_interval_hours": { "type": "integer" },
+            "manifest_url": { "type": "string" },
+            "allow_skip_version": { "type": "boolean" }
+          }
+        }
+      }
+    },
+    "monitoring": {
+      "type": "object",
+      "description": "Runtime monitoring configuration",
+      "properties": {
+        "logging": {
+          "type": "object",
+          "properties": {
+            "config_file": { "type": "string" },
+            "log_location": { "type": "string" },
+            "console_level": { "type": "string" },
+            "file_level": { "type": "string" },
+            "max_file_size": { "type": "string" },
+            "max_history_days": { "type": "integer" },
+            "total_size_cap": { "type": "string" }
+          }
+        },
+        "crash_reporting": {
+          "type": "object",
+          "properties": {
+            "handler_class": { "type": "string" },
+            "crash_location": { "type": "string" },
+            "remote_reporting": { "type": "boolean" }
+          }
+        },
+        "metrics": {
+          "type": "object",
+          "properties": {
+            "collector_class": { "type": "string" },
+            "metrics_location": { "type": "string" },
+            "jmx_enabled": { "type": "boolean" }
+          }
+        }
+      }
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "path", "type"],
+        "properties": {
+          "name": { "type": "string" },
+          "path": { "type": "string" },
+          "type": {
+            "type": "string",
+            "enum": ["YAML", "Shell", "Java", "XML", "JSON", "Markdown"]
+          }
+        }
+      }
+    },
+    "required_secrets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "description": { "type": "string" }
+        }
+      },
+      "description": "Secrets the user must configure in CI/CD"
+    },
+    "setup_instructions": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Manual setup steps the user must follow"
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["missing_secret", "missing_certificate", "platform_gap", "yaml_invalid", "compile_error"]
+          },
+          "message": { "type": "string" },
+          "severity": { "type": "string", "enum": ["Info", "Minor", "Major"] }
+        }
+      }
+    },
+    "loop_state": {
+      "type": "object",
+      "required": ["next_action", "deploy_phase"],
+      "properties": {
+        "next_action": {
+          "type": "string",
+          "enum": ["shipped", "standalone_complete", "redeploy"]
+        },
+        "deploy_phase": {
+          "type": "string",
+          "enum": ["post-delivery", "standalone", "redeploy"]
+        },
+        "handoff_file": { "type": "string" }
+      }
+    }
+  }
+}

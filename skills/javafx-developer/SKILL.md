@@ -10,6 +10,31 @@ compatibility: Requires JDK 17+. Supports JavaFX 17/21/24/25/26.
 metadata:
   author: DongZY0617
   version: "1.0"
+triggers:
+  - create
+  - generate
+  - build
+  - scaffold
+  - implement
+  - JavaFX app
+  - fix
+  - apply refactoring
+depends_on:
+  - javafx-architect (optional)
+  - javafx-designer (optional)
+  - javafx-code-reviewer
+  - javafx-runner
+  - javafx-refactorer (optional)
+consumes_from:
+  - javafx-architect (optional, architecture-handoff.json)
+  - javafx-designer (optional, design-handoff.json)
+  - javafx-code-reviewer (fix handoff report)
+  - javafx-runner (fix handoff report)
+  - javafx-refactorer (optional, refactor-handoff.json)
+produces_for:
+  - javafx-code-reviewer
+  - javafx-runner
+  - javafx-docgen
 ---
 
 # JavaFX Developer
@@ -65,6 +90,7 @@ Use this skill when:
 2. **Extract key info**: Project name, package path, functionality, UI type, data model
 3. **Ask for missing info**: If critical info is missing, ask the user
 4. **Infer defaults**: Use reasonable defaults for package names, class names, module names
+5. **Output requirements spec**: Generate a `requirements.md` file using `templates/docs/requirements.md` as the template. Document functional requirements (feature list, UI flows), non-functional requirements (performance, security, compatibility), and technical constraints (JavaFX version, JDK, build tool, architecture pattern). This serves as the baseline for incremental review and requirement traceability — reviewer can reference requirement IDs in review reports
 
 ### Step 2: Version & Toolchain Selection
 
@@ -94,11 +120,44 @@ Use this skill when:
 
 ### Step 4: Code Generation & Template Filling
 
-1. **Load templates**: Read from `templates/` directory
-2. **Variable replacement**: Replace placeholders with actual values
-3. **Logic filling**: Add business logic code based on user requirements
-4. **Style generation**: Generate corresponding CSS files
-5. **Resource handling**: Handle icons, images, and static resource references
+1. **Check for architecture handoff**: Before loading templates, check if `architecture/architecture-handoff.json` exists in the project root. If it does, `javafx-architect` has produced architecture specs that should guide code generation:
+   - **Package structure**: Use the `developer_instructions.package_structure` pattern (e.g., `com.example.app.{module}`) instead of the default package naming
+   - **Layering rule**: Follow the `developer_instructions.layering_rule` — place classes in the correct layer (Presentation/Application/Domain/Infrastructure) and enforce no upward dependencies
+   - **Naming convention**: Apply the `developer_instructions.naming_convention` patterns (e.g., `{Entity}Controller`, `{Entity}ViewModel`, `{Entity}Service`, `{Entity}Repository`) instead of built-in defaults
+   - **Technology stack**: Use the versions and libraries specified in `system_design.technology_stack` (database, ORM, DI, logging) when generating `pom.xml` dependencies
+   - **Module decomposition**: Generate code organized by the modules defined in `system_design.modules[]` — each module gets its own package with the specified responsibility
+   - **Key constraints**: Enforce all `developer_instructions.key_constraints` (e.g., "All database access through Repository interfaces", "ViewModels must not reference JavaFX controls directly")
+   - **UML reference**: Read `architecture/uml/class-diagram.puml` to understand the domain model and class relationships before generating entity and service classes
+   - If `architecture-handoff.json` does not exist, proceed with built-in defaults (default behavior)
+2. **Check for design handoff**: Before loading templates, check if `design/design-handoff.json` exists in the project root. If it does, `javafx-designer` has produced design artifacts that should be used instead of built-in templates:
+   - **FXML templates**: Read FXML prototypes from `design/fxml/*.fxml` instead of `templates/fxml/*.fxml`. These prototypes already have proper layout containers, fx:id assignments, and styleClass values
+   - **CSS themes**: Copy `design/css/light-theme.css` and `design/css/dark-theme.css` to `src/main/resources/css/` instead of using built-in CSS templates. The designer's themes include complete CSS variable systems and component styles
+   - **Icon config**: Read `design/icons/icon-config.json` and add the Ikonli Maven dependencies to `pom.xml`. Configure FontIcon usage in FXML and Java code based on the icon mapping
+   - **Interaction flow**: Read `design/flow/interaction-flow.mmd` to understand screen transitions and implement navigation logic accordingly
+   - If `design-handoff.json` does not exist, proceed with built-in templates (default behavior)
+2. **Load templates**: Read from `templates/` directory (or `design/` directory if designer handoff exists)
+3. **Variable replacement**: Replace placeholders with actual values
+4. **Logic filling**: Add business logic code based on user requirements
+5. **Style generation**: Generate corresponding CSS files (or use designer's CSS if available)
+6. **Resource handling**: Handle icons, images, and static resource references (use designer's icon config if available)
+7. **Requirement traceability annotation**: Annotate every generated Java source file with `@req` tags in the Javadoc class header, linking each file to the requirement ID(s) it implements. Format: `@req FR-001` (single) or `@req FR-001, FR-002` (multiple). Requirement IDs are sourced from the `requirements.md` specification (Section 3.1 Feature List). If a file implements infrastructure or utility functionality not tied to a specific functional requirement, annotate it with `@req INFRA` (infrastructure). This enables the reviewer's Requirements Coverage dimension to detect orphan code and unimplemented requirements
+   ```java
+   /**
+    * User management controller.
+    *
+    * @req FR-001, FR-002
+    * @author javafx-developer
+    */
+   public class UserController { ... }
+   ```
+8. **Test scaffolding** (default): Generate test skeletons for each Controller and ViewModel using TestFX templates (`templates/test/`). This is now the default behavior — no user request needed. Generate:
+   - `MainWindowTest.java` — Verifies main window initialization and FXML loading
+   - `ControllerTest.java` — Verifies controller actions and event handlers
+   - `ViewModelTest.java` — Verifies ViewModel property bindings and state transitions (MVVM only)
+   - `CRUDViewTest.java` — Verifies CRUD operations if TableView is present
+   - Each test method must reference the requirement ID it validates via the naming convention `test{Behavior}_{REQ_ID}()` — e.g., `testUserCreation_FR_001()`, and include `@req FR-001` in the test method's Javadoc. This enables the reviewer to verify that every requirement has test coverage
+   - Add JaCoCo plugin to `pom.xml` for coverage measurement (see `javafx-runner`'s `references/test-coverage-gate.md` for threshold details)
+8. **Update RTM**: After all files are generated, update the Requirement Traceability Matrix in `requirements.md` (Section 7) — fill in the implementation file paths, test case references, and coverage summary. Set status to `Implemented` for code-only items and `Tested` for items with test scaffolding
 
 ### Step 5: Quality Check
 
@@ -110,12 +169,17 @@ Use this skill when:
 
 ### Step 5.5: Fix Consumption (When Input Is a Fix Handoff Report)
 
-> This step activates when the input is a fix handoff report from `javafx-code-reviewer` or `javafx-runner`, identified by the presence of `fix_handoff` fields (`target_file`, `target_lines`, `fix_type`, `fix_priority`). In this mode, Steps 1–5 are skipped.
+> This step activates when the input is a fix handoff report from `javafx-code-reviewer` or `javafx-runner`, identified by the presence of `fix_handoff` fields (`target_file`, `target_lines`, `fix_type`, `fix_priority`, `code_fingerprint`, `anchor_pattern`, `ast_node_signature`). In this mode, Steps 1–5 are skipped.
 
-1. **Parse report**: Extract all fix handoff entries, sort by `fix_priority` ascending (1 = highest)
-2. **Locate & apply fix** (per entry): Read `target_file`, navigate to `target_lines`, execute `fix_type` (replace/insert/delete)
-3. **Cross-impact check**: If a fix modifies a Controller, re-check FXML `fx:id` matching; if `module-info.java`, re-check all `opens`/`requires`; if CSS, re-check `styleClass` references in FXML
-4. **Output fix summary**: List all applied fixes with status (applied/skipped/failed), flag line drift, recommend next step (re-review or re-verify)
+1. **State recovery**: Check for `.loop-state.json` in the project root directory. If found, load the loop state (current round, issue history, convergence trend) and resume from the last checkpoint. If not found, initialize a new loop state as Round 1
+2. **Parse report & concurrent grouping**: Extract all fix handoff entries, sort by `fix_priority` ascending (1 = highest). Group fixes by `target_file` into concurrent groups (Step 1a) — different file groups can execute in parallel (up to 4 concurrent), same-file fixes execute serially in reverse line order
+3. **Pre-fix backup**: Create `.fix-backup/{timestamp}/` directory and copy all target files before applying any fixes. Write a `manifest.json` recording backed-up files, loop ID, and round number (see Fix Consumption Protocol Step 1.5). Backup is created before parallel execution begins
+4. **Locate & apply fix** (concurrent across file groups): Launch parallel file groups — each group applies its fixes serially using the 4-level location matching hierarchy: fingerprint → anchor → content → AST signature (see Fix Consumption Protocol Steps 2–3). Thread-safe result buffer collects status from all groups
+5. **Cross-impact check** (parallel): Run 4 independent checks concurrently — Controller-FXML consistency (A), module-info completeness (B), CSS reference resolution (C), FXML-Controller binding (D). All must pass before compile verification (see Fix Consumption Protocol Step 4)
+6. **Post-fix compile verification & rollback**: Run `mvn compile -q` to verify fixes did not break compilation. If compilation fails, automatically restore all modified files from `.fix-backup/{timestamp}/`, mark all fixes as `rolled_back`, and record a rollback event in `.loop-state.json` (see Fix Consumption Protocol Step 4.5)
+7. **Output fix summary** (thread-safe aggregation): Merge results from all parallel groups, sort by `fix_priority`, list all applied fixes with status (applied/skipped/failed/rolled_back), flag line drift, recommend next step (re-review or re-verify)
+8. **Update RTM**: If a fix modifies, adds, or removes a file that has `@req` annotations, update the Requirement Traceability Matrix in `requirements.md` (Section 7) to reflect the change. If a fix introduces new functionality not in the original requirements, add a new requirement ID and annotate the code accordingly
+9. **State persistence**: After completing fixes, update `.loop-state.json` with the current round number, applied fixes, issue counts, convergence trend, and rollback events. This enables cross-session loop recovery
 
 See **Fix Consumption Protocol** section below for full specification.
 
@@ -408,30 +472,115 @@ For detailed integration guides, see `references/third-party-libraries.md`.
 
 ### jpackage (Recommended)
 
-```bash
-# Build JAR first
-mvn clean package
+`jpackage` packages a JavaFX application into a platform-native installer with an embedded custom JRE. **jpackage does not support cross-compilation** — each platform's installer must be built on a runner of the corresponding OS. To distribute on all three desktop platforms, maintain a separate jpackage command per platform (the templates below) and orchestrate them via a CI/CD matrix build.
 
-# Create native installer
-jpackage \
-  --type exe \
-  --name "MyApp" \
-  --app-version 1.0.0 \
-  --input target/libs \
-  --main-jar myapp.jar \
-  --main-class com.example.App \
-  --icon src/main/resources/icon.ico \
-  --win-menu \
-  --win-shortcut \
-  --java-options "--enable-native-access=javafx.graphics"
+#### Common Prerequisites
+
+```bash
+# Build the application JAR first (shared across all platforms)
+mvn clean package
 ```
 
+#### Windows Template (`.msi`)
+
+Requires WiX Toolset 4.x on the PATH. Use a stable `--win-upgrade-uuid` so newer versions upgrade in place rather than install side-by-side.
+
+```bash
+jpackage \
+  --type msi \
+  --name "MyApp" \
+  --app-version 1.0.0 \
+  --vendor "MyCompany" \
+  --module com.example/com.example.App \
+  --module-path "mods:libs" \
+  --runtime-image build/javafx-runtime \
+  --icon src/main/resources/icons/app.ico \
+  --win-menu \
+  --win-shortcut \
+  --win-upgrade-uuid "12345678-1234-4234-8234-123456789abc" \
+  --java-options "--enable-native-access=javafx.graphics" \
+  --dest dist
+```
+
+#### macOS Template (`.dmg`)
+
+Requires Xcode command line tools. The `--mac-package-identifier` (reverse-DNS) must be stable and match the signing/notarization profile.
+
+```bash
+jpackage \
+  --type dmg \
+  --name "MyApp" \
+  --app-version 1.0.0 \
+  --vendor "MyCompany" \
+  --module com.example/com.example.App \
+  --module-path "mods:libs" \
+  --runtime-image build/javafx-runtime \
+  --icon src/main/resources/icons/app.icns \
+  --mac-package-name "MyApp" \
+  --mac-package-identifier "com.mycompany.myapp" \
+  --mac-sign \
+  --mac-signing-key-user-name "Developer ID Application: Your Name (XXXXXXXXXX)" \
+  --java-options "--enable-native-access=javafx.graphics" \
+  --dest dist
+```
+
+#### Linux Templates (`.deb` and `.rpm`)
+
+Requires `dpkg-deb` (for `.deb`) or `rpm-build` (for `.rpm`). Run both commands to produce both distribution formats.
+
+```bash
+# .deb (Debian/Ubuntu)
+jpackage \
+  --type deb \
+  --name "myapp" \
+  --app-version 1.0.0 \
+  --vendor "MyCompany" \
+  --module com.example/com.example.App \
+  --module-path "mods:libs" \
+  --runtime-image build/javafx-runtime \
+  --icon src/main/resources/icons/app.png \
+  --linux-package-name "myapp" \
+  --linux-deb-maintainer "dev@mycompany.com" \
+  --linux-rpm-license-type "MIT" \
+  --install-dir /opt/myapp \
+  --java-options "--enable-native-access=javafx.graphics" \
+  --dest dist
+
+# .rpm (Fedora/RHEL)
+jpackage \
+  --type rpm \
+  --name "myapp" \
+  --app-version 1.0.0 \
+  --vendor "MyCompany" \
+  --module com.example/com.example.App \
+  --module-path "mods:libs" \
+  --runtime-image build/javafx-runtime \
+  --icon src/main/resources/icons/app.png \
+  --linux-package-name "myapp" \
+  --linux-rpm-license-type "MIT" \
+  --install-dir /opt/myapp \
+  --java-options "--enable-native-access=javafx.graphics" \
+  --dest dist
+```
+
+#### Toolchain Requirements per Platform
+
+| Platform | Output Type | Required Toolchain | Install Command |
+|----------|-------------|---------------------|-----------------|
+| Windows | `msi` | WiX Toolset 4.x | `dotnet tool install --global wix` |
+| Windows | `exe` | Inno Setup 6+ | Download from jrsoftware.org, add to `PATH` |
+| macOS | `dmg` / `pkg` | Xcode command line tools | `xcode-select --install` |
+| Linux | `deb` | `dpkg-deb` | `apt install dpkg-dev` (Debian/Ubuntu) |
+| Linux | `rpm` | `rpmbuild` | `dnf install rpm-build` (Fedora/RHEL) |
+
+> **Note**: jpackage cannot cross-compile. Building a Windows `.msi` requires a Windows host with WiX; a macOS `.dmg` requires macOS with Xcode tools; Linux `.deb`/`.rpm` require the respective Linux toolchain. For multi-platform delivery, generate each artifact on its native OS via a CI/CD matrix build (see `references/cross-platform-packaging.md`).
+
 ### Output types by platform:
-- Windows: `--type exe` or `--type msi`
+- Windows: `--type exe` (Inno Setup) or `--type msi` (WiX)
 - macOS: `--type dmg` or `--type pkg`
 - Linux: `--type deb` or `--type rpm`
 
-For detailed packaging guide, see `references/packaging-deployment.md`.
+For detailed packaging guides, see `references/packaging-deployment.md` and `references/cross-platform-packaging.md`.
 
 ## Constraints
 
@@ -462,7 +611,8 @@ When delivering code, always provide:
 1. **File manifest** — List all generated files with full paths
 2. **Dependencies** — Required Maven/Gradle dependencies
 3. **Run instructions** — Compile and run commands (e.g., `mvn javafx:run`)
-4. **Next steps** — Suggestions for extensions, testing, packaging
+4. **UI preview** — If a UI screenshot is available (from `javafx-runner` verification or manual capture), embed it in the delivery to give the user a visual confirmation of the rendered UI. If no screenshot is available, provide an FXML control tree diagram (as a Mermaid flowchart) as a structural preview
+5. **Next steps** — Suggestions for extensions, testing, packaging
 
 ### Example Output Structure
 
@@ -487,6 +637,10 @@ When delivering code, always provide:
 
 ### Run Command
 mvn javafx:run
+
+### UI Preview
+- `target/ui-preview.png` — Main window screenshot (if available from javafx-runner verification)
+- Or: FXML control tree diagram (Mermaid flowchart) as structural preview fallback
 ```
 
 ## Quality Checklist
@@ -502,6 +656,9 @@ Before delivering, verify:
 - [ ] Thread safety: background tasks use `Platform.runLater()`
 - [ ] Resource paths are correct (relative, not absolute)
 - [ ] Javadoc comments on public API
+- [ ] Every Java source file has `@req` annotation in class Javadoc header
+- [ ] Test methods follow `test{Behavior}_{REQ_ID}()` naming convention
+- [ ] Requirement Traceability Matrix in `requirements.md` is updated with implementation and test mappings
 - [ ] JavaFX 24+ projects configured with `--enable-native-access=javafx.graphics`
 - [ ] Spring Boot Controllers annotated with `@Scope("prototype")`
 
@@ -516,49 +673,166 @@ Use this protocol when the input is a fix handoff report, identified by the pres
 - `target_lines`: Start-end line range
 - `fix_type`: `replace` / `insert` / `delete`
 - `fix_priority`: Integer, 1 = highest priority
+- `code_fingerprint`: SHA-256 hash of the problematic code snippet (for drift-resistant matching)
+- `anchor_pattern`: Surrounding context signature (for secondary location matching)
+- `ast_node_signature`: Fully qualified method/field/class signature (for refactor-resistant matching; `null` for non-Java files)
 
 ### Workflow
 
 **Step 1: Parse Report**
 - Extract all fix handoff entries from the report
+- **Multi-source merge**: When the input contains fix handoffs from **both** `javafx-code-reviewer` and `javafx-runner` (parallel execution mode), merge them into a single list before processing:
+  1. Collect all entries from both sources into a single list
+  2. **Deduplicate**: For entries targeting the **same `target_file`** with **overlapping `target_lines`** ranges (e.g., reviewer reports lines 10-15 and runner reports lines 12-18 on the same file):
+     - Keep the entry with the **higher severity** (Critical > Major > Minor > Info)
+     - If both have the same severity, keep the **lower `fix_priority`** number (higher priority)
+     - Record the discarded entry's source and issue title in the kept entry's note for traceability
+  3. **Re-sort**: Sort the deduplicated list by `fix_priority` ascending (1 = highest) across both sources
 - Sort by `fix_priority` ascending (1 = highest)
 - Group entries by `target_file` for batch processing
 
-**Step 2: Locate & Apply Fix** (per entry)
-- Read `target_file`, navigate to `target_lines`
-- Validate: verify the code at `target_lines` matches the "Problematic Code" snippet in the report
-- Execute `fix_type`:
-  - `replace`: Replace the target lines with the "Corrected Example" from the report
-  - `insert`: Insert the "Corrected Example" after `target_lines`
-  - `delete`: Remove `target_lines`
-- Record fix status: `applied` / `skipped` / `failed`
+**Step 1a: Concurrent Fix Grouping**
 
-**Step 3: Line Drift Handling**
-- If `target_lines` content does not match the report's "Problematic Code" snippet (line drift detected):
-  - Search for the snippet content within ±10 lines of the specified range
-  - If found, apply fix at the actual location and record status as `applied (relocated)`
-  - If not found, record status as `skipped (line drift)` and include in Fix Summary
-- **Batch ordering**: When multiple fixes target the same file, apply them in reverse line order (highest line first) to prevent earlier fixes from shifting later line numbers
+After parsing and sorting, group fixes into **concurrent groups** for parallel execution:
 
-**Step 4: Cross-Impact Check**
-After applying all fixes, verify cross-file consistency:
-- If a fix modified a **Controller**: re-check FXML `fx:id` fields match Controller fields
-- If a fix modified **module-info.java**: re-check all `requires` and `opens` are complete
-- If a fix modified **CSS**: re-check `styleClass` references in FXML files still resolve
-- If a fix modified **FXML**: re-check `fx:controller` path and event handler signatures
+1. **File-based grouping**: Group all fix entries by `target_file`. Each group contains all fixes targeting the same file:
+   ```
+   Group A (UserController.java): [RF-001 (lines 10-15), RF-004 (lines 45-50)]
+   Group B (User.java):            [RF-002 (lines 8-12)]
+   Group C (user-view.fxml):       [RF-003 (lines 20-25)]
+   Group D (OrderService.java):    [RF-005 (lines 30-35), RF-006 (lines 60-65)]
+   ```
 
-**Step 5: Output Fix Summary**
+2. **Parallel eligibility**: Groups targeting **different files** are eligible for parallel execution. Groups targeting the **same file** (after AST relocation in Step 3) must be merged and executed serially.
+
+3. **Intra-file ordering**: Within each file group, sort fixes by:
+   - **Primary**: `fix_priority` ascending (1 = highest priority, applied first)
+   - **Secondary**: `target_lines` start line **descending** (highest line first — prevents line drift from earlier fixes shifting later line numbers)
+   - After each fix within a group, recompute line numbers for remaining fixes in the same group based on the line count delta
+
+4. **Concurrency limit**: The maximum number of parallel groups is bounded by `min(file_group_count, 4)` — a hard limit of 4 concurrent file modifications to avoid excessive I/O contention and maintain debuggability. When there are ≤ 4 file groups, all execute in parallel. When there are > 4, groups are processed in batches of 4.
+
+5. **Dependency-aware scheduling**: If a fix in Group A creates a new file that a fix in Group B references (detected via `new_files` field in refactoring handoffs), Group B must wait for Group A to complete. Record such dependencies in a **group dependency graph**:
+   - Build a DAG: Group A → Group B if any fix in B depends on a `new_file` created by a fix in A
+   - Topological sort: Execute groups in dependency order; independent groups run in parallel
+
+6. **Output**: A list of file groups with intra-file ordering and inter-group dependency graph, ready for parallel execution in Step 2
+
+**Step 1.5: Pre-Fix Backup**
+Before applying any fixes, create backups of all files that will be modified:
+1. **Create backup directory**: `.fix-backup/{timestamp}/` in the project root, where `{timestamp}` is `yyyy-MM-dd-HHmmss` format (e.g., `.fix-backup/2026-06-29-101530/`)
+2. **Copy target files**: For each unique `target_file` in the fix handoff list, copy the current version to the backup directory, preserving the relative path structure:
+   ```
+   .fix-backup/2026-06-29-101530/
+   ├── src/main/java/com/example/controller/UserController.java
+   ├── src/main/java/com/example/model/User.java
+   └── src/main/resources/fxml/user-view.fxml
+   ```
+3. **Create backup manifest**: Write `.fix-backup/{timestamp}/manifest.json` recording:
+   - `timestamp`: Backup creation time
+   - `loop_id`: Current loop ID from `.loop-state.json`
+   - `round`: Current round number
+   - `files`: List of backed-up file paths (relative to project root)
+   - `fix_count`: Total number of fix handoff entries
+4. **Skip backup for skipped fixes**: If a fix entry is already marked as `skipped` during parsing (e.g., invalid target file), do not include its `target_file` in the backup
+5. **Backup failure handling**: If a `target_file` does not exist (file was deleted or path is wrong), skip it and note in the backup manifest as `missing`
+
+**Step 2: Locate & Apply Fix** (per entry, with concurrent execution across file groups)
+
+Fixes are applied using a **two-level execution model**:
+- **Inter-file level (parallel)**: Different file groups execute concurrently (up to 4 parallel groups, per Step 1a concurrency limit)
+- **Intra-file level (serial)**: Within each file group, fixes are applied serially in the order determined by Step 1a (priority ascending, then line number descending)
+
+**Parallel execution flow**:
+1. **Launch file groups**: For each independent file group (no unresolved dependencies in the group dependency graph), launch a parallel execution context
+2. **Intra-group serial application**: Within each group, apply fixes one by one:
+   - Read `target_file`, navigate to `target_lines`
+   - Validate: verify the code at `target_lines` matches the "Problematic Code" snippet in the report (using Step 3 location matching)
+   - Execute `fix_type`:
+     - `replace`: Replace the target lines with the "Corrected Example" from the report
+     - `insert`: Insert the "Corrected Example" after `target_lines`
+     - `delete`: Remove `target_lines`
+   - Record fix status: `applied` / `skipped` / `failed` (thread-safe write to Fix Summary — see Step 5)
+   - **Recompute line numbers**: After each fix within the group, adjust remaining fixes' `target_lines` based on the line count delta (added lines → shift down, removed lines → shift up)
+3. **Wait for all groups**: After launching all parallel groups, wait for all to complete before proceeding to Step 4 (Cross-Impact Check)
+4. **Dependency resolution**: If a group has dependencies on other groups (from Step 1a DAG), it waits for its dependencies to complete before starting
+
+**Thread safety guarantees**:
+- Each file group operates on a **distinct file** — no file is modified by two groups simultaneously
+- The Fix Summary is written using a **thread-safe append** mechanism (see Step 5 for details)
+- The pre-fix backup (Step 1.5) is created **before** any parallel execution begins — all groups read from the same backup baseline
+- If any group encounters a fatal error (e.g., file not found, disk full), that group is aborted and its fixes are marked as `failed`. Other groups continue independently
+
+**Step 3: Location Matching & Line Drift Handling**
+- **Fingerprint-first matching** (primary): Compute the SHA-256 hash of the code at `target_lines` (normalized: whitespace-trimmed) and compare with the report's `code_fingerprint` field. If they match, apply the fix at `target_lines` directly
+- **Anchor-based matching** (secondary): If fingerprint does not match (line drift detected), use `anchor_pattern` (2 lines before + 2 lines after) to search for the correct location within the file. If the anchor pattern matches at exactly one location, apply the fix there and record status as `applied (relocated by anchor)`
+- **Content-based matching** (fallback): If both fingerprint and anchor matching fail, fall back to searching for the "Problematic Code" snippet content within ±10 lines of the specified range. If found, apply fix at the actual location and record status as `applied (relocated)`
+- **AST signature matching** (refactor-resistant): If all three methods above fail (indicating the code has been moved, renamed, or significantly refactored), use `ast_node_signature` to locate the code by its structural identity:
+  1. Parse `ast_node_signature` to extract the fully qualified class name and optional member name (split on `#`)
+  2. Search the project's source tree for the class file (resolve `{package}.{Class}` to `src/main/java/{package}/{Class}.java`)
+  3. If the class file is found in a **different file** than `target_file`, update `target_file` to the actual location and record status as `applied (relocated by AST: {old_file} → {new_file})`
+  4. If the signature contains a method (e.g., `#handleSave(ActionEvent)`), parse the file to find the method declaration matching the name and parameter types. Apply the fix at the method's actual location
+  5. If the signature contains a field (e.g., `#userName`), find the field declaration and apply the fix there
+  6. If only a class signature is present (e.g., `com.example.controller.UserController`), locate the class declaration and apply the fix at the class level
+  7. If the class is not found in the expected package, perform a project-wide search by class name (simple name match) to handle package renames
+  8. If the method/field is not found within the located class, record status as `skipped (AST node not found)` and include the signature in the Fix Summary for manual investigation
+- **No match**: If all four methods fail, record status as `skipped (line drift)` and include in Fix Summary
+- **Intra-file batch ordering** (within concurrent group): When multiple fixes target the same file, apply them in reverse line order (highest line first) to prevent earlier fixes from shifting later line numbers. After each fix, recompute line numbers for remaining fixes targeting the same file based on the line count delta of the applied fix. This ordering is determined in Step 1a and enforced during Step 2's intra-group serial application
+- **AST relocation and group reassignment**: If AST signature matching (level 4) relocates a fix to a **different file** than originally grouped, that fix is moved to the target file's group. If the target file's group is already executing, the relocated fix is deferred to a post-parallel phase and applied serially after all parallel groups complete
+
+**Step 4: Cross-Impact Check** (parallel execution)
+
+After applying all fixes (all parallel file groups complete), verify cross-file consistency. The four check categories are **independent** and can be executed **in parallel**:
+
+1. **Controller-FXML consistency check** (parallel task A): If any fix modified a Controller class, re-check that FXML `fx:id` fields match the Controller's `@FXML`-annotated fields. Scan all FXML files that reference the modified Controller via `fx:controller`
+2. **Module descriptor check** (parallel task B): If any fix modified `module-info.java`, re-check all `requires` and `opens` directives are complete — verify that every package referenced by modified files has a corresponding `opens` or `exports` directive
+3. **CSS reference check** (parallel task C): If any fix modified a CSS file, re-check that all `styleClass` references in FXML files still resolve to a CSS class definition. If any fix modified FXML, verify that new `styleClass` attributes have corresponding CSS definitions
+4. **FXML-Controller binding check** (parallel task D): If any fix modified an FXML file, re-check the `fx:controller` path is valid and all event handler signatures (`onAction`, `onMouseClicked`, etc.) match methods in the Controller class
+
+**Parallel execution rules**:
+- All four checks run concurrently — they examine different file types and have no data dependency on each other
+- Each check produces a **pass/fail result** with details of any mismatches found
+- If any check fails, record the mismatch in the Fix Summary as a cross-impact warning
+- All checks must pass for the fix batch to proceed to Step 4.5 (compile verification). A failed cross-impact check does NOT trigger rollback — instead, it generates a warning that is included in the Fix Summary for the reviewer/runner to evaluate in the next round
+
+**Step 4.5: Post-Fix Compile Verification & Rollback**
+After all fixes are applied and cross-impact checks pass, verify that the project still compiles:
+1. **Execute compile verification**: Run `mvn compile -q` (incremental) to verify that the applied fixes did not introduce compilation errors. For Gradle projects, use `gradle compileJava --quiet`
+2. **Compile passes** → Proceed to Step 5 (Output Fix Summary), set all fix statuses to `applied`
+3. **Compile fails** → **Automatic rollback** is triggered:
+   a. **Identify failed files**: Parse compiler output to identify which files have compilation errors
+   b. **Rollback all modified files**: Restore every file from `.fix-backup/{timestamp}/` to its original location, overwriting the modified version. Use the backup manifest to ensure all backed-up files are restored
+   c. **Verify rollback**: Re-run `mvn compile -q` to confirm the project compiles again after rollback (sanity check — the project should be in its pre-fix state)
+   d. **Mark fix statuses**: Set all fix entries to `rolled_back` in the Fix Summary
+   e. **Record rollback event**: Add a `rollback_event` entry to `.loop-state.json` (see Loop State Serialization)
+   f. **Recommend next action**: If rollback occurs, recommend "manual intervention required — fixes caused compilation failure. Review the fix handoff entries and apply fixes individually to isolate the problematic change."
+4. **Rollback failure handling**: If the rollback itself fails (e.g., backup file is corrupted or missing), mark status as `rollback_failed` and recommend immediate manual intervention. This is a critical error — the project may be in an inconsistent state
+
+> **Why compile-only**: Runtime verification is deferred to `javafx-runner` in the next loop round. The rollback checkpoint only checks compilation — if the code compiles but has runtime issues, those are caught by the runner's verification, not by this checkpoint. This keeps the rollback decision fast and focused on structural integrity.
+
+**Step 5: Output Fix Summary** (thread-safe aggregation)
+
+After all parallel file groups complete (Step 2), all cross-impact checks finish (Step 4), and compile verification passes (Step 4.5), aggregate the results into a Fix Summary:
+
+**Thread-safe Fix Summary construction**:
+- During parallel execution (Step 2), each file group appends its fix results to a **thread-safe result buffer**. The buffer uses a concurrent append mechanism — each group writes only its own entries, and no group reads or modifies another group's entries
+- After all groups complete, the buffer is **sorted** by `fix_priority` ascending to produce the final Fix Summary table
+- Cross-impact check results (Step 4) are merged into the Fix Summary as additional warning rows, annotated with `cross-impact` in the Note column
+- Rollback events (Step 4.5) are appended as a separate section below the Fix Summary table
 
 | # | Priority | File | Lines | Fix Type | Status | Note |
 |---|----------|------|-------|----------|--------|------|
 | 1 | 1 | `path/to/File.java` | 10-15 | replace | applied | — |
 | 2 | 2 | `path/to/Other.java` | 30-30 | insert | applied (relocated) | Line drift, found at line 32 |
 | 3 | 3 | `path/to/Config.java` | 5-8 | delete | skipped | Line drift, snippet not found |
+| 4 | 4 | `path/to/Broken.java` | 20-25 | replace | rolled_back | Compile failure after fix, file restored from backup |
+| 5 | 5 | `path/to/Moved.java` | 45-50 | replace | applied (relocated by AST) | Method moved to `path/to/NewLocation.java`, found via `com.example.Moved#handleAction()` |
 
 **Next Step Recommendation**:
-- If all fixes applied: recommend "re-review" or "re-verify" (based on report source)
+- If all fixes applied: recommend "re-review and re-verify in parallel" (when both sources were present) or "re-review"/"re-verify" (single source)
 - If any fix skipped: list skipped fixes and recommend manual intervention
 - If any fix failed: describe the failure reason and recommend manual review
+- If any fix rolled_back: recommend "manual intervention required — fixes caused compilation failure. Review the fix handoff entries and apply fixes individually to isolate the problematic change. Backup preserved at `.fix-backup/{timestamp}/`"
 
 ### Quality Check Scope in Fix Consumption Mode
 
@@ -569,7 +843,16 @@ In fix consumption mode, the full 12-item Quality Checklist is NOT re-run. Inste
 
 ## Loop Orchestration Protocol
 
-This protocol is shared across `javafx-developer`, `javafx-code-reviewer`, and `javafx-runner`. It defines the automated closed-loop cycle: **generate → review → verify → fix → re-verify**, until the quality gate passes or termination conditions are met.
+> **Authoritative source**: When operating within an orchestrated loop, see `javafx-orchestrator/SKILL.md` for the authoritative definitions of:
+> - **Loop State Machine** (state transitions, parallel execution, fix cycle)
+> - **Loop Rules** (max rounds, re-review/re-verify strategy, convergence detection, pre-fix backup, rollback, backup cleanup)
+> - **Combined Quality Gate** (reviewer + runner pass/fail matrix, priority rule)
+> - **Loop State JSON** format (`.loop-state.json` schema with all fields)
+> - **Serialization Triggers** (who writes what, when, and with what field isolation)
+> - **State Recovery Protocol** (cross-session recovery, stale handling)
+> - **Fix Handoff Format** (field definitions including `ast_node_signature`)
+>
+> The sections below describe only the **developer's role and responsibilities** within the loop — the minimal subset needed for standalone operation.
 
 ### Developer's Role in the Loop
 
@@ -577,44 +860,16 @@ This protocol is shared across `javafx-developer`, `javafx-code-reviewer`, and `
 - **Generating** (Round 1): Generate initial project code from user requirements (Steps 1–6)
 - **Fixing** (Round 1+): Consume fix handoff reports from reviewer/runner, apply fixes (Step 5.5), output Fix Summary
 
-### Loop State Machine
+### Developer's Serialization Responsibilities
 
-```
-[Start] → Generating → Reviewing → (reviewer Pass?) → Verifying → (runner Pass?) → [Delivered]
-                          ↓ No                          ↓ No
-                       Fixing ←────────────────────── Fixing
-                          ↓
-                     Re-Reviewing (incremental)
-```
+1. **Read state**: Before applying fixes, check for `.loop-state.json` to determine current round and fix scope
+2. **Apply fixes**: Consume merged Fix Handoffs using the [Fix Consumption Protocol](#fix-consumption-protocol) (4-level location matching: fingerprint → anchor → content → AST signature)
+3. **Write result**: After applying fixes, update `rounds[current_round]` with `fixes_applied`, `fixes_skipped`, `fixes_rolled_back` counts and `fix_handoffs[]` array with per-handoff status (`applied`/`skipped`/`rolled_back`)
+4. **Pre-fix backup**: Before applying any fixes, copy all target files to `.fix-backup/{timestamp}/` with a `manifest.json` — enables automatic rollback if post-fix compilation fails
+5. **Rollback**: If post-fix compile fails, restore all modified files from `.fix-backup/{timestamp}/`, mark fixes as `rolled_back`, append `rollback_event` to state. See `javafx-orchestrator/SKILL.md` → Serialization Triggers for the full rollback event schema
+6. **Backup cleanup**: `.fix-backup/` directory is auto-cleaned when the loop passes the quality gate. Paused/aborted loops preserve `.fix-backup/` for manual inspection
 
-### Loop Rules
-
-| Rule | Definition | Termination |
-|------|-----------|-------------|
-| Max rounds | Fix → verify cycle loops at most 3 rounds | At 3 rounds without pass → pause, report to user |
-| Re-review strategy | Round 1: full re-review; Round 2+: incremental re-review (only dimensions touched by fixes) | Incremental re-review checks only fix-affected dimensions |
-| Re-verify strategy | Every round: compile verification mandatory; runtime/packaging based on fix scope | Compile failure short-circuits: skip runtime and packaging |
-| Convergence detection | Compare current round issue count with previous round | 2 consecutive non-converging rounds → pause, report to user |
-| User intervention points | Max rounds reached / non-converging / unfixable issues | Pause with current state report |
-
-### Quality Gate (Combined)
-
-The loop terminates as **Pass** only when BOTH reviewer and runner pass:
-
-| Reviewer Conclusion | Runner Conclusion | Overall | Action |
-|---------------------|-------------------|---------|--------|
-| Pass | Pass | **Pass** | Deliver, exit loop |
-| Pass | Conditional/Fail | **Fail** | Fix runner issues, continue loop |
-| Conditional/Fail | Pass | **Fail** | Fix reviewer issues, continue loop |
-| Conditional/Fail | Conditional/Fail | **Fail** | Fix both, continue loop |
-
-**Priority rule**: When reviewer is Fail, fix reviewer issues first (static issues are usually root causes; fixing them may resolve runtime issues too).
-
-### Individual Gate Criteria
-
-- **Pass**: No Critical/Major issues, pass rate >= 80%
-- **Conditional Pass**: Has Major but no Critical, clear fix plans exist
-- **Fail**: Has Critical issues, must fix before delivery
+> **Fix Handoff Format**: See `javafx-orchestrator/SKILL.md` → Fix Handoff Format for the authoritative field definitions (`target_file`, `target_lines`, `fix_type`, `fix_priority`, `code_fingerprint`, `anchor_pattern`, `ast_node_signature`). The developer's Fix Consumption Protocol (Step 3) describes how these fields are used for 4-level location matching.
 
 ## Reference Documents
 
@@ -623,10 +878,13 @@ For in-depth guidance, refer to these documents in the `references/` directory:
 - `references/project-setup.md` — Maven/Gradle configuration, version matrix, modular setup
 - `references/architecture-patterns.md` — MVC/MVVM/MVP detailed comparison, anti-patterns
 - `references/spring-boot-integration.md` — Spring Boot + JavaFX integration, startup class splitting, DI, common pitfalls
+- `references/database-integration.md` — Database layer integration (JPA/Hibernate, MyBatis, Spring Data JPA, Flyway, HikariCP, JavaFX Property/Entity integration, thread-safety pitfalls)
 - `references/css-best-practices.md` — CSS selectors, theme variables, responsive layout
 - `references/data-binding-patterns.md` — Property types, binding modes, form validation
 - `references/third-party-libraries.md` — Library integration guides, compatibility matrix
 - `references/packaging-deployment.md` — jpackage, jlink, CI/CD integration
+- `references/cross-platform-packaging.md` — Cross-platform jpackage options matrix, per-platform toolchains, icon conversion, code signing, CI/CD build matrix
+- `references/ci-cd-pipeline.md` — CI/CD pipeline configuration, Monocle headless testing, Loop Orchestration Protocol integration, example workflows
 - `EVALUATE.md` — Evaluation test cases, used to quantify skill output quality
 
 ## Template Library
@@ -646,6 +904,9 @@ Reusable code templates in `templates/` directory:
 - `templates/viewmodel/UserViewModel.java` — ViewModel template (MVVM pattern)
 - `templates/service/Service.java` — Service layer template
 - `templates/service/Repository.java` — Repository interface template
+- `templates/dao/Entity.java` — JPA Entity template with JavaFX Property integration (@Access(PROPERTY), @Transient Property accessors, null-safe primitive setters)
+- `templates/dao/Repository.java` — Spring Data JPA Repository interface template (JpaRepository extension, derived/JPQL query methods, thread-safety notes)
+- `templates/dao/FlywayMigration.sql` — Flyway versioned migration SQL template (naming convention, idempotency rules, repeatable migration example)
 - `templates/presenter/Presenter.java` — Presenter template (MVP pattern)
 - `templates/presenter/View.java` — View interface template (MVP pattern)
 - `templates/css/light-theme.css` — Light theme CSS
@@ -656,3 +917,6 @@ Reusable code templates in `templates/` directory:
 - `templates/test/ViewModelTest.java` — ViewModel unit test template (binding logic, computed properties)
 - `templates/test/CRUDViewTest.java` — CRUD view integration test template (TestFX table interactions)
 - `templates/packaging/jpackage-config.properties` — Packaging config
+- `templates/ci/github-actions.yml` — GitHub Actions CI/CD workflow template (multi-platform matrix, Monocle headless testing, jpackage packaging)
+- `templates/ci/gitlab-ci.yml` — GitLab CI/CD template (compile, test, cross-platform packaging with tagged runners)
+- `templates/docs/requirements.md` — Requirements specification template (functional/non-functional requirements, technical constraints, traceability)

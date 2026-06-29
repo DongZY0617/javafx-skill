@@ -16,6 +16,8 @@ import static org.mockito.Mockito.*;
  * Prerequisites:
  * - Mockito dependency in pom.xml (test scope)
  * - Controller delegates business logic to a Service interface
+ *
+ * @req FR-001, FR-002
  */
 public class ControllerTest {
 
@@ -29,37 +31,52 @@ public class ControllerTest {
         controller.setService(mockService);
     }
 
+    /**
+     * @req FR-001
+     */
     @Test
-    void handleRefreshCallsServiceFindAll() {
+    void handleRefreshCallsServiceFindAll_FR_001() {
         controller.handleRefresh();
         verify(mockService, times(1)).findAll();
     }
 
+    /**
+     * @req FR-002
+     */
     @Test
-    void handleSaveCallsServiceSaveWithCorrectArgument() {
+    void handleSaveCallsServiceSaveWithCorrectArgument_FR_002() {
         String data = "test-data";
         controller.setInputData(data);
         controller.handleSave();
         verify(mockService).save(data);
     }
 
+    /**
+     * @req FR-002
+     */
     @Test
-    void handleDeleteCallsServiceDeleteById() {
+    void handleDeleteCallsServiceDeleteById_FR_002() {
         String id = "test-id";
         controller.setSelectedId(id);
         controller.handleDelete();
         verify(mockService).deleteById(id);
     }
 
+    /**
+     * @req FR-002
+     */
     @Test
-    void handleSaveWithEmptyInputDoesNotCallService() {
+    void handleSaveWithEmptyInputDoesNotCallService_FR_002() {
         controller.setInputData("");
         controller.handleSave();
         verify(mockService, never()).save(any());
     }
 
+    /**
+     * @req FR-001
+     */
     @Test
-    void handleRefreshUpdatesStatusLabel() {
+    void handleRefreshUpdatesStatusLabel_FR_001() {
         Label statusLabel = new Label();
         controller.setStatusLabel(statusLabel);
         when(mockService.findAll()).thenReturn(java.util.List.of("item1", "item2"));

@@ -12,6 +12,19 @@ compatibility: Requires JDK 17+. Supports JavaFX 17/21/24/25/26.
 metadata:
   author: DongZY0617
   version: "1.0"
+triggers:
+  - verify
+  - compile
+  - run
+  - test execution
+  - package
+  - deploy verification
+depends_on:
+  - javafx-developer
+consumes_from:
+  - javafx-developer (source code)
+produces_for:
+  - javafx-developer (fix handoff report)
 ---
 
 # JavaFX Runner
@@ -85,6 +98,7 @@ After each step completes, the result is passed to the next step; runner's verif
 |------------------------|-------------------|-------------------|-----------------------------------|
 | Compile Verification | `compile-verification.md` | JDK + Maven/Gradle | developer: Quality checklist - syntax check items |
 | Runtime Verification | `runtime-verification.md` | JDK + JavaFX runtime + possibly a display | reviewer: Thread safety dimension (dynamically verifying static conclusions) |
+| Visual Preview | `visual-preview.md` | JDK + JavaFX runtime + display or Monocle | developer: Output format - UI preview |
 | Packaging Verification | `packaging-verification.md` | JDK + jpackage + platform toolchain | developer: Packaging chapter - jpackage command |
 
 ## Workflow
@@ -106,11 +120,17 @@ After each step completes, the result is passed to the next step; runner's verif
 
 ### Step 2: Compile Verification
 
-1. **Execute compile command**: `mvn compile -q` (quiet mode, output only errors and warnings) or `gradle compileJava --quiet`
-2. **Parse compiler output**: Parse by error format `[ERROR] /path/File.java:[line,col] error message`
-3. **Classify and record**: Compilation errors (Critical), compilation warnings (Minor), dependency resolution failures (Critical)
-4. **Module configuration validation**: Separately check whether `module-info.java`'s `requires` / `exports` / `opens` cover all packages in the project
-5. **Compile failure short-circuit**: If compile verification has Critical issues, skip runtime verification and packaging verification (cannot run uncompiled code), noting "subsequent verification skipped due to compile failure" in the report
+1. **Determine compile mode**: Before executing the compile command, determine whether incremental or full compilation should be used:
+   - **Detect existing build output**: Check if `target/classes/` exists. If it does and the newest file timestamp in `target/classes/` is newer than the newest file timestamp in `src/`, use **incremental compilation mode** (Maven's default behavior — only recompiles changed source files)
+   - **Clean compile override**: If `.loop-config.json` exists in the project root with `"clean_compile": true`, execute `mvn clean compile -q` (full rebuild from scratch). This deletes `target/` first, forcing all source files to be recompiled
+   - **Default behavior**: Without configuration override, **always use `mvn compile -q`** (incremental). Never use `mvn clean compile` by default — it wastes time by recompiling unchanged files
+   - **Record compile mode**: Note `"incremental"` or `"full"` in the verification report for traceability
+2. **Execute compile command**: `mvn compile -q` (incremental, default) or `mvn clean compile -q` (full, only when `.loop-config.json` has `clean_compile: true`) — quiet mode outputs only errors and warnings. For Gradle: `gradle compileJava --quiet` (incremental) or `gradle clean compileJava --quiet` (full)
+3. **Parse compiler output**: Parse by error format `[ERROR] /path/File.java:[line,col] error message`
+4. **Classify and record**: Compilation errors (Critical), compilation warnings (Minor), dependency resolution failures (Critical)
+5. **Module configuration validation**: Separately check whether `module-info.java`'s `requires` / `exports` / `opens` cover all packages in the project
+6. **POM change detection**: If `pom.xml` (or `build.gradle`) was modified since the last round (compare timestamp against `last_fix_handoff`), force a full compilation regardless of config — dependency changes may affect all source files
+7. **Compile failure short-circuit**: If compile verification has Critical issues, skip runtime verification and packaging verification (cannot run uncompiled code), noting "subsequent verification skipped due to compile failure" in the report
 
 ### Step 3: Runtime Verification
 
@@ -124,6 +144,7 @@ After each step completes, the result is passed to the next step; runner's verif
 6. **CSS parse verification**: Check whether the output contains `CSS Error` / `WARNING: Could not resolve`
 7. **Thread safety verification**: Check whether the output contains `IllegalStateException: Not on FX application thread`
 8. **Exit code recording**: The process exit code, 0 for normal, non-0 for abnormal
+9. **UI screenshot capture**: If startup succeeds (exit code 0 or application still running within timeout), capture a screenshot of the main window. Use JavaFX 26+ Headless Preview API when available; otherwise use Monocle + `Robot` API or AWT `Robot` for display environments. Save as `target/ui-preview.png` and embed in the verification report
 
 ### Step 4: Packaging Verification
 
@@ -133,6 +154,7 @@ After each step completes, the result is passed to the next step; runner's verif
 4. **Capture packaging output**: Collect jpackage's `stdout` and `stderr`
 5. **Validate installer artifact**: Check whether installer files are generated (`.exe` / `.msi` / `.dmg` / `.deb` / `.rpm`) and whether the size is reasonable
 6. **Toolchain missing diagnosis**: If jpackage fails, diagnose whether it is a toolchain missing issue (Inno Setup / WiX / Xcode tools)
+7. **Cross-platform configuration completeness**: Since `jpackage` cannot cross-compile, the actual build/installer above runs only for the **current** platform. For the other two platforms, inspect the packaging configuration (`jpackage-config.properties` / build scripts / CI workflow) to confirm each defines its output type, icon (`.ico` / `.icns` / `.png`), and platform-specific metadata (Windows `--win-upgrade-uuid`, macOS `--mac-package-identifier`, Linux `--linux-deb-maintainer`). Record these as "validated by configuration completeness only; not executed on current platform"
 
 ### Step 5: Result Parsing and Severity Classification
 
@@ -146,12 +168,22 @@ After each step completes, the result is passed to the next step; runner's verif
 2. The report includes: verification summary, issue list (with location / recommendation / fix handoff), verification result summary
 3. Provide actionable fix recommendations for each issue, including corrected commands or configuration
 4. The fix handoff field format is fully consistent with `javafx-code-reviewer`, for `javafx-developer` to directly consume
+5. **Extract AST node signatures**: For each issue in a `.java` file, extract the `ast_node_signature` from the compiler error location or runtime stack trace:
+   - Parse the compiler output `[ERROR] /path/File.java:[line,col] message` to identify the file and line, then determine the enclosing method/field/class
+   - For runtime exceptions, use the stack trace's top application frame to identify the enclosing method
+   - If the issue is inside a method body → extract `{package}.{Class}#{methodName}({paramTypes})`
+   - If the issue is a field declaration → extract `{package}.{Class}#{fieldName}`
+   - If the issue is at class level → extract `{package}.{Class}`
+   - If the file is not a Java source file (FXML, CSS, `module-info.java`) → set to `null`
+   - See `javafx-orchestrator/SKILL.md` → Fix Handoff Format → AST Anchor Format for the full extraction specification
 
 ## Verification Dimensions
 
 ### 1. Compile Verification
 
-Execute `mvn compile` (or `gradle compileJava`), parse the compiler output, and identify compilation errors and warnings. Default severity baseline: Critical.
+Execute `mvn compile -q` (incremental, default) or `mvn clean compile -q` (full, when `.loop-config.json` has `clean_compile: true` or `pom.xml` changed), parse the compiler output, and identify compilation errors and warnings. Default severity baseline: Critical.
+
+**Compile Mode**: The verification report records whether incremental or full compilation was used. Incremental mode (default for Round 2+) only recompiles changed files, reducing compile time by 60-80%. Full mode is used for Round 1 or when explicitly configured.
 
 **Check Items**:
 - **Syntax compilation**: Whether all Java source files can pass `javac` compilation with no syntax errors
@@ -179,6 +211,7 @@ Execute `mvn javafx:run` (or `gradle run`), launch the JavaFX application, and c
 - **Headless mode verification**: Whether a JavaFX application can be launched via the Monocle test framework in a CI environment (without a display)
 - **Startup timeout detection**: Whether the application completes startup within a reasonable time (default 30-second timeout)
 - **Exit code check**: The exit code is 0 when the application exits normally; a non-zero exit code indicates a runtime error
+- **UI screenshot capture**: After successful application startup, capture a screenshot of the main window for visual preview. See `references/visual-preview.md` for capture methods by JavaFX version and environment
 
 > **Typical failure example**: `module-info.java` compiles but is missing `opens com.example.controller to javafx.fxml`; at runtime `FXMLLoader` cannot reflectively instantiate the controller and throws `IllegalAccessException`.
 
@@ -190,8 +223,10 @@ Execute `mvn test` (or `gradle test`), parse test results, and identify test fai
 - **Test compilation**: Whether test source files in `src/test/java/` compile without errors
 - **Test execution**: Whether all tests pass with 0 failures and 0 errors
 - **Test coverage**: Whether critical paths are covered (warning if Controller/ViewModel has 0 tests)
+- **JaCoCo coverage report**: Execute `mvn test jacoco:report` to generate coverage report; parse `target/site/jacoco/jacoco.xml` for line and branch coverage metrics. Threshold: line coverage >= 60% on Controller and ViewModel classes. Below threshold: record as Major issue with specific uncovered method names. See `references/test-coverage-gate.md` for threshold configuration and reporting rules
 - **FXML load test**: Whether a TestFX test verifies FXML loading and controller injection
 - **UI interaction test**: Whether at least one TestFX test covers button click / form submit / table selection
+- **Database integration test**: Whether repository/DAO methods (CRUD, query, transaction) are covered by integration tests; whether a `@DataJpaTest` / `@MybatisTest` slice test or a TestFX test exercising a real (e.g., H2 in-memory) datasource validates Entity persistence, Repository/Mapper queries, and `@Transactional` Service save flows end-to-end; whether Flyway migrations run cleanly against a test database; whether null-handling for primitive-typed JavaFX Properties is asserted (insert new entity with null id). Cross-reference: developer `references/database-integration.md` section 8 (Common Pitfalls) for the patterns these tests must guard against
 
 > **Short-circuit**: If compile verification fails, skip test verification (cannot run tests on uncompilable code). If test verification fails, skip packaging verification (should not package untested code).
 
@@ -200,6 +235,8 @@ Execute `mvn test` (or `gradle test`), parse test results, and identify test fai
 ### 4. Packaging Verification
 
 Execute `mvn package` to generate a JAR, then execute `jpackage` to generate a native installer, verifying the packaging flow and artifact integrity. Default severity baseline: Major.
+
+> **Cross-platform validation scope**: `jpackage` cannot cross-compile, so actual packaging can only be executed and verified on the **current** platform. For the other two platforms, verification is limited to **configuration completeness** — confirming that the per-platform jpackage command, icon, and metadata are all present and well-formed in the project's packaging configuration (e.g., `jpackage-config.properties`, build scripts, or CI matrix). The check items below distinguish between "executed" verification (current platform) and "configuration-only" verification (non-current platforms).
 
 **Check Items**:
 - **JAR build**: Whether `mvn package` can successfully generate an executable JAR, whether the JAR contains all necessary JavaFX module dependencies
@@ -210,8 +247,13 @@ Execute `mvn package` to generate a JAR, then execute `jpackage` to generate a n
 - **Icon format**: Whether the Windows icon is `.ico` (multi-size embedded), whether macOS is `.icns`, whether Linux is `.png`
 - **Installer generation**: Whether `jpackage` can successfully generate installer files, whether the artifact size is reasonable (not 0 bytes)
 - **Upgrade UUID**: Whether Windows packaging includes a valid `--win-upgrade-uuid` (UUID v4 format)
+- **Cross-platform configuration completeness**: Whether the project defines jpackage commands/configuration for **all three** platforms (Windows `msi`/`exe`, macOS `dmg`/`pkg`, Linux `deb`/`rpm`). For each non-current platform, verify by configuration inspection that its output type, icon reference, and platform-specific metadata are present — these cannot be executed on the current OS but must be validated so the CI matrix will succeed on the target runner
+- **Platform-specific icon format validation**: Whether each platform's icon reference points to the correct format and the file exists in the repository — Windows must reference `.ico`, macOS `.icns`, Linux `.png`. A missing or wrong-format icon for a non-current platform would fail that platform's CI build, so it must be caught by configuration inspection here
+- **Platform-specific metadata**: Whether each platform's required metadata is present and well-formed — Windows `--win-upgrade-uuid` (stable UUID v4, reused across versions), macOS `--mac-package-identifier` (reverse-DNS, matches signing profile), Linux `--linux-deb-maintainer` (valid email) and `--linux-package-name`. Missing metadata for a non-current platform is recorded as Major with a recommendation to complete it before triggering the multi-platform matrix build
 
-> **Typical failure example**: The `jpackage` command is missing `--add-modules javafx.controls,javafx.fxml`; the generated installer reports `Module javafx.controls not found` at runtime.
+> **Verification split**: Executable checks (JAR build, module path, toolchain, installer generation, current-platform icon/UUID) are validated by actually running commands. Configuration-only checks (non-current-platform icon format, metadata, and the three-platform completeness) are validated by inspecting `jpackage-config.properties` / build scripts / CI workflow — these are recorded as Major when incomplete, with the note "validated by configuration completeness only; not executed on current platform".
+
+> **Typical failure example**: The `jpackage` command is missing `--add-modules javafx.controls,javafx.fxml`; the generated installer reports `Module javafx.controls not found` at runtime. A cross-platform variant: the project only defines a Windows `msi` command and omits macOS/Linux config — the "Cross-platform configuration completeness" check fails with "missing macOS dmg and Linux deb/rpm configuration".
 
 ## Severity Classification
 
@@ -255,6 +297,7 @@ After verification is complete, output a structured report containing three part
 
 ## Verification Summary
 - Verification Mode: [Full / Incremental / Targeted Dimension]
+- Compile Mode: [Incremental / Full]
 - Verification Scope: [List of verification dimensions executed]
 - Environment: JDK [version] / Maven [version] / JavaFX [version] / OS [platform]
 - Modular: [Yes / No]
@@ -285,6 +328,9 @@ After verification is complete, output a structured report containing three part
   - `target_lines: start line-end line`
   - `fix_type: [replace / insert / delete]`
   - `fix_priority: [1-N]` (fix priority, 1=highest)
+  - `code_fingerprint: sha256 hash` (hash of the problematic code snippet, normalized: whitespace-trimmed, for drift-resistant matching)
+  - `anchor_pattern: context signature` (2 lines before + 2 lines after the target, for secondary location when fingerprint match is ambiguous)
+  - `ast_node_signature: com.example.Class#method(params)` (AST-level anchor — fully qualified method/field/class signature, for refactor-resistant matching when code has been moved; `null` for non-Java files)
 
 ### [Major] ... (same structure)
 
@@ -318,8 +364,29 @@ The fix handoff field is fully consistent with `javafx-code-reviewer` and is key
 - `fix_type=insert`: Insert the "Corrected Example" after `target_lines`
 - `fix_type=delete`: Delete the code segment specified by `target_lines` (no corrected example)
 - `fix_priority`: Fix priority sorted by severity + verification dimension, 1 is highest, for ordering during batch fixes
+- `code_fingerprint`: SHA-256 hash of the problematic code snippet (normalized: whitespace-trimmed, leading/trailing spaces removed). Used for drift-resistant matching — if line numbers have shifted due to prior fixes, the fingerprint still identifies the correct code location
+- `anchor_pattern`: Signature of surrounding context (2 lines before + 2 lines after the target lines, concatenated and normalized). Used as a secondary locator when the fingerprint match is ambiguous or multiple matches exist
+- `ast_node_signature`: AST-level anchor in the format `{package}.{Class}#{methodName}({paramTypes})` for method-level issues, `{package}.{Class}#{fieldName}` for field-level issues, or `{package}.{Class}` for class-level issues. Extracted from the compiler error location or runtime stack trace — the enclosing AST node of the problematic code. Provides refactor-resistant matching — when methods are moved to different files or classes are renamed, the developer's Fix Consumption Protocol can locate the code by signature search. Set to `null` for non-Java files (FXML, CSS, `module-info.java`). See `javafx-orchestrator/SKILL.md` → Fix Handoff Format → AST Anchor Format for the full specification
 
 When `javafx-developer` consumes the verification report, it can directly execute fixes item by item in `fix_priority` order, with no additional format conversion required.
+
+### Dual Output Format (Markdown + JSON)
+
+The runner outputs reports in **two formats simultaneously** by default:
+
+1. **Markdown report** (`verification-report.md`) — human-readable, for developer review and documentation
+2. **JSON report** (`verification-report.json`) — machine-readable, for `javafx-developer` Fix Consumption, CI/CD quality gates, and IDE plugin integration
+
+The JSON format is defined by the schema in `report-templates/report-schema.json`. It contains the same information as the Markdown report but in a structured format with a standalone `fix_handoffs` array for direct programmatic consumption. Key fields:
+
+- `summary.conclusion`: `Pass`, `Conditional Pass`, or `Fail` — CI/CD can use `jq .summary.conclusion verification-report.json` for quality gate decisions
+- `summary.dimensions`: Per-dimension conclusions (compile/runtime/test/packaging) with issue counts and JaCoCo coverage data
+- `fix_handoffs[]`: Standalone array sorted by `fix_priority`, each entry includes `target_file`, `target_lines`, `fix_type`, `fix_priority`, `code_fingerprint`, `anchor_pattern`, `ast_node_signature`, `corrected_example`, `issue_id`, and `severity`
+- `jacoco_report`: Coverage summary with uncovered methods list (present if JaCoCo report was generated)
+- `ui_preview`: Screenshot capture result metadata
+- `loop_state`: Current loop state snapshot for orchestrator synchronization
+
+**Output format control**: If `.loop-config.json` exists in the project root with `"output_format": "json"`, output only the JSON report; if `"output_format": "markdown"`, output only the Markdown report. Default (no config file or `"output_format": "both"`) outputs both formats.
 
 ## Constraints
 
@@ -339,53 +406,55 @@ When `javafx-developer` consumes the verification report, it can directly execut
 
 ## Loop Orchestration Protocol
 
-This protocol is shared across `javafx-developer`, `javafx-code-reviewer`, and `javafx-runner`. It defines the automated closed-loop cycle: **generate → review → verify → fix → re-verify**, until the quality gate passes or termination conditions are met.
+> **Authoritative source**: When operating within an orchestrated loop, see `javafx-orchestrator/SKILL.md` for the authoritative definitions of:
+> - **Loop State Machine** (state transitions, parallel execution, fix cycle)
+> - **Loop Rules** (max rounds, re-review/re-verify strategy, convergence detection)
+> - **Combined Quality Gate** (reviewer + runner pass/fail matrix, priority rule)
+> - **Loop State JSON** format (`.loop-state.json` schema with all fields)
+> - **Serialization Triggers** (who writes what, when, and with what field isolation)
+> - **State Recovery Protocol** (cross-session recovery, stale handling)
+> - **Fix Handoff Format** (field definitions including `ast_node_signature`)
+>
+> The sections below describe only the **runner's role and responsibilities** within the loop — the minimal subset needed for standalone operation.
 
 ### Runner's Role in the Loop
 
 `javafx-runner` occupies the **verify** stage of the loop:
 - **Round 1**: Full verification — environment detection + compile + runtime + packaging
-- **Round 2+**: Targeted verification — compile always; runtime/packaging only if fixes touch related files (identified by `target_file` in the fix handoff)
+- **Round 2+**: Targeted verification — compile always (incremental mode by default, see [Incremental Compilation](#incremental-compilation) below); runtime/packaging only if fixes touch related files (identified by `target_file` in the fix handoff)
 - **Short-circuit**: If compile verification fails, skip runtime and packaging verification (cannot run uncompiled code)
 
-### Loop State Machine
+<a id="incremental-compilation"></a>
+#### Incremental Compilation
 
-```
-[Start] → Generating → Reviewing → (reviewer Pass?) → Verifying → (runner Pass?) → [Delivered]
-                          ↓ No                          ↓ No
-                       Fixing ←────────────────────── Fixing
-                          ↓
-                     Re-Reviewing (incremental)
-```
+From Round 2 onward, the runner leverages **incremental compilation** to avoid recompiling unchanged source files:
 
-### Loop Rules
-
-| Rule | Definition | Termination |
-|------|-----------|-------------|
-| Max rounds | Fix → verify cycle loops at most 3 rounds | At 3 rounds without pass → pause, report to user |
-| Re-review strategy | Round 1: full re-review; Round 2+: incremental re-review (only dimensions touched by fixes) | Incremental re-review checks only fix-affected dimensions |
-| Re-verify strategy | Every round: compile verification mandatory; runtime/packaging based on fix scope | Compile failure short-circuits: skip runtime and packaging |
-| Convergence detection | Compare current round issue count with previous round | 2 consecutive non-converging rounds → pause, report to user |
-| User intervention points | Max rounds reached / non-converging / unfixable issues | Pause with current state report |
-
-### Quality Gate (Combined)
-
-The loop terminates as **Pass** only when BOTH reviewer and runner pass:
-
-| Reviewer Conclusion | Runner Conclusion | Overall | Action |
-|---------------------|-------------------|---------|--------|
-| Pass | Pass | **Pass** | Deliver, exit loop |
-| Pass | Conditional/Fail | **Fail** | Fix runner issues, continue loop |
-| Conditional/Fail | Pass | **Fail** | Fix reviewer issues, continue loop |
-| Conditional/Fail | Conditional/Fail | **Fail** | Fix both, continue loop |
-
-**Priority rule**: When reviewer is Fail, fix reviewer issues first (static issues are usually root causes; fixing them may resolve runtime issues too).
+1. **Default mode**: `mvn compile -q` (incremental) — Maven's compiler plugin only recompiles source files whose timestamps are newer than their corresponding `.class` files in `target/classes/`. This reduces Round 2+ compile time by 60-80% compared to full compilation
+2. **Full compile triggers**: A full compilation (`mvn clean compile -q`) is automatically triggered when:
+   - `.loop-config.json` has `"clean_compile": true` (user explicitly requests full rebuild)
+   - `pom.xml` or `build.gradle` was modified since the last round (dependency changes may affect all files)
+3. **Compile mode recording**: The compile mode (`"incremental"` or `"full"`) is recorded in:
+   - The verification report's Compile Verification dimension
+   - The JSON report's `summary.dimensions.compile.compile_mode` field
+   - The Loop State's `rounds[current_round].compile_mode` field
+4. **Safety guarantee**: Incremental compilation produces identical results to full compilation for the changed files — Maven's incremental compiler correctly handles dependent file recompilation within the same module
 
 ### Individual Gate Criteria (Runner)
 
-- **Pass**: No Critical or Major issues, all check items pass (or skipped items are documented), pass rate >= 80%
+- **Pass**: No Critical or Major issues, all check items pass (or skipped items are documented), pass rate >= 80%, JaCoCo line coverage >= 60% on critical paths (Controller/ViewModel classes)
 - **Conditional Pass**: Has Major but no Critical, all Major issues have clear fix plans; runtime verification passes but packaging verification has non-blocking issues
 - **Fail**: Has Critical issues (compilation errors, startup failures, etc.), must be fixed before delivery
+
+### Runner's Serialization Responsibilities
+
+1. **Read state**: Before starting verification, check for `.loop-state.json`. If found, extract `current_round` and `last_fix_handoff` to determine verification scope. Also extract `rounds[current_round - 1].compile_mode` to detect if the previous round used incremental compilation
+2. **Determine strategy**: Round 1 → Full Verification; Round 2+ → Targeted Verification (compile always via incremental mode; runtime/test/packaging based on fix scope)
+3. **Determine compile mode**: Check `.loop-config.json` for `clean_compile` setting and `pom.xml` timestamp vs `last_fix_handoff` timestamp (see [Incremental Compilation](#incremental-compilation) for full logic)
+4. **Short-circuit check**: If compile verification fails, skip runtime/test/packaging and record "subsequent verification skipped due to compile failure" in the state file
+5. **Write result**: After completing verification, update **only** the `rounds[current_round].runner_result` field with conclusion, issue counts by severity, fix handoff count, and `compile_mode` (`"incremental"` or `"full"`). Do not modify `reviewer_result` or other fields (parallel write safety — reviewer writes to its own field concurrently)
+6. **Set next action**: If both reviewer and runner have completed, set `status: "passed"` (if both pass) and archive the state file, or set `next_action: "fixing"` (if either fails); if only runner has completed, leave `next_action` unchanged (orchestrator will update after reviewer also completes)
+
+> **Fix Handoff Format**: See `javafx-orchestrator/SKILL.md` → Fix Handoff Format for the authoritative field definitions. The runner generates Fix Handoffs with `target_file`, `target_lines`, `fix_type`, `fix_priority`, `code_fingerprint`, `anchor_pattern`, and `ast_node_signature` fields.
 
 ## Runtime Findings Feedback Protocol
 
@@ -436,11 +505,18 @@ For in-depth criteria, refer to the following documents in the `references/` dir
 - `references/runtime-verification.md` - Runtime verification rules and exception pattern library <- reviewer: Thread safety dimension (dynamically verifying static conclusions)
 - `references/packaging-verification.md` - Packaging verification rules and platform toolchain <- developer: Packaging chapter - jpackage command
 - `references/test-verification.md` - Test verification rules and failure pattern library <- developer: Quality checklist - test coverage
+- `references/test-coverage-gate.md` - JaCoCo coverage threshold rules, pom.xml configuration, report parsing
+- `references/visual-preview.md` - UI screenshot capture methods by JavaFX version and environment
 - `references/environment-setup.md` - Environment detection and Monocle headless configuration
 - `EVALUATE.md` - Evaluation test case set, for quantifying skill output quality
 
+> **Cross-reference (developer skill)**: The "Database integration test" check item in the Test Verification dimension cross-references the developer skill's `references/database-integration.md` (section 8 "Common Pitfalls") — that document defines the runtime patterns (UI-thread blocking DB calls, null-handling for primitive Properties, connection-pool leaks, transaction-boundary scope, Flyway migration failures) that the database integration tests must guard against. The document lives in the `javafx-developer/references/` directory, not this skill's `references/` directory.
+
 ## Report Template
 
-Reusable skeleton template in the `report-templates/` directory:
+## Report Templates
 
-- `report-templates/verification-report.md` - Verification report skeleton template (reusable)
+Reusable skeleton templates in the `report-templates/` directory:
+
+- `report-templates/verification-report.md` - Verification report skeleton template (Markdown, human-readable)
+- `report-templates/report-schema.json` - JSON schema for machine-readable report output (CI/CD, IDE, Fix Consumption)

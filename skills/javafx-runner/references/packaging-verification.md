@@ -1,8 +1,10 @@
 # Packaging Verification Rules
 
-This document is the criteria for the "Packaging Verification" dimension, governing 8 check items. It executes `mvn package` to generate a JAR, then executes `jpackage` to generate a native installer, verifying the packaging flow and artifact integrity. Default severity baseline: Major. Shares the same origin as `javafx-developer`'s Packaging chapter - jpackage command.
+This document is the criteria for the "Packaging Verification" dimension, governing 11 check items. It executes `mvn package` to generate a JAR, then executes `jpackage` to generate a native installer, verifying the packaging flow and artifact integrity. Default severity baseline: Major. Shares the same origin as `javafx-developer`'s Packaging chapter - jpackage command.
 
 > **Core Principle**: A project that compiles and runs in the IDE is not necessarily deliverable. This dimension verifies that the JAR build succeeds, that the module path is complete, that the main class/module is correctly configured, that the platform toolchain is present, and that the final installer can be generated and is non-empty. Only when packaging produces a usable installer can the project be delivered to end users.
+
+> **Cross-platform validation scope**: `jpackage` cannot cross-compile, so actual packaging (Check Items 1-8) can only be executed and verified on the **current** platform. For the other two platforms, verification is limited to **configuration completeness** (Check Items 9-11) — confirming via configuration inspection that each platform's jpackage command, icon, and metadata are present and well-formed. These configuration-only checks are recorded as Major when incomplete, with the note "validated by configuration completeness only; not executed on current platform". See `javafx-developer`'s `references/cross-platform-packaging.md` for the per-platform options matrix.
 
 ---
 
@@ -375,3 +377,129 @@ jpackage --name myapp --input target --main-jar app.jar \
 # Or store in jpackage-config.properties for reuse
 win-upgrade-uuid=12345678-1234-4234-8234-123456789abc
 ```
+
+---
+
+## Check Item 9: Cross-Platform Configuration Completeness
+
+**Focus**: Whether the project defines jpackage commands/configuration for **all three** desktop platforms (Windows `msi`/`exe`, macOS `dmg`/`pkg`, Linux `deb`/`rpm`).
+
+**Pass Criteria**:
+- The packaging configuration (`jpackage-config.properties`, build scripts, or CI workflow matrix) defines a jpackage command for Windows, macOS, and Linux
+- For each non-current platform, the configuration specifies an output `--type` appropriate to that platform
+- For each non-current platform, the referenced icon and platform-specific metadata are present (validated by configuration inspection, not execution)
+
+**Fail Criteria** (any one constitutes failure):
+- Only one or two platforms are configured (e.g., only Windows `msi`; macOS and Linux configs are missing)
+- A platform's output type is mismatched (e.g., macOS config requests `--type msi`, which cannot be built on macOS)
+- The CI workflow has no matrix dimension for one of the three operating systems
+
+**Severity Baseline**: Major (incomplete multi-platform config means the CI matrix will fail on the missing platform)
+- De-escalation condition: The project explicitly targets a single platform (documented intent) -> Info
+
+**Verification Method**: Configuration inspection only — `jpackage` cannot cross-compile, so non-current platforms cannot be executed. Inspect `jpackage-config.properties` / build scripts / CI workflow. Record as "validated by configuration completeness only; not executed on current platform".
+
+**Anti-pattern**:
+```properties
+# jpackage-config.properties — only Windows defined
+win-type=msi
+win-upgrade-uuid=12345678-1234-4234-8234-123456789abc
+# Missing: mac-type, mac-package-identifier, linux-type, linux-deb-maintainer
+```
+
+**Best Practice**:
+```properties
+# jpackage-config.properties — all three platforms defined
+win-type=msi
+win-upgrade-uuid=12345678-1234-4234-8234-123456789abc
+mac-type=dmg
+mac-package-identifier=com.mycompany.myapp
+linux-type=deb
+linux-deb-maintainer=dev@mycompany.com
+```
+
+---
+
+## Check Item 10: Platform-Specific Icon Format Validation
+
+**Focus**: Whether each platform's icon reference points to the correct format and the file exists in the repository — Windows `.ico`, macOS `.icns`, Linux `.png`.
+
+**Pass Criteria**:
+- Windows config references an `.ico` file (multi-size embedded) that exists in the repository
+- macOS config references an `.icns` file that exists in the repository
+- Linux config references a `.png` file (>= 512x512 recommended) that exists in the repository
+- For the current platform, the icon loads successfully during actual jpackage execution (executable check)
+- For non-current platforms, the icon file exists and has the correct extension (configuration inspection)
+
+**Fail Criteria** (any one constitutes failure):
+- Windows config references `.png` instead of `.ico`
+- macOS config references `.png` instead of `.icns`
+- Linux config references `.ico` instead of `.png`
+- The referenced icon file does not exist in the repository (would fail the target platform's CI build)
+- The icon file is corrupt or has an unsupported format
+
+**Severity Baseline**: Major (wrong-format or missing icon fails that platform's packaging build)
+- For the current platform: Escalation condition -> if jpackage fails outright, follows Check Item 6/7 severity
+
+**Verification Method**: Current platform — executable (jpackage succeeds with the icon). Non-current platforms — configuration inspection (file exists + correct extension).
+
+**Anti-pattern**:
+```bash
+# macOS config references a .png icon — jpackage on macOS will fail
+jpackage --type dmg --name MyApp --icon assets/icons/app.png ...
+```
+
+**Best Practice**:
+```bash
+# Each platform references its native icon format
+# Windows
+--icon assets/icons/app.ico
+# macOS
+--icon assets/icons/app.icns
+# Linux
+--icon assets/icons/app.png
+```
+
+> See `javafx-developer`'s `references/cross-platform-packaging.md` (Section 3) for the icon format specifications and conversion guide.
+
+---
+
+## Check Item 11: Platform-Specific Metadata
+
+**Focus**: Whether each platform's required metadata is present and well-formed — Windows `--win-upgrade-uuid`, macOS `--mac-package-identifier`, Linux `--linux-deb-maintainer` and `--linux-package-name`.
+
+**Pass Criteria**:
+- Windows: `--win-upgrade-uuid` is present and in valid UUID v4 format (`xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx`); the UUID is stable/reused across versions of the same application
+- macOS: `--mac-package-identifier` is present in reverse-DNS format (e.g., `com.mycompany.myapp`) and matches the signing/notarization profile
+- Linux: `--linux-deb-maintainer` is a valid email address; `--linux-package-name` is a lowercase, valid package name
+- For the current platform, metadata is validated during actual jpackage execution; for non-current platforms, validated by configuration inspection
+
+**Fail Criteria** (any one constitutes failure):
+- Windows `--win-upgrade-uuid` is missing, not in UUID v4 format, or copy-pasted from a sample (conflicts with another app)
+- macOS `--mac-package-identifier` is missing, not in reverse-DNS format, or doesn't match the Developer ID signing profile
+- Linux `--linux-deb-maintainer` is missing or not a valid email
+- `--linux-package-name` is missing or contains invalid characters (uppercase, spaces)
+
+**Severity Baseline**: Major (missing/malformed metadata causes the target platform's packaging to fail or produces a non-distributable artifact)
+- De-escalation condition: Single-platform project where the metadata for the single target is complete -> Info for the non-target platforms
+
+**Verification Method**: Current platform — executable (jpackage accepts the metadata). Non-current platforms — configuration inspection (metadata present + format well-formed).
+
+**Anti-pattern**:
+```bash
+# macOS without --mac-package-identifier; Linux without --linux-deb-maintainer
+jpackage --type dmg --name MyApp ...   # missing: --mac-package-identifier com.mycompany.myapp
+jpackage --type deb --name myapp ...   # missing: --linux-deb-maintainer dev@mycompany.com
+```
+
+**Best Practice**:
+```bash
+# Windows
+jpackage --type msi ... --win-upgrade-uuid "12345678-1234-4234-8234-123456789abc"
+# macOS
+jpackage --type dmg ... --mac-package-name "MyApp" --mac-package-identifier "com.mycompany.myapp"
+# Linux
+jpackage --type deb ... --linux-package-name "myapp" --linux-deb-maintainer "dev@mycompany.com"
+```
+
+> Note: For non-current platforms, these metadata checks are "validated by configuration completeness only; not executed on current platform". See `javafx-developer`'s `references/cross-platform-packaging.md` (Section 1 and Section 6) for the per-platform options matrix and the cross-platform packaging checklist.

@@ -7,6 +7,7 @@
 ## Verification Summary
 
 - **Verification Mode**: [Full Verification / Incremental Verification / Targeted Dimension Verification]
+- **Compile Mode**: [Incremental / Full] — whether incremental compilation was used (default for Round 2+) or full clean compilation
 - **Verification Scope**: [List of verification dimensions executed]
 - **Environment**: JDK [version] / Maven [version] / JavaFX [version] / OS [platform]
 - **Modular**: [Yes / No]
@@ -44,6 +45,9 @@
   - `target_lines: [start line]-[end line]`
   - `fix_type: [replace / insert / delete]`
   - `fix_priority: 1`
+  - `code_fingerprint: [sha256 hash of problematic code snippet]`
+  - `anchor_pattern: [2 lines before + 2 lines after, normalized]`
+  - `ast_node_signature: [com.example.Class#method(params) or null for non-Java files]`
 
 ---
 
@@ -151,13 +155,13 @@
 
 > Lists the check item count, pass count, fail count, skipped count, and pass rate for each dimension.
 
-| Dimension | Check Items | Passed | Failed | Skipped | Pass Rate |
-|-----------|-------------|--------|--------|---------|-----------|
-| Compile Verification | 7 | [N] | [N] | [N] | [N%] |
-| Runtime Verification | 10 | [N] | [N] | [N] | [N%] |
-| Test Verification | 5 | [N] | [N] | [N] | [N%] |
-| Packaging Verification | 8 | [N] | [N] | [N] | [N%] |
-| **Total** | **[N]** | **[N]** | **[N]** | **[N]** | **[N%]** |
+| Dimension | Check Items | Passed | Failed | Skipped | Compile Mode | Pass Rate |
+|-----------|-------------|--------|--------|---------|--------------|-----------|
+| Compile Verification | 7 | [N] | [N] | [N] | [Incremental / Full] | [N%] |
+| Runtime Verification | 10 | [N] | [N] | [N] | — | [N%] |
+| Test Verification | 5 | [N] | [N] | [N] | — | [N%] |
+| Packaging Verification | 8 | [N] | [N] | [N] | — | [N%] |
+| **Total** | **[N]** | **[N]** | **[N]** | **[N]** | | **[N%]** |
 
 > **Skipped Note**: A dimension is skipped when compile verification short-circuits (compile failure prevents running uncompiled code and tests), when test verification short-circuits (test failure prevents packaging untested code), when the toolchain is missing (packaging cannot proceed), or when incremental/targeted mode excludes it.
 
@@ -173,6 +177,19 @@
 | 2 | Critical | Runtime Verification | `[file path]` | `[start-end]` | insert | [issue summary] |
 | 3 | Major | Packaging Verification | `[file path]` | `[start-end]` | replace | [issue summary] |
 | ... | ... | ... | ... | ... | ... | ... |
+
+---
+
+## UI Preview
+
+> This section embeds the UI screenshot captured during runtime verification, providing visual confirmation of the rendered application. If screenshot capture was not possible, an FXML control tree diagram is shown as a structural preview.
+
+![Main Window Screenshot](target/ui-preview.png)
+
+- **Capture Method**: [Headless Preview API / Monocle + Robot / AWT Robot / FXML control tree diagram]
+- **Resolution**: [width]x[height] (if applicable)
+- **Capture Time**: [timestamp]
+- **Fallback Reason**: [If no screenshot, explain why — e.g., "Monocle not available in CI environment"]
 
 ---
 
@@ -246,5 +263,120 @@
 > - Rule references uniformly cite `references/` document items, in the format `document name -- Check Item title`
 > - Fix Handoff fields can be directly consumed by `javafx-developer` or automation tools to execute fixes
 > - `fix_priority` is sorted by severity + verification dimension, 1 is the highest priority, for ordering during batch fixes
+> - `code_fingerprint` is the SHA-256 hash of the problematic code snippet (whitespace-normalized), used by `javafx-developer` for drift-resistant matching when line numbers have shifted
+> - `anchor_pattern` is the surrounding context signature (2 lines before + 2 lines after), used as a secondary locator when fingerprint matching is ambiguous
+> - `ast_node_signature` is the fully qualified method/field/class signature (e.g., `com.example.Class#method(params)`), used as a refactor-resistant locator when code has been moved or renamed; `null` for non-Java files
 > - The fix handoff field format is fully consistent with `javafx-code-reviewer`, ensuring `javafx-developer` can consume both reports using the same logic
 > - **Closed-Loop**: This report can trigger the automated closed-loop cycle. `javafx-developer` consumes fix handoff entries via its **Fix Consumption Protocol** (Step 5.5), then incremental re-review and re-verify are triggered automatically. See **Loop Orchestration Protocol** in each skill's SKILL.md for loop rules, termination conditions, and the combined quality gate.
+
+---
+
+## JSON Output Format (Optional)
+
+In addition to the Markdown report above, a JSON version can be generated for programmatic consumption by `javafx-developer`, CI/CD pipelines, or IDE plugins. The JSON format contains the same information as the Markdown report but in a machine-readable structure, with a standalone `fix_handoffs` array for direct Fix Consumption.
+
+### JSON Schema
+
+```json
+{
+  "report_type": "verification",
+  "report_version": "1.0",
+  "generated_at": "2026-06-29T10:00:00Z",
+  "project": "project-name",
+  "verification_mode": "full | targeted",
+  "round": 1,
+  "summary": {
+    "conclusion": "Pass | Conditional Pass | Fail",
+    "pass_rate": 0.85,
+    "total_issues": 8,
+    "critical_count": 1,
+    "major_count": 2,
+    "minor_count": 3,
+    "info_count": 2,
+    "dimensions": {
+      "compile": { "conclusion": "Pass", "issues": 0 },
+      "runtime": { "conclusion": "Pass", "issues": 0 },
+      "test": { "conclusion": "Conditional Pass", "issues": 3, "jacoco_line_coverage": 0.65 },
+      "packaging": { "conclusion": "Pass", "issues": 0 }
+    }
+  },
+  "issues": [
+    {
+      "id": 1,
+      "severity": "Critical",
+      "dimension": "Compile Verification",
+      "title": "Issue title",
+      "description": "Issue description",
+      "file": "src/main/java/com/example/App.java",
+      "lines": "12-15",
+      "rule_reference": "compile-verification.md -- Module Configuration",
+      "raw_output": "compiler output...",
+      "fix_handoff": {
+        "target_file": "src/main/java/com/example/App.java",
+        "target_lines": "12-15",
+        "fix_type": "replace",
+        "fix_priority": 1,
+        "code_fingerprint": "sha256-hash-of-snippet",
+        "anchor_pattern": "context signature lines",
+        "ast_node_signature": "com.example.App#start(Stage)"
+      }
+    }
+  ],
+  "fix_handoffs": [
+    {
+      "target_file": "src/main/java/com/example/App.java",
+      "target_lines": "12-15",
+      "fix_type": "replace",
+      "fix_priority": 1,
+      "code_fingerprint": "sha256-hash-of-snippet",
+      "anchor_pattern": "context signature lines",
+      "ast_node_signature": "com.example.App#start(Stage)",
+      "corrected_example": "corrected code...",
+      "issue_id": 1,
+      "severity": "Critical"
+    }
+  ],
+  "ui_preview": {
+    "available": true,
+    "method": "Headless Preview API | Monocle + Robot | AWT Robot | FXML control tree diagram",
+    "file": "target/ui-preview.png",
+    "resolution": "800x600"
+  },
+  "jacoco_report": {
+    "overall_line_coverage": 0.725,
+    "controller_line_coverage": 0.653,
+    "viewmodel_line_coverage": 0.482,
+    "threshold": 0.60,
+    "passed": false,
+    "uncovered_methods": [
+      { "class": "UserViewModel", "method": "validateInput()", "lines_missed": 12 },
+      { "class": "UserViewModel", "method": "saveUser()", "lines_missed": 8 }
+    ]
+  },
+  "loop_state": {
+    "current_round": 1,
+    "convergence_trend": [8],
+    "next_action": "fixing | incremental_review_and_verify | passed"
+  }
+}
+```
+
+### Field Reference
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `report_type` | string | Yes | Always `"verification"` |
+| `report_version` | string | Yes | Schema version, current `"1.0"` |
+| `generated_at` | string | Yes | ISO 8601 timestamp |
+| `project` | string | Yes | Project name |
+| `verification_mode` | string | Yes | `full` or `targeted` |
+| `round` | number | Yes | Current loop round number |
+| `summary.dimensions` | object | Yes | Per-dimension conclusions and issue counts |
+| `summary.dimensions.test.jacoco_line_coverage` | number | No | Present if JaCoCo report was generated |
+| `issues[].fix_handoff` | object | No | Present only for issues with fix plans |
+| `fix_handoffs` | array | Yes | Standalone array of all fix handoffs, sorted by `fix_priority` |
+| `ui_preview` | object | No | UI screenshot capture result |
+| `jacoco_report` | object | No | JaCoCo coverage report summary |
+| `loop_state` | object | Yes | Current loop state snapshot |
+
+> **Note**: The JSON report is saved alongside the Markdown report as `verification-report.json`. `javafx-developer`'s Fix Consumption Protocol can parse either format — JSON is preferred for automation, Markdown for human review.

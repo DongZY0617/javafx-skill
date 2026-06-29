@@ -1,0 +1,210 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://javafx-skill/refactor-report-schema.json",
+  "title": "JavaFX Refactorer Report",
+  "description": "JSON schema for the refactoring report produced by javafx-refactorer",
+  "type": "object",
+  "required": [
+    "project",
+    "refactorer_version",
+    "created_at",
+    "scope",
+    "conclusion",
+    "smell_catalog",
+    "refactoring_plan",
+    "tech_debt",
+    "developer_instructions"
+  ],
+  "properties": {
+    "project": { "type": "string" },
+    "refactorer_version": { "type": "string", "const": "1.0" },
+    "created_at": { "type": "string", "format": "date-time" },
+    "scope": {
+      "type": "string",
+      "enum": ["full", "targeted_package", "targeted_files"]
+    },
+    "conclusion": {
+      "type": "string",
+      "enum": ["Pass", "Pass with warnings", "Fail"]
+    },
+    "smell_catalog": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["smell_id", "type", "severity", "file", "lines", "ast_node_signature", "detail"],
+        "properties": {
+          "smell_id": { "type": "string", "pattern": "^SMELL-\\d{3}$" },
+          "type": {
+            "type": "string",
+            "enum": [
+              "god_class", "long_method", "long_parameter_list", "duplicated_code",
+              "circular_dependency", "feature_envy", "data_class", "shotgun_surgery",
+              "primitive_obsession", "dead_code", "inappropriate_intimacy", "message_chain",
+              "ui_logic_in_controller", "fxml_god_file", "css_class_explosion",
+              "tight_ui_coupling", "blocking_ui_thread", "property_misuse", "listener_leak"
+            ]
+          },
+          "severity": {
+            "type": "string",
+            "enum": ["Critical", "Major", "Minor"]
+          },
+          "file": { "type": "string" },
+          "lines": { "type": "string", "pattern": "^\\d+(-\\d+)?$" },
+          "ast_node_signature": {
+            "type": ["string", "null"],
+            "description": "AST-level anchor: fully qualified method/field/class signature. Null for non-Java files."
+          },
+          "detail": { "type": "string" },
+          "recommended_refactoring": {
+            "type": "string",
+            "pattern": "^RF-\\d{3}$"
+          }
+        }
+      }
+    },
+    "refactoring_plan": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "refactor_id", "type", "smell_ids", "target_file",
+          "description", "effort", "priority",
+          "before_snippet", "after_snippet", "behavior_equivalence_check"
+        ],
+        "properties": {
+          "refactor_id": { "type": "string", "pattern": "^RF-\\d{3}$" },
+          "type": {
+            "type": "string",
+            "enum": [
+              "extract_method", "extract_class", "move_method", "move_class",
+              "extract_interface", "pull_up_method", "extract_method_object",
+              "introduce_parameter_object", "replace_conditional_with_polymorphism",
+              "encapsulate_field", "remove_dead_code", "replace_inheritance_with_delegation",
+              "extract_controller_logic_to_service", "extract_fxml_component",
+              "replace_swinginterop", "extract_viewmodel", "replace_observable_misuse",
+              "extract_css_variables"
+            ]
+          },
+          "smell_ids": {
+            "type": "array",
+            "items": { "type": "string", "pattern": "^SMELL-\\d{3}$" }
+          },
+          "target_file": { "type": "string" },
+          "description": { "type": "string" },
+          "new_files": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "effort": {
+            "type": "string",
+            "enum": ["S", "M", "L"]
+          },
+          "risk": {
+            "type": "string",
+            "enum": ["Low", "Medium", "High"]
+          },
+          "priority": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "dependencies": {
+            "type": "array",
+            "items": { "type": "string", "pattern": "^RF-\\d{3}$" }
+          },
+          "before_snippet": { "type": "string" },
+          "after_snippet": { "type": "string" },
+          "behavior_equivalence_check": {
+            "type": "object",
+            "required": ["method_signatures_preserved"],
+            "properties": {
+              "method_signatures_preserved": { "type": "boolean" },
+              "call_sites_to_update": {
+                "type": "array",
+                "items": { "type": "string" }
+              },
+              "new_public_api": {
+                "type": "array",
+                "items": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "tech_debt": {
+      "type": "object",
+      "required": ["total_items", "by_severity", "estimated_effort_hours", "debt_density_per_kloc", "repayment_plan"],
+      "properties": {
+        "total_items": { "type": "integer" },
+        "by_severity": {
+          "type": "object",
+          "required": ["critical", "major", "minor"],
+          "properties": {
+            "critical": { "type": "integer" },
+            "major": { "type": "integer" },
+            "minor": { "type": "integer" }
+          }
+        },
+        "by_type": {
+          "type": "object",
+          "properties": {
+            "code": { "type": "integer" },
+            "design": { "type": "integer" },
+            "architecture": { "type": "integer" },
+            "test": { "type": "integer" },
+            "documentation": { "type": "integer" }
+          }
+        },
+        "estimated_effort_hours": { "type": "number" },
+        "debt_density_per_kloc": { "type": "number" },
+        "repayment_plan": {
+          "type": "object",
+          "properties": {
+            "phase_1_immediate": { "type": "array", "items": { "type": "string" } },
+            "phase_2_high": { "type": "array", "items": { "type": "string" } },
+            "phase_3_medium": { "type": "array", "items": { "type": "string" } },
+            "phase_4_low": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      }
+    },
+    "verification_plan": {
+      "type": "object",
+      "properties": {
+        "pre_refactor_tests": { "type": "string" },
+        "baseline_results": {
+          "type": "object",
+          "properties": {
+            "total": { "type": "integer" },
+            "passed": { "type": "integer" },
+            "failed": { "type": "integer" }
+          }
+        },
+        "post_refactor_expectation": { "type": "string" },
+        "semantic_checks": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "developer_instructions": {
+      "type": "object",
+      "required": ["apply_order", "safety_constraints"],
+      "properties": {
+        "apply_order": { "type": "string" },
+        "safety_constraints": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "handoff_file": {
+      "type": "string",
+      "description": "Path to refactor-handoff.json"
+    }
+  }
+}

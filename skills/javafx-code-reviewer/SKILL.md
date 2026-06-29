@@ -11,11 +11,24 @@ compatibility: Requires JDK 17+. Supports JavaFX 17/21/24/25/26.
 metadata:
   author: DongZY0617
   version: "1.0"
+triggers:
+  - review
+  - audit
+  - check
+  - compliance
+  - code quality
+  - standards review
+depends_on:
+  - javafx-developer
+consumes_from:
+  - javafx-developer (source code)
+produces_for:
+  - javafx-developer (fix handoff report)
 ---
 
 # JavaFX Code Reviewer
 
-You are a professional JavaFX code review expert. This skill performs comprehensive, professional reviews of JavaFX code based on official JavaFX specifications and best practices, covering six review dimensions: Code Structure, UI Thread Safety, FXML Standards, Memory Leak Risks, Performance, and Deep Compliance Audit.
+You are a professional JavaFX code review expert. This skill performs comprehensive, professional reviews of JavaFX code based on official JavaFX specifications and best practices, covering nine review dimensions: Code Structure, UI Thread Safety, FXML Standards, Memory Leak Risks, Performance, Deep Compliance Audit, Database Access Security, Requirements Coverage, and Refactoring Verification.
 
 ## When to Apply
 
@@ -38,11 +51,11 @@ When a user request matches both `javafx-developer` ("create/build/package JavaF
 
 ## Review Dimensions
 
-This skill performs a comprehensive review of JavaFX code across six dimensions. Each dimension contains several check items, each with explicit pass/fail criteria.
+This skill performs a comprehensive review of JavaFX code across eight dimensions. Each dimension contains several check items, each with explicit pass/fail criteria.
 
 ### 0. Dimension-to-Reference Document Mapping
 
-The correspondence between the six review dimensions and the `references/` documents is shown below, ensuring that Step 2 "Dimension Scanning" can precisely load the criteria:
+The correspondence between the nine review dimensions and the `references/` documents is shown below, ensuring that Step 2 "Dimension Scanning" can precisely load the criteria:
 
 | Review Dimension | Primary Reference | Supplementary Reference | Corresponding developer Document |
 |------------------|-------------------|-------------------------|----------------------------------|
@@ -52,6 +65,9 @@ The correspondence between the six review dimensions and the `references/` docum
 | Memory Leak Risks | `memory-management.md` | `binding-compliance.md` (binding disposal) | `data-binding-patterns.md` |
 | Performance | `performance-guide.md` | `binding-compliance.md` (binding efficiency) | - |
 | Deep Compliance Audit | `compliance-rules.md` / `security-checklist.md` / `css-compliance.md` | `binding-compliance.md` (Properties null safety) | Coding/architecture/security rules + `css-best-practices.md` |
+| Database Access Security | `security-checklist.md` (SQL injection) | - | `database-integration.md` (common pitfalls) |
+| Requirements Coverage | `requirements-coverage.md` | - | `templates/docs/requirements.md` (RTM template) |
+| Refactoring Verification | `../javafx-refactorer/references/refactoring-patterns.md` | `../javafx-refactorer/SKILL.md` (behavior equivalence check) | `../javafx-refactorer/SKILL.md` (Step 5: Behavior Equivalence Verification) |
 
 ### 1. Code Structure
 
@@ -136,6 +152,49 @@ Reviews whether the code conforms to JavaFX coding standards, security rules, an
 - **API misuse detection** `[compliance-rules.md]`: Whether nonexistent APIs are used (e.g., `select()`, `@FXML dispose()`), whether the deprecated ControlsFX `Dialogs.create()` is used
 - **Properties null safety** `[binding-compliance.md]`: Whether `SimpleLongProperty.set(null)` and similar handle null to prevent NPE
 
+### 7. Database Access Security
+
+Reviews the database access layer (Entity, Repository/Mapper, Service transaction, connection pool) for SQL injection, resource leaks, unsafe transaction boundaries on the UI thread, sensitive data exposure, and entity serialization safety. This dimension applies when the project contains a persistence layer (JPA/Hibernate, MyBatis, JDBC, Spring Data JPA). Default severity baseline: Major (security/resource issues). Skipped entirely when the project has no database access code.
+
+**Check Items**:
+- **SQL injection prevention** `[security-checklist.md]`: Whether all SQL uses parameterized queries — `PreparedStatement` with `?` placeholders, MyBatis `#{param}` (not `${param}` for user-controlled values), JPA/JPQL named or positional parameters — without concatenating user input; whether dynamic sort fields / table names are whitelisted (cross-references the Deep Compliance Audit security rule, applied here specifically to the DAO/Repository layer)
+- **Connection pool leak** `[database-integration.md]`: Whether every manually-obtained `EntityManager` / `Connection` is closed in a `finally` block or try-with-resources; whether `Application.stop()` closes the `DataSource` / `EntityManagerFactory` / Spring context (prevents process hang and pool exhaustion); whether HikariCP `leak-detection-threshold` is configured in dev
+- **Transaction boundary in UI thread** `[database-integration.md]`: Whether `@Transactional` Service methods or direct DB calls are executed on the JavaFX Application Thread (freezes the UI and widens the transaction scope across user interactions); whether DB I/O is wrapped in `Task`/`Service` on a background thread with results returned via `Platform.runLater()`; whether a Hibernate-managed entity is detached before crossing into Controller state (avoids `LazyInitializationException`)
+- **Sensitive data exposure in logs** `[security-checklist.md]`: Whether `hibernate.show_sql` / `format_sql` is disabled in production (logs full SQL including parameters); whether credentials, tokens, or PII columns are logged at DEBUG/TRACE; whether `application.yml` uses environment-variable placeholders (`${DB_PASSWORD}`) instead of plaintext secrets
+- **Entity serialization safety** `[database-integration.md]`: Whether JPA entities with JavaFX `Property` fields are safely (de)serialized — `Property` objects are not reliably serializable and should be marked `transient`/excluded when entities cross a serialization boundary (RMI, cache, JSON via DTO); whether lazy-loading proxies are detached before serialization (avoids `LazyInitializationException` during JSON marshalling); whether bidirectional associations have a controlled `toString()` to prevent infinite recursion / stack overflow
+
+> **Typical violation**: A Controller's `@FXML` handler calls `userRepository.findAll()` synchronously on the JavaFX Application Thread, freezing the UI; and an `EntityManager` opened in the handler is never closed when an exception is thrown, leaking a pooled connection until the pool is exhausted.
+
+### 8. Requirements Coverage
+
+Reviews whether every requirement in the `requirements.md` specification has corresponding code implementation and test coverage, and whether every code file traces back to a legitimate requirement. This dimension provides bidirectional traceability: forward (requirement → code → test) and backward (code → requirement). Default severity baseline: Major. Skipped entirely when the project has no `requirements.md` file.
+
+**Check Items**:
+- **Requirement implementation coverage** `[requirements-coverage.md]`: Whether every functional requirement (FR-xxx) in `requirements.md` Section 3.1 has at least one Java source file annotated with `@req FR-xxx`
+- **Requirement test coverage** `[requirements-coverage.md]`: Whether every functional requirement has at least one test method annotated with `@req FR-xxx` or named with `_{REQ_ID}` suffix; test coverage >= 80%
+- **Orphan code detection** `[requirements-coverage.md]`: Whether every Java source file in `src/main/java/` has a valid `@req` annotation; files without `@req` are flagged as orphan code
+- **RTM consistency** `[requirements-coverage.md]`: Whether the Requirement Traceability Matrix in `requirements.md` Section 7 is consistent with actual code annotations — file paths exist, coverage numbers match, no phantom entries
+- **Test method naming convention** `[requirements-coverage.md]`: Whether test methods follow `test{Behavior}_{REQ_ID}()` naming convention with matching `@req` Javadoc
+- **Non-functional requirement verification** `[requirements-coverage.md]`: Whether NFR-PERF/NFR-SEC/NFR-COMPAT requirements have corresponding implementation evidence in code
+
+> **Typical violation**: `requirements.md` lists FR-003 "Export to CSV" but no source file has `@req FR-003` — the requirement was never implemented. Or: `CsvExporter.java` has no `@req` annotation — orphan code with no traceable requirement.
+
+### 9. Refactoring Verification
+
+Reviews whether refactoring changes (applied by `javafx-developer` from `javafx-refactorer`'s `refactor-handoff.json`) preserve behavior semantics. This dimension is **only activated when a refactoring has been applied** — it is skipped in normal review cycles. The reviewer checks that the refactored code is behaviorally equivalent to the pre-refactor code. Default severity baseline: Critical (behavior changes are highest severity).
+
+**Check Items**:
+- **Method signature preservation**: Whether public API signatures (public/protected methods) are unchanged after refactoring, unless the refactoring intentionally changes the API (flagged in `behavior_equivalence_check.method_signatures_preserved: false`)
+- **Call site integrity**: Whether all call sites of moved/renamed methods are correctly updated — no dangling references to old method names or old class locations
+- **Field access integrity**: Whether moved fields have correct access modifiers at their new location — no widened or narrowed visibility unless intentional
+- **Import graph acyclicity**: Whether the refactoring introduced new circular dependencies that did not exist before — the import graph must remain acyclic
+- **Test result preservation**: Whether all tests that passed before refactoring still pass after refactoring — no new test failures are allowed (pre-existing failures may remain)
+- **Semantic equivalence**: Whether the refactored code produces the same output for the same input — verified through test suite execution and manual inspection of before/after snippets
+
+> **Typical violation**: Refactoring moved `validateUser()` from `UserController` to `UserValidator`, but a call site in `MainWindowController` still references `UserController.validateUser()` — dangling reference causing compilation failure. Or: refactoring extracted a method but changed the order of side effects, causing a test that checks logging output to fail.
+
+> **Activation condition**: This dimension is activated when `.loop-state.json` has `refactor_result.triggered: true` AND the developer has applied refactoring changes (indicated by `status: "reviewing_and_verifying"` after a refactoring phase). When not activated, this dimension is skipped entirely.
+
 ## Review Workflow
 
 ### Step 1: Code Collection and Context Analysis
@@ -146,13 +205,13 @@ Reviews whether the code conforms to JavaFX coding standards, security rules, an
 4. **Establish relationships**: Identify Controller ↔ FXML ↔ Model correspondences and build the review context graph
 
 **Review scope declaration**: Three review modes are supported, determined by the user request or inferred from context:
-- **Full Review (default)**: Performs a complete six-dimension scan of all JavaFX-related files in the project. Suitable for pre-release health checks and first-time reviews
+- **Full Review (default)**: Performs a complete nine-dimension scan of all JavaFX-related files in the project. Suitable for pre-release health checks and first-time reviews. Note: Dimension 9 (Refactoring Verification) is only activated when a refactoring has been applied
 - **Incremental Review**: Only reviews user-specified new / modified files and their directly associated files (e.g., if a Controller is modified, its FXML is also reviewed). Suitable for continuous review during iterative development
 - **Targeted Dimension Review**: The user explicitly cares only about certain dimensions (e.g., "only check thread safety"), loading only the corresponding primary reference document for scanning
 
 ### Step 2: Dimension Scanning (Item-by-Item Check)
 
-1. Scan through the six dimensions sequentially, evaluating each check item as pass / fail
+1. Scan through the eight dimensions sequentially, evaluating each check item as pass / fail
 2. For failed items, record: problem description, code location (filename + line number / code snippet), violated rule item
 3. Load the dimension reference documents from `references/` as criteria (load primary documents per the mapping table, load supplementary documents as needed)
 4. **Incremental mode optimization**: During incremental review, skip dimensions unrelated to the changed files; if only CSS is modified, skip thread safety and memory leak dimensions, executing only FXML standards + deep compliance (CSS portion)
@@ -174,6 +233,12 @@ Reviews whether the code conforms to JavaFX coding standards, security rules, an
 1. Generate a structured review report following the report template (see `report-templates/review-report.md`)
 2. The report includes: summary statistics, issue list (with location / recommendation / rule reference), compliance summary
 3. Provide actionable optimization recommendations for each issue, including corrected example code
+4. **Extract AST node signatures**: For each issue in a `.java` file, extract the `ast_node_signature` by identifying the enclosing AST node:
+   - If the issue is inside a method body → extract `{package}.{Class}#{methodName}({paramTypes})`
+   - If the issue is a field declaration → extract `{package}.{Class}#{fieldName}`
+   - If the issue is at class level → extract `{package}.{Class}`
+   - If the file is not a Java source file (FXML, CSS, `module-info.java`) → set to `null`
+   - See `javafx-orchestrator/SKILL.md` → Fix Handoff Format → AST Anchor Format for the full extraction specification
 
 ## Severity Classification
 
@@ -248,6 +313,9 @@ After the review is complete, output a structured report containing three parts:
   - `target_lines: start line-end line`
   - `fix_type: [replace / insert / delete]`
   - `fix_priority: 1` (fix priority, 1=highest)
+  - `code_fingerprint: sha256 hash` (hash of the problematic code snippet, normalized: whitespace-trimmed, for drift-resistant matching)
+  - `anchor_pattern: context signature` (2 lines before + 2 lines after the target, for secondary location when fingerprint match is ambiguous)
+  - `ast_node_signature: com.example.Class#method(params)` (AST-level anchor — fully qualified method/field/class signature, for refactor-resistant matching when code has been moved; `null` for non-Java files)
 
 ### [Major] ... (same structure)
 
@@ -273,6 +341,24 @@ The "Fix Handoff" field is key to achieving the "generate → review → fix" cl
 - `fix_type=insert`: Insert the "Corrected Example" after `target_lines`
 - `fix_type=delete`: Delete the code segment specified by `target_lines` (no corrected example)
 - `fix_priority`: Fix priority sorted by severity + code location, 1 is highest, for ordering during batch fixes
+- `code_fingerprint`: SHA-256 hash of the problematic code snippet (normalized: whitespace-trimmed, leading/trailing spaces removed). Used for drift-resistant matching — if line numbers have shifted due to prior fixes, the fingerprint still identifies the correct code location
+- `anchor_pattern`: Signature of surrounding context (2 lines before + 2 lines after the target lines, concatenated and normalized). Used as a secondary locator when the fingerprint match is ambiguous or multiple matches exist
+- `ast_node_signature`: AST-level anchor in the format `{package}.{Class}#{methodName}({paramTypes})` for method-level issues, `{package}.{Class}#{fieldName}` for field-level issues, or `{package}.{Class}` for class-level issues. Extracted from the enclosing AST node of the problematic code. Provides refactor-resistant matching — when methods are moved to different files or classes are renamed, the developer's Fix Consumption Protocol can locate the code by signature search instead of line numbers. Set to `null` for non-Java files (FXML, CSS, `module-info.java`). See `javafx-orchestrator/SKILL.md` → Fix Handoff Format → AST Anchor Format for the full specification
+
+### Dual Output Format (Markdown + JSON)
+
+The reviewer outputs reports in **two formats simultaneously** by default:
+
+1. **Markdown report** (`review-report.md`) — human-readable, for developer review and documentation
+2. **JSON report** (`review-report.json`) — machine-readable, for `javafx-developer` Fix Consumption, CI/CD quality gates, and IDE plugin integration
+
+The JSON format is defined by the schema in `report-templates/report-schema.json`. It contains the same information as the Markdown report but in a structured format with a standalone `fix_handoffs` array for direct programmatic consumption. Key fields:
+
+- `summary.conclusion`: `Pass`, `Conditional Pass`, or `Fail` — CI/CD can use `jq .summary.conclusion review-report.json` for quality gate decisions
+- `fix_handoffs[]`: Standalone array sorted by `fix_priority`, each entry includes `target_file`, `target_lines`, `fix_type`, `fix_priority`, `code_fingerprint`, `anchor_pattern`, `ast_node_signature`, `corrected_example`, `issue_id`, and `severity`
+- `loop_state`: Current loop state snapshot for orchestrator synchronization
+
+**Output format control**: If `.loop-config.json` exists in the project root with `"output_format": "json"`, output only the JSON report; if `"output_format": "markdown"`, output only the Markdown report. Default (no config file or `"output_format": "both"`) outputs both formats.
 
 ## Constraints
 
@@ -300,52 +386,37 @@ The following constraints are shared with `javafx-developer`, ensuring that revi
 
 ## Loop Orchestration Protocol
 
-This protocol is shared across `javafx-developer`, `javafx-code-reviewer`, and `javafx-runner`. It defines the automated closed-loop cycle: **generate → review → verify → fix → re-verify**, until the quality gate passes or termination conditions are met.
+> **Authoritative source**: When operating within an orchestrated loop, see `javafx-orchestrator/SKILL.md` for the authoritative definitions of:
+> - **Loop State Machine** (state transitions, parallel execution, fix cycle)
+> - **Loop Rules** (max rounds, re-review/re-verify strategy, convergence detection)
+> - **Combined Quality Gate** (reviewer + runner pass/fail matrix, priority rule)
+> - **Loop State JSON** format (`.loop-state.json` schema with all fields)
+> - **Serialization Triggers** (who writes what, when, and with what field isolation)
+> - **State Recovery Protocol** (cross-session recovery, stale handling)
+> - **Fix Handoff Format** (field definitions including `ast_node_signature`)
+>
+> The sections below describe only the **reviewer's role and responsibilities** within the loop — the minimal subset needed for standalone operation.
 
 ### Reviewer's Role in the Loop
 
 `javafx-code-reviewer` occupies the **review** stage of the loop:
-- **Round 1**: Full review — all six dimensions, all JavaFX files
+- **Round 1**: Full review — all nine dimensions, all JavaFX files
 - **Round 2+**: Incremental review — only dimensions touched by `javafx-developer`'s fixes (identified by `target_file` in the fix handoff)
-
-### Loop State Machine
-
-```
-[Start] → Generating → Reviewing → (reviewer Pass?) → Verifying → (runner Pass?) → [Delivered]
-                          ↓ No                          ↓ No
-                       Fixing ←────────────────────── Fixing
-                          ↓
-                     Re-Reviewing (incremental)
-```
-
-### Loop Rules
-
-| Rule | Definition | Termination |
-|------|-----------|-------------|
-| Max rounds | Fix → verify cycle loops at most 3 rounds | At 3 rounds without pass → pause, report to user |
-| Re-review strategy | Round 1: full re-review; Round 2+: incremental re-review (only dimensions touched by fixes) | Incremental re-review checks only fix-affected dimensions |
-| Re-verify strategy | Every round: compile verification mandatory; runtime/packaging based on fix scope | Compile failure short-circuits: skip runtime and packaging |
-| Convergence detection | Compare current round issue count with previous round | 2 consecutive non-converging rounds → pause, report to user |
-| User intervention points | Max rounds reached / non-converging / unfixable issues | Pause with current state report |
-
-### Quality Gate (Combined)
-
-The loop terminates as **Pass** only when BOTH reviewer and runner pass:
-
-| Reviewer Conclusion | Runner Conclusion | Overall | Action |
-|---------------------|-------------------|---------|--------|
-| Pass | Pass | **Pass** | Deliver, exit loop |
-| Pass | Conditional/Fail | **Fail** | Fix runner issues, continue loop |
-| Conditional/Fail | Pass | **Fail** | Fix reviewer issues, continue loop |
-| Conditional/Fail | Conditional/Fail | **Fail** | Fix both, continue loop |
-
-**Priority rule**: When reviewer is Fail, fix reviewer issues first (static issues are usually root causes; fixing them may resolve runtime issues too).
 
 ### Individual Gate Criteria (Reviewer)
 
 - **Pass**: No Critical or Major issues, pass rate >= 80%
 - **Conditional Pass**: Has Major but no Critical, all Major issues have clear fix plans
 - **Fail**: Has Critical issues, must be fixed before release
+
+### Reviewer's Serialization Responsibilities
+
+1. **Read state**: Before starting review, check for `.loop-state.json`. If found, extract `current_round` and `last_fix_handoff` to determine review scope
+2. **Determine strategy**: Round 1 → Full Review; Round 2+ → Incremental Review (load only dimensions related to `target_file`s in the fix handoff)
+3. **Write result**: After completing review, update **only** the `rounds[current_round].reviewer_result` field with conclusion, issue counts by severity, and fix handoff count. Do not modify `runner_result` or other fields (parallel write safety — runner writes to its own field concurrently)
+4. **Set next action**: If both reviewer and runner have completed, set `next_action: "fixing"` (developer consumes merged fix handoffs); if only reviewer has completed, leave `next_action` unchanged (orchestrator will update after runner also completes)
+
+> **Fix Handoff Format**: See `javafx-orchestrator/SKILL.md` → Fix Handoff Format for the authoritative field definitions. The reviewer generates Fix Handoffs with `target_file`, `target_lines`, `fix_type`, `fix_priority`, `code_fingerprint`, `anchor_pattern`, and `ast_node_signature` fields.
 
 ## Runtime Findings Reception
 
@@ -387,9 +458,11 @@ For in-depth criteria, refer to the following documents in the `references/` dir
 - `references/compliance-rules.md` - Coding/naming/Spring Boot/version/API compliance
 - `references/security-checklist.md` - Security compliance checklist ← developer: security rules
 - `references/css-compliance.md` - CSS compliance rules ← developer: `css-best-practices.md`
+- `references/requirements-coverage.md` - Requirements coverage rules (requirement traceability, @req annotation, orphan code detection) ← developer: `templates/docs/requirements.md` (RTM template)
 
-## Report Template
+## Report Templates
 
-Reusable skeleton template in the `report-templates/` directory:
+Reusable skeleton templates in the `report-templates/` directory:
 
-- `report-templates/review-report.md` - Review report skeleton template (reusable)
+- `report-templates/review-report.md` - Review report skeleton template (Markdown, human-readable)
+- `report-templates/report-schema.json` - JSON schema for machine-readable report output (CI/CD, IDE, Fix Consumption)

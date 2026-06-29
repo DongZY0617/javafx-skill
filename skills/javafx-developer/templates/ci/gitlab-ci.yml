@@ -1,0 +1,556 @@
+# =============================================================================
+# JavaFX GitLab CI/CD Pipeline Template
+# =============================================================================
+# This template provides a complete CI/CD pipeline for JavaFX projects with:
+#   - Compile verification stage
+#   - Headless UI testing with Monocle (TestFX)
+#   - Cross-platform packaging with jpackage (Windows, macOS, Linux)
+#   - Artifact publishing
+#
+# Usage:
+#   1. Copy this file to the root of your repository as: .gitlab-ci.yml
+#   2. Replace all {{PLACEHOLDER}} values with your project's actual values
+#   3. Configure CI/CD Variables for code signing (optional)
+#   4. Register self-hosted runners with tags: windows, macos (Linux uses shared runners)
+#
+# Placeholders to replace:
+#   {{APP_NAME}}          - Application display name (e.g., MyApp)
+#   {{APP_NAME_LOWER}}    - Lowercase name for Linux packages (e.g., myapp)
+#   {{MODULE_NAME}}       - Java module name (e.g., com.example.myapp)
+#   {{MAIN_CLASS}}        - Fully qualified main class (e.g., com.example.myapp.MainApp)
+#   {{APP_VERSION}}       - Application version (e.g., 1.0.0)
+#   {{MAC_BUNDLE_ID}}     - macOS bundle identifier (e.g., com.mycompany.myapp)
+#   {{DEB_MAINTAINER}}    - Linux deb maintainer email (e.g., dev@mycompany.com)
+#   {{WIN_UPGRADE_UUID}}  - Windows upgrade UUID (generate a new UUID)
+#   {{JAVAFX_VERSION}}    - JavaFX SDK version (e.g., 21.0.11)
+#
+# Runner Requirements:
+#   - Linux runner: shared Docker runner (maven:3.9-eclipse-temurin-21)
+#   - Windows runner: self-hosted, shell executor, tag: windows
+#     Prerequisites: JDK 21, Maven, .NET SDK (for WiX), Git
+#   - macOS runner: self-hosted, shell executor, tag: macos
+#     Prerequisites: JDK 21, Maven, Xcode command line tools, Git
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Global variables shared across all jobs
+# -----------------------------------------------------------------------------
+variables:
+  APP_NAME: "{{APP_NAME}}"
+  APP_NAME_LOWER: "{{APP_NAME_LOWER}}"
+  MODULE_NAME: "{{MODULE_NAME}}"
+  MAIN_CLASS: "{{MAIN_CLASS}}"
+  APP_VERSION: "{{APP_VERSION}}"
+  JAVAFX_VERSION: "{{JAVAFX_VERSION}}"
+  # JavaFX 24+ requires native access to the graphics module
+  NATIVE_ACCESS_FLAG: "--enable-native-access=javafx.graphics"
+  # Monocle headless test configuration
+  TESTFX_HEADLESS: "true"
+  PRISM_ORDER: "sw"
+  PRISM_TEXT: "t2k"
+  # Maven options: batch mode, no transfer progress
+  MAVEN_OPTS: "-Dmaven.repo.local=.m2/repository"
+  MAVEN_CLI_OPTS: "-B --no-transfer-progress -Dstyle.color=never"
+  # GitLab-specific: disable depth for shallow clone
+  GIT_DEPTH: "1"
+
+# -----------------------------------------------------------------------------
+# Pipeline stages (ordered)
+# Maps to javafx-runner verification dimensions:
+#   compile → test → package
+# -----------------------------------------------------------------------------
+stages:
+  - compile
+  - test
+  - package
+
+# -----------------------------------------------------------------------------
+# Default image for Linux Docker-based jobs
+# -----------------------------------------------------------------------------
+default:
+  image: maven:3.9-eclipse-temurin-21
+  # Cache Maven dependencies between jobs and pipelines
+  cache:
+    key:
+      files:
+        - pom.xml
+      prefix: "${CI_COMMIT_REF_SLUG}"
+    paths:
+      - .m2/repository
+    policy: pull-push
+
+# =============================================================================
+# Stage: Compile
+# =============================================================================
+# Verifies that the project compiles successfully.
+# Maps to javafx-runner's "compile verification" dimension.
+# =============================================================================
+
+compile:linux:
+  stage: compile
+  tags:
+    - linux
+  script:
+    - mvn $MAVEN_CLI_OPTS clean compile
+  artifacts:
+    paths:
+      - target/classes
+    expire_in: 1 hour
+  rules:
+    # Run on all branches and merge requests
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH
+    - if: $CI_COMMIT_TAG
+
+compile:windows:
+  stage: compile
+  tags:
+    - windows
+  before_script:
+    - echo "Using Windows runner with JDK 21 and Maven"
+  script:
+    - mvn %MAVEN_CLI_OPTS% clean compile
+  artifacts:
+    paths:
+      - target/classes
+    expire_in: 1 hour
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH
+    - if: $CI_COMMIT_TAG
+
+compile:macos:
+  stage: compile
+  tags:
+    - macos
+  before_script:
+    - echo "Using macOS runner with JDK 21 and Maven"
+  script:
+    - mvn $MAVEN_CLI_OPTS clean compile
+  artifacts:
+    paths:
+      - target/classes
+    expire_in: 1 hour
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH
+    - if: $CI_COMMIT_TAG
+
+# =============================================================================
+# Stage: Test
+# =============================================================================
+# Runs TestFX integration tests with Monocle headless mode.
+# Maps to javafx-runner's "runtime verification" dimension.
+#
+# The Monocle system properties are configured in pom.xml Surefire argLine.
+# See: templates/test/pom-test-dependencies.xml
+# =============================================================================
+
+test:linux:
+  stage: test
+  tags:
+    - linux
+  needs:
+    - compile:linux
+  before_script:
+    # Install Linux dependencies for headless JavaFX testing
+    # Monocle requires OpenGL libraries and fonts to avoid rendering errors
+    - apt-get update -qq
+    - apt-get install -y -qq libgl1-mesa-glx libxslt1.1 libxxf86vm1 libgtk-3-0 fonts-dejavu fonts-noto-cjk
+  script:
+    - mvn $MAVEN_CLI_OPTS test
+  after_script:
+    # Export test results as JUnit XML for GitLab test panel integration
+    - |
+      if [ -d target/surefire-reports ]; then
+        echo "Test reports generated in target/surefire-reports/"
+      fi
+  artifacts:
+    when: always
+    reports:
+      junit:
+        - target/surefire-reports/TEST-*.xml
+    paths:
+      - target/surefire-reports/
+    expire_in: 7 days
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH
+    - if: $CI_COMMIT_TAG
+
+test:windows:
+  stage: test
+  tags:
+    - windows
+  needs:
+    - compile:windows
+  before_script:
+    - echo "Windows runner has display available; Monocle still used for consistency"
+  script:
+    - mvn %MAVEN_CLI_OPTS% test
+  artifacts:
+    when: always
+    reports:
+      junit:
+        - target/surefire-reports/TEST-*.xml
+    paths:
+      - target/surefire-reports/
+    expire_in: 7 days
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH
+    - if: $CI_COMMIT_TAG
+
+test:macos:
+  stage: test
+  tags:
+    - macos
+  needs:
+    - compile:macos
+  before_script:
+    - echo "macOS runner has display available; Monocle still used for consistency"
+  script:
+    - mvn $MAVEN_CLI_OPTS test
+  artifacts:
+    when: always
+    reports:
+      junit:
+        - target/surefire-reports/TEST-*.xml
+    paths:
+      - target/surefire-reports/
+    expire_in: 7 days
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH
+    - if: $CI_COMMIT_TAG
+
+# =============================================================================
+# Stage: Package
+# =============================================================================
+# Produces platform-specific native installers via jpackage.
+# Maps to javafx-runner's "packaging verification" dimension.
+#
+# jpackage cannot cross-compile — each platform must build its own installer.
+# =============================================================================
+
+# ---------------------------------------------------------------------------
+# Package: Windows (msi installer)
+# ---------------------------------------------------------------------------
+package:windows:
+  stage: package
+  tags:
+    - windows
+  needs:
+    - test:windows
+  before_script:
+    # Install WiX Toolset 4.x (required for msi installer generation)
+    - dotnet tool install --global wix
+    - $env:Path += ";$env:USERPROFILE\.dotnet\tools"
+    # Determine version: use Git tag if available, otherwise use APP_VERSION
+    - |
+      if ($env:CI_COMMIT_TAG) {
+        $env:PKG_VERSION = $env:CI_COMMIT_TAG -replace '^v',''
+      } else {
+        $env:PKG_VERSION = $env:APP_VERSION
+      }
+      echo "Package version: $env:PKG_VERSION"
+  script:
+    # Build application JAR (skip tests, already verified)
+    - mvn %MAVEN_CLI_OPTS% clean package -DskipTests
+    # Download JavaFX SDK
+    - |
+      curl -L "https://download2.gluonhq.com/openjfx/$env:JAVAFX_VERSION/openjfx-$env:JAVAFX_VERSION_windows-x64_bin-sdk.zip" -o javafx-sdk.zip
+      Expand-Archive -Path javafx-sdk.zip -DestinationPath javafx-sdk
+      $env:JAVAFX_SDK = "javafx-sdk/javafx-sdk-$env:JAVAFX_VERSION/lib"
+    # Create jlink custom runtime image
+    - |
+      jlink `
+        --module-path "target/modules;$env:JAVAFX_SDK" `
+        --add-modules $env:MODULE_NAME `
+        --output build/runtime `
+        --strip-debug `
+        --compress zip-6 `
+        --no-header-files `
+        --no-man-pages
+    # Package with jpackage (msi)
+    - |
+      jpackage `
+        --type msi `
+        --name $env:APP_NAME `
+        --app-version $env:PKG_VERSION `
+        --vendor "MyCompany" `
+        --module "$env:MODULE_NAME/$env:MAIN_CLASS" `
+        --module-path "target/modules;$env:JAVAFX_SDK" `
+        --runtime-image build/runtime `
+        --icon assets/icon.ico `
+        --win-menu `
+        --win-shortcut `
+        --win-dir-chooser `
+        --win-upgrade-uuid "{{WIN_UPGRADE_UUID}}" `
+        --java-options $env:NATIVE_ACCESS_FLAG `
+        --dest dist
+  artifacts:
+    name: "$APP_NAME-windows-$CI_COMMIT_TAG"
+    paths:
+      - dist/*.msi
+    expire_in: 30 days
+  rules:
+    # Only run packaging on tags or scheduled pipelines (not every push)
+    - if: $CI_COMMIT_TAG
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_BRANCH == "main"
+
+# ---------------------------------------------------------------------------
+# Package: macOS (dmg installer)
+# ---------------------------------------------------------------------------
+package:macos:
+  stage: package
+  tags:
+    - macos
+  needs:
+    - test:macos
+  before_script:
+    # Verify Xcode command line tools are available
+    - xcode-select -p
+    # Determine version: use Git tag if available
+    - |
+      if [ -n "$CI_COMMIT_TAG" ]; then
+        export PKG_VERSION="${CI_COMMIT_TAG#v}"
+      else
+        export PKG_VERSION="$APP_VERSION"
+      fi
+      echo "Package version: $PKG_VERSION"
+  script:
+    # Build application JAR (skip tests, already verified)
+    - mvn $MAVEN_CLI_OPTS clean package -DskipTests
+    # Download JavaFX SDK
+    - |
+      curl -L "https://download2.gluonhq.com/openjfx/$JAVAFX_VERSION/openjfx-$JAVAFX_VERSION_osx-x64_bin-sdk.zip" -o javafx-sdk.zip
+      unzip -q javafx-sdk.zip -d javafx-sdk
+      export JAVAFX_SDK="javafx-sdk/javafx-sdk-$JAVAFX_VERSION/lib"
+    # Create jlink custom runtime image
+    - |
+      jlink \
+        --module-path "target/modules:$JAVAFX_SDK" \
+        --add-modules $MODULE_NAME \
+        --output build/runtime \
+        --strip-debug \
+        --compress zip-6 \
+        --no-header-files \
+        --no-man-pages
+    # Package with jpackage (dmg)
+    - |
+      # Optional: macOS code signing (requires certificate in CI/CD variables)
+      SIGN_ARGS=""
+      if [ -n "$MAC_SIGNING_KEY_USER_NAME" ]; then
+        SIGN_ARGS="--mac-sign --mac-signing-key-user-name $MAC_SIGNING_KEY_USER_NAME"
+        echo "macOS code signing enabled"
+      else
+        echo "macOS code signing disabled (no certificate configured)"
+      fi
+
+      jpackage \
+        --type dmg \
+        --name "$APP_NAME" \
+        --app-version "$PKG_VERSION" \
+        --vendor "MyCompany" \
+        --module "$MODULE_NAME/$MAIN_CLASS" \
+        --module-path "target/modules:$JAVAFX_SDK" \
+        --runtime-image build/runtime \
+        --icon assets/icon.icns \
+        --mac-package-name "$APP_NAME" \
+        --mac-package-identifier "{{MAC_BUNDLE_ID}}" \
+        $SIGN_ARGS \
+        --java-options "$NATIVE_ACCESS_FLAG" \
+        --dest dist
+  artifacts:
+    name: "$APP_NAME-macos-$CI_COMMIT_TAG"
+    paths:
+      - dist/*.dmg
+    expire_in: 30 days
+  rules:
+    - if: $CI_COMMIT_TAG
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_BRANCH == "main"
+
+# ---------------------------------------------------------------------------
+# Package: Linux (deb installer)
+# ---------------------------------------------------------------------------
+package:linux:
+  stage: package
+  tags:
+    - linux
+  needs:
+    - test:linux
+  image: maven:3.9-eclipse-temurin-21
+  before_script:
+    # Install packaging tools and Linux dependencies
+    - apt-get update -qq
+    - apt-get install -y -qq dpkg rpm libgl1-mesa-glx curl
+    # Determine version: use Git tag if available
+    - |
+      if [ -n "$CI_COMMIT_TAG" ]; then
+        export PKG_VERSION="${CI_COMMIT_TAG#v}"
+      else
+        export PKG_VERSION="$APP_VERSION"
+      fi
+      echo "Package version: $PKG_VERSION"
+  script:
+    # Build application JAR (skip tests, already verified)
+    - mvn $MAVEN_CLI_OPTS clean package -DskipTests
+    # Download JavaFX SDK
+    - |
+      curl -L "https://download2.gluonhq.com/openjfx/$JAVAFX_VERSION/openjfx-$JAVAFX_VERSION_linux-x64_bin-sdk.zip" -o javafx-sdk.zip
+      unzip -q javafx-sdk.zip -d javafx-sdk
+      export JAVAFX_SDK="javafx-sdk/javafx-sdk-$JAVAFX_VERSION/lib"
+    # Create jlink custom runtime image
+    - |
+      jlink \
+        --module-path "target/modules:$JAVAFX_SDK" \
+        --add-modules $MODULE_NAME \
+        --output build/runtime \
+        --strip-debug \
+        --compress zip-6 \
+        --no-header-files \
+        --no-man-pages
+    # Package with jpackage (deb)
+    - |
+      jpackage \
+        --type deb \
+        --name "$APP_NAME_LOWER" \
+        --app-version "$PKG_VERSION" \
+        --vendor "MyCompany" \
+        --module "$MODULE_NAME/$MAIN_CLASS" \
+        --module-path "target/modules:$JAVAFX_SDK" \
+        --runtime-image build/runtime \
+        --icon assets/icon.png \
+        --linux-package-name "$APP_NAME_LOWER" \
+        --linux-deb-maintainer "{{DEB_MAINTAINER}}" \
+        --linux-rpm-license-type "MIT" \
+        --install-dir /opt/$APP_NAME_LOWER \
+        --java-options "$NATIVE_ACCESS_FLAG" \
+        --dest dist
+  artifacts:
+    name: "$APP_NAME-linux-$CI_COMMIT_TAG"
+    paths:
+      - dist/*.deb
+    expire_in: 30 days
+  rules:
+    - if: $CI_COMMIT_TAG
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_BRANCH == "main"
+
+# ---------------------------------------------------------------------------
+# Package: Linux (rpm installer) — optional, requires rpmbuild
+# ---------------------------------------------------------------------------
+package:linux:rpm:
+  stage: package
+  tags:
+    - linux
+  needs:
+    - test:linux
+  image: maven:3.9-eclipse-temurin-21
+  before_script:
+    - apt-get update -qq
+    - apt-get install -y -qq rpm libgl1-mesa-glx curl
+    - |
+      if [ -n "$CI_COMMIT_TAG" ]; then
+        export PKG_VERSION="${CI_COMMIT_TAG#v}"
+      else
+        export PKG_VERSION="$APP_VERSION"
+      fi
+      echo "Package version: $PKG_VERSION"
+  script:
+    - mvn $MAVEN_CLI_OPTS clean package -DskipTests
+    - |
+      curl -L "https://download2.gluonhq.com/openjfx/$JAVAFX_VERSION/openjfx-$JAVAFX_VERSION_linux-x64_bin-sdk.zip" -o javafx-sdk.zip
+      unzip -q javafx-sdk.zip -d javafx-sdk
+      export JAVAFX_SDK="javafx-sdk/javafx-sdk-$JAVAFX_VERSION/lib"
+    - |
+      jlink \
+        --module-path "target/modules:$JAVAFX_SDK" \
+        --add-modules $MODULE_NAME \
+        --output build/runtime \
+        --strip-debug \
+        --compress zip-6 \
+        --no-header-files \
+        --no-man-pages
+    - |
+      jpackage \
+        --type rpm \
+        --name "$APP_NAME_LOWER" \
+        --app-version "$PKG_VERSION" \
+        --vendor "MyCompany" \
+        --module "$MODULE_NAME/$MAIN_CLASS" \
+        --module-path "target/modules:$JAVAFX_SDK" \
+        --runtime-image build/runtime \
+        --icon assets/icon.png \
+        --linux-package-name "$APP_NAME_LOWER" \
+        --linux-rpm-license-type "MIT" \
+        --install-dir /opt/$APP_NAME_LOWER \
+        --java-options "$NATIVE_ACCESS_FLAG" \
+        --dest dist
+  artifacts:
+    name: "$APP_NAME-linux-rpm-$CI_COMMIT_TAG"
+    paths:
+      - dist/*.rpm
+    expire_in: 30 days
+  rules:
+    - if: $CI_COMMIT_TAG
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_BRANCH == "main"
+
+# =============================================================================
+# Scheduled Pipeline: Nightly Full Verification
+# =============================================================================
+# Runs the complete verification suite across JDK versions to catch regressions.
+# Triggered by GitLab scheduled pipelines (Settings → CI/CD → Schedules).
+# =============================================================================
+
+nightly:verify:
+  stage: test
+  tags:
+    - linux
+  image: maven:3.9-eclipse-temurin-${JDK_VERSION:-21}
+  variables:
+    JDK_VERSION: "21"
+  before_script:
+    - apt-get update -qq
+    - apt-get install -y -qq libgl1-mesa-glx libxslt1.1 libxxf86vm1 libgtk-3-0 fonts-dejavu fonts-noto-cjk dpkg rpm curl
+  script:
+    # Full verification: compile + all tests + integration tests
+    - mvn $MAVEN_CLI_OPTS clean verify
+    # jpackage smoke test (verify packaging works, artifacts discarded)
+    - |
+      curl -L "https://download2.gluonhq.com/openjfx/$JAVAFX_VERSION/openjfx-$JAVAFX_VERSION_linux-x64_bin-sdk.zip" -o javafx-sdk.zip
+      unzip -q javafx-sdk.zip -d javafx-sdk
+      export JAVAFX_SDK="javafx-sdk/javafx-sdk-$JAVAFX_VERSION/lib"
+
+      jlink \
+        --module-path "target/modules:$JAVAFX_SDK" \
+        --add-modules $MODULE_NAME \
+        --output build/runtime-smoke \
+        --strip-debug --compress zip-6 --no-header-files --no-man-pages
+
+      jpackage \
+        --type deb \
+        --name "$APP_NAME_LOWER-smoke" \
+        --app-version "0.0.0-smoke" \
+        --module "$MODULE_NAME/$MAIN_CLASS" \
+        --module-path "target/modules:$JAVAFX_SDK" \
+        --runtime-image build/runtime-smoke \
+        --java-options "$NATIVE_ACCESS_FLAG" \
+        --dest dist-smoke
+
+      echo "Nightly smoke test packaging completed successfully"
+  artifacts:
+    when: always
+    reports:
+      junit:
+        - target/surefire-reports/TEST-*.xml
+    paths:
+      - target/surefire-reports/
+    expire_in: 14 days
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "web" && $NIGHTLY == "true"

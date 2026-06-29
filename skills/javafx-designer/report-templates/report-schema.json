@@ -1,0 +1,308 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://javafx-skill/designer/report-schema.json",
+  "title": "JavaFX Designer Report",
+  "description": "JSON schema for the javafx-designer design report output",
+  "type": "object",
+  "required": ["report_type", "project_info", "design_scope", "conclusion", "screens", "artifacts", "loop_state"],
+  "properties": {
+    "report_type": {
+      "type": "string",
+      "const": "designer",
+      "description": "Fixed identifier for designer reports"
+    },
+    "project_info": {
+      "type": "object",
+      "required": ["project_name", "app_type", "timestamp"],
+      "properties": {
+        "project_name": {
+          "type": "string",
+          "description": "Project name"
+        },
+        "app_type": {
+          "type": "string",
+          "enum": ["CRUD", "Dashboard", "Wizard", "Dialog-heavy", "Single-window", "Multi-window"],
+          "description": "Application type classification"
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Report generation timestamp (ISO 8601)"
+        }
+      }
+    },
+    "design_scope": {
+      "type": "object",
+      "required": ["mode", "dimensions"],
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": ["Full Design", "Prototype Only", "Theme Only", "Flow Only"],
+          "description": "Design scope mode"
+        },
+        "dimensions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["prototype", "theme", "flow", "responsive", "icons"]
+          },
+          "description": "Activated design dimensions"
+        }
+      }
+    },
+    "conclusion": {
+      "type": "string",
+      "enum": ["Pass", "Pass with warnings", "Fail"],
+      "description": "Overall design conclusion"
+    },
+    "screens": {
+      "type": "array",
+      "description": "List of designed screens",
+      "items": {
+        "type": "object",
+        "required": ["name", "fxml_path", "root_container", "control_count", "fxid_count"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Screen name (e.g., main-view)"
+          },
+          "fxml_path": {
+            "type": "string",
+            "description": "FXML file path relative to project root"
+          },
+          "root_container": {
+            "type": "string",
+            "enum": ["BorderPane", "VBox", "HBox", "GridPane", "SplitPane", "TabPane", "StackPane", "AnchorPane"],
+            "description": "Root layout container"
+          },
+          "control_count": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Total number of controls in the screen"
+          },
+          "fxid_count": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Number of controls with fx:id assignments"
+          },
+          "controls": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "List of fx:id values"
+          },
+          "control_tree_preview": {
+            "type": "string",
+            "description": "Text-based control tree hierarchy preview"
+          }
+        }
+      }
+    },
+    "interaction_flow": {
+      "type": "object",
+      "description": "Interaction flow diagram information",
+      "properties": {
+        "navigation_pattern": {
+          "type": "string",
+          "enum": ["Menu Bar", "Tab Pane", "Wizard Steps", "Breadcrumb", "Drawer", "None"],
+          "description": "Primary navigation pattern"
+        },
+        "mermaid_file": {
+          "type": "string",
+          "description": "Path to the Mermaid diagram file"
+        },
+        "mermaid_content": {
+          "type": "string",
+          "description": "Mermaid diagram content (inline)"
+        },
+        "screen_count": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of screens in the flow"
+        },
+        "decision_points": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of decision points in the flow"
+        }
+      }
+    },
+    "theme": {
+      "type": "object",
+      "description": "Theme design information",
+      "properties": {
+        "light_theme_path": {
+          "type": "string",
+          "description": "Light theme CSS file path"
+        },
+        "dark_theme_path": {
+          "type": "string",
+          "description": "Dark theme CSS file path"
+        },
+        "color_palette": {
+          "type": "object",
+          "description": "Color palette tokens",
+          "properties": {
+            "primary": {
+              "type": "object",
+              "properties": {
+                "light": { "type": "string" },
+                "dark": { "type": "string" }
+              }
+            },
+            "bg_base": {
+              "type": "object",
+              "properties": {
+                "light": { "type": "string" },
+                "dark": { "type": "string" }
+              }
+            },
+            "text_primary": {
+              "type": "object",
+              "properties": {
+                "light": { "type": "string" },
+                "dark": { "type": "string" }
+              }
+            },
+            "success": { "type": "string" },
+            "warning": { "type": "string" },
+            "danger": { "type": "string" }
+          }
+        },
+        "typography": {
+          "type": "object",
+          "properties": {
+            "font_family": { "type": "string" },
+            "sizes": {
+              "type": "object",
+              "properties": {
+                "caption": { "type": "integer" },
+                "body": { "type": "integer" },
+                "title": { "type": "integer" },
+                "headline": { "type": "integer" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "icons": {
+      "type": "object",
+      "description": "Icon configuration information",
+      "properties": {
+        "library": {
+          "type": "string",
+          "description": "Ikonli icon pack name"
+        },
+        "version": {
+          "type": "string",
+          "description": "Ikonli version"
+        },
+        "config_path": {
+          "type": "string",
+          "description": "Icon config JSON file path"
+        },
+        "mappings": {
+          "type": "array",
+          "description": "Icon mapping entries",
+          "items": {
+            "type": "object",
+            "properties": {
+              "ui_element": { "type": "string" },
+              "fxid": { "type": "string" },
+              "icon_literal": { "type": "string" },
+              "icon_code": { "type": "string" }
+            }
+          }
+        },
+        "maven_dependencies": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "groupId": { "type": "string" },
+              "artifactId": { "type": "string" },
+              "version": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "responsive": {
+      "type": "object",
+      "description": "Responsive layout information",
+      "properties": {
+        "min_width": { "type": "integer" },
+        "min_height": { "type": "integer" },
+        "pref_width": { "type": "integer" },
+        "pref_height": { "type": "integer" },
+        "breakpoints": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string", "enum": ["Compact", "Medium", "Large"] },
+              "min_width": { "type": "integer" },
+              "behavior": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "artifacts": {
+      "type": "array",
+      "description": "List of all generated design artifacts",
+      "items": {
+        "type": "object",
+        "required": ["name", "path", "type"],
+        "properties": {
+          "name": { "type": "string" },
+          "path": { "type": "string" },
+          "type": {
+            "type": "string",
+            "enum": ["FXML", "CSS", "Mermaid", "JSON", "Markdown"]
+          }
+        }
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["missing_screen", "invalid_fxml", "color_contrast", "icon_not_found", "responsive_gap"]
+          },
+          "message": { "type": "string" },
+          "severity": {
+            "type": "string",
+            "enum": ["Info", "Minor", "Major"]
+          }
+        }
+      },
+      "description": "Design warnings (non-blocking)"
+    },
+    "loop_state": {
+      "type": "object",
+      "required": ["next_action", "design_phase"],
+      "properties": {
+        "next_action": {
+          "type": "string",
+          "enum": ["generating", "standalone_complete", "redesign"],
+          "description": "Next action in the loop"
+        },
+        "design_phase": {
+          "type": "string",
+          "enum": ["pre-generation", "standalone", "redesign"],
+          "description": "Design phase context"
+        },
+        "handoff_file": {
+          "type": "string",
+          "description": "Path to design-handoff.json for developer consumption"
+        }
+      }
+    }
+  }
+}

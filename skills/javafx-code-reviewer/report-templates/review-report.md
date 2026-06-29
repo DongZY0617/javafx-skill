@@ -42,6 +42,9 @@
   - `target_lines: [start line]-[end line]`
   - `fix_type: [replace / insert / delete]`
   - `fix_priority: 1`
+  - `code_fingerprint: [sha256 hash of problematic code snippet]`
+  - `anchor_pattern: [2 lines before + 2 lines after, normalized]`
+  - `ast_node_signature: [com.example.Class#method(params) or null for non-Java files]`
 
 ---
 
@@ -183,4 +186,96 @@
 > - Rule references uniformly cite `references/` document items, in the format `document name -- Check Item title`
 > - Fix Handoff fields can be directly consumed by `javafx-developer` or automation tools to execute fixes
 > - `fix_priority` is sorted by severity + code location, 1 is the highest priority, for ordering during batch fixes
+> - `code_fingerprint` is the SHA-256 hash of the problematic code snippet (whitespace-normalized), used by `javafx-developer` for drift-resistant matching when line numbers have shifted
+> - `anchor_pattern` is the surrounding context signature (2 lines before + 2 lines after), used as a secondary locator when fingerprint matching is ambiguous
+> - `ast_node_signature` is the fully qualified method/field/class signature (e.g., `com.example.Class#method(params)`), used as a refactor-resistant locator when code has been moved or renamed; `null` for non-Java files
 > - **Closed-Loop**: This report can trigger the automated closed-loop cycle. `javafx-developer` consumes fix handoff entries via its **Fix Consumption Protocol** (Step 5.5), then incremental re-review and re-verify are triggered automatically. See **Loop Orchestration Protocol** in each skill's SKILL.md for loop rules, termination conditions, and the combined quality gate.
+
+---
+
+## JSON Output Format (Optional)
+
+In addition to the Markdown report above, a JSON version can be generated for programmatic consumption by `javafx-developer`, CI/CD pipelines, or IDE plugins. The JSON format contains the same information as the Markdown report but in a machine-readable structure, with a standalone `fix_handoffs` array for direct Fix Consumption.
+
+### JSON Schema
+
+```json
+{
+  "report_type": "code-review",
+  "report_version": "1.0",
+  "generated_at": "2026-06-29T10:00:00Z",
+  "project": "project-name",
+  "review_mode": "full | incremental | targeted",
+  "round": 1,
+  "summary": {
+    "conclusion": "Pass | Conditional Pass | Fail",
+    "pass_rate": 0.85,
+    "total_issues": 10,
+    "critical_count": 2,
+    "major_count": 3,
+    "minor_count": 4,
+    "info_count": 1
+  },
+  "issues": [
+    {
+      "id": 1,
+      "severity": "Critical",
+      "dimension": "Code Structure",
+      "title": "Issue title",
+      "description": "Issue description",
+      "file": "src/main/java/com/example/controller/MainController.java",
+      "lines": "45-60",
+      "rule_reference": "architecture-patterns.md -- Layer Separation",
+      "problematic_code": "code snippet...",
+      "corrected_example": "corrected code...",
+      "fix_handoff": {
+        "target_file": "src/main/java/com/example/controller/MainController.java",
+        "target_lines": "45-60",
+        "fix_type": "replace",
+        "fix_priority": 1,
+        "code_fingerprint": "sha256-hash-of-snippet",
+        "anchor_pattern": "context signature lines",
+        "ast_node_signature": "com.example.controller.MainController#handleSave(ActionEvent)"
+      }
+    }
+  ],
+  "fix_handoffs": [
+    {
+      "target_file": "src/main/java/com/example/controller/MainController.java",
+      "target_lines": "45-60",
+      "fix_type": "replace",
+      "fix_priority": 1,
+      "code_fingerprint": "sha256-hash-of-snippet",
+      "anchor_pattern": "context signature lines",
+      "ast_node_signature": "com.example.controller.MainController#handleSave(ActionEvent)",
+      "corrected_example": "corrected code...",
+      "issue_id": 1,
+      "severity": "Critical"
+    }
+  ],
+  "loop_state": {
+    "current_round": 1,
+    "convergence_trend": [10],
+    "next_action": "fixing | incremental_review_and_verify | passed"
+  }
+}
+```
+
+### Field Reference
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `report_type` | string | Yes | Always `"code-review"` |
+| `report_version` | string | Yes | Schema version, current `"1.0"` |
+| `generated_at` | string | Yes | ISO 8601 timestamp |
+| `project` | string | Yes | Project name |
+| `review_mode` | string | Yes | `full`, `incremental`, or `targeted` |
+| `round` | number | Yes | Current loop round number |
+| `summary.conclusion` | string | Yes | `Pass`, `Conditional Pass`, or `Fail` |
+| `summary.pass_rate` | number | Yes | Pass rate 0.0-1.0 |
+| `summary.*_count` | number | Yes | Issue count by severity |
+| `issues[].fix_handoff` | object | No | Present only for issues with fix plans |
+| `fix_handoffs` | array | Yes | Standalone array of all fix handoffs, sorted by `fix_priority` |
+| `loop_state` | object | Yes | Current loop state snapshot |
+
+> **Note**: The JSON report is saved alongside the Markdown report as `review-report.json`. `javafx-developer`'s Fix Consumption Protocol can parse either format — JSON is preferred for automation, Markdown for human review.

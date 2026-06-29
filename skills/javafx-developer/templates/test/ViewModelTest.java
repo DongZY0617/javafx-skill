@@ -16,6 +16,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * Prerequisites:
  * - ViewModel exposes JavaFX Properties (StringProperty, BooleanProperty, etc.)
  * - JUnit 5 dependency in pom.xml (test scope)
+ *
+ * @req FR-003
  */
 public class ViewModelTest {
 
@@ -26,35 +28,50 @@ public class ViewModelTest {
         viewModel = new UserViewModel();
     }
 
+    /**
+     * @req FR-003
+     */
     @Test
-    void namePropertyDefaultsToEmpty() {
+    void namePropertyDefaultsToEmpty_FR_003() {
         assertEquals("", viewModel.nameProperty().get(), "Name should default to empty string");
     }
 
+    /**
+     * @req FR-003
+     */
     @Test
-    void saveDisabledWhenNameIsEmpty() {
+    void saveDisabledWhenNameIsEmpty_FR_003() {
         viewModel.nameProperty().set("");
         assertTrue(viewModel.saveDisabledProperty().get(),
                 "Save should be disabled when name is empty");
     }
 
+    /**
+     * @req FR-003
+     */
     @Test
-    void saveEnabledWhenNameIsNotEmpty() {
+    void saveEnabledWhenNameIsNotEmpty_FR_003() {
         viewModel.nameProperty().set("John Doe");
         assertFalse(viewModel.saveDisabledProperty().get(),
                 "Save should be enabled when name is not empty");
     }
 
+    /**
+     * @req FR-003
+     */
     @Test
-    void descriptionPropertyAcceptsLongText() {
+    void descriptionPropertyAcceptsLongText_FR_003() {
         String longDescription = "A".repeat(500);
         viewModel.descriptionProperty().set(longDescription);
         assertEquals(500, viewModel.descriptionProperty().get().length(),
                 "Description should accept long text");
     }
 
+    /**
+     * @req FR-003
+     */
     @Test
-    void formValidBindsToMultipleProperties() {
+    void formValidBindsToMultipleProperties_FR_003() {
         // Test computed binding: formValid = !name.isEmpty() && !description.isEmpty()
         viewModel.nameProperty().set("Test");
         viewModel.descriptionProperty().set("");
@@ -64,8 +81,11 @@ public class ViewModelTest {
         assertTrue(viewModel.isFormValid(), "Form should be valid with both fields filled");
     }
 
+    /**
+     * @req FR-003
+     */
     @Test
-    void resetClearsAllProperties() {
+    void resetClearsAllProperties_FR_003() {
         viewModel.nameProperty().set("John");
         viewModel.descriptionProperty().set("Some description");
         viewModel.reset();

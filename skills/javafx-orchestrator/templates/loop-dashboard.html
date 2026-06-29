@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="refresh" content="10">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JavaFX Loop Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+  <style>
+    :root {
+      --bg: #0f1117;
+      --card-bg: #1a1d27;
+      --card-border: #2a2d3a;
+      --text: #e0e0e0;
+      --text-muted: #888;
+      --accent: #4fc3f7;
+      --green: #4caf50;
+      --orange: #ff9800;
+      --red: #f44336;
+      --yellow: #ffeb3b;
+      --gray: #607d8b;
+      --blue: #2196f3;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 24px;
+      min-height: 100vh;
+    }
+
+    /* Header */
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--card-border);
+    }
+    .header h1 { font-size: 24px; font-weight: 600; }
+    .header h1 .icon { color: var(--accent); margin-right: 8px; }
+    .header .meta { font-size: 13px; color: var(--text-muted); text-align: right; }
+    .header .meta .refresh-badge {
+      display: inline-flex; align-items: center; gap: 4px;
+      background: rgba(79,195,247,0.1); color: var(--accent);
+      padding: 2px 10px; border-radius: 12px; font-size: 12px;
+      margin-top: 4px;
+    }
+    .header .meta .refresh-badge::before {
+      content: ''; width: 6px; height: 6px; border-radius: 50%;
+      background: var(--accent); animation: pulse 2s infinite;
+    }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+    /* Status Cards */
+    .status-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 10px;
+      padding: 20px;
+      transition: transform 0.2s, border-color 0.2s;
+    }
+    .card:hover { transform: translateY(-2px); border-color: var(--accent); }
+    .card .label { font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+    .card .value { font-size: 28px; font-weight: 700; }
+    .card .sub { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+    .card .badge {
+      display: inline-block; padding: 4px 12px; border-radius: 6px;
+      font-size: 13px; font-weight: 600; text-transform: uppercase;
+    }
+    .badge-pass { background: rgba(76,175,80,0.15); color: var(--green); }
+    .badge-fail { background: rgba(244,67,54,0.15); color: var(--red); }
+    .badge-conditional { background: rgba(255,152,0,0.15); color: var(--orange); }
+    .badge-paused { background: rgba(96,125,139,0.15); color: var(--gray); }
+    .badge-running { background: rgba(79,195,247,0.15); color: var(--accent); }
+    .badge-shipped { background: rgba(33,150,243,0.15); color: var(--blue); }
+
+    /* Charts */
+    .charts-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    @media (max-width: 900px) { .charts-row { grid-template-columns: 1fr; } }
+    .chart-container {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 10px;
+      padding: 20px;
+    }
+    .chart-container h3 { font-size: 14px; color: var(--text-muted); margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .chart { width: 100%; height: 300px; }
+
+    /* Table */
+    .table-container {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 10px;
+      padding: 20px;
+      margin-bottom: 24px;
+      overflow-x: auto;
+    }
+    .table-container h3 { font-size: 14px; color: var(--text-muted); margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th { text-align: left; padding: 10px 12px; color: var(--text-muted); border-bottom: 1px solid var(--card-border); font-weight: 600; white-space: nowrap; }
+    td { padding: 10px 12px; border-bottom: 1px solid rgba(42,45,58,0.5); white-space: nowrap; }
+    tr:hover td { background: rgba(79,195,247,0.03); }
+    .file-path { font-family: 'Fira Code', monospace; font-size: 12px; color: var(--accent); }
+    .status-applied { color: var(--green); }
+    .status-skipped { color: var(--gray); }
+    .status-rolled_back { color: var(--red); }
+    .empty-state { text-align: center; padding: 40px; color: var(--text-muted); font-size: 14px; }
+
+    /* Phase Timeline */
+    .phase-timeline {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 10px;
+      padding: 20px;
+      margin-bottom: 24px;
+    }
+    .phase-timeline h3 { font-size: 14px; color: var(--text-muted); margin-bottom: 16px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .phases { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+    .phase {
+      display: flex; flex-direction: column; align-items: center; gap: 6px;
+      padding: 12px 16px; border-radius: 8px; min-width: 100px;
+      border: 1px solid var(--card-border);
+    }
+    .phase .name { font-size: 12px; font-weight: 600; }
+    .phase .status-dot { width: 10px; height: 10px; border-radius: 50%; }
+    .phase.passed { border-color: rgba(76,175,80,0.3); }
+    .phase.passed .status-dot { background: var(--green); }
+    .phase.running { border-color: rgba(79,195,247,0.3); }
+    .phase.running .status-dot { background: var(--accent); animation: pulse 2s infinite; }
+    .phase.skipped { opacity: 0.4; }
+    .phase.skipped .status-dot { background: var(--gray); }
+    .phase.failed { border-color: rgba(244,67,54,0.3); }
+    .phase.failed .status-dot { background: var(--red); }
+    .phase.pending .status-dot { background: var(--card-border); }
+    .phase-arrow { color: var(--text-muted); font-size: 18px; }
+
+    /* Rollback Events */
+    .rollback-container {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-left: 3px solid var(--red);
+      border-radius: 10px;
+      padding: 20px;
+      margin-bottom: 24px;
+    }
+    .rollback-container h3 { font-size: 14px; color: var(--red); margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .rollback-item {
+      padding: 12px; margin-bottom: 8px;
+      background: rgba(244,67,54,0.05); border-radius: 6px;
+      font-size: 13px; display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: center;
+    }
+    .rollback-item .round { font-weight: 700; color: var(--red); }
+    .rollback-item .detail { color: var(--text-muted); }
+    .rollback-item .verify { font-size: 12px; }
+    .verify-passed { color: var(--green); }
+    .verify-failed { color: var(--red); }
+
+    /* Footer */
+    .footer { text-align: center; color: var(--text-muted); font-size: 12px; padding: 16px 0; }
+  </style>
+</head>
+<body>
+
+  <!-- Embedded Loop State Data (replaced by orchestrator) -->
+  <script id="loop-state-data" type="application/json">
+    {{LOOP_STATE_JSON}}
+  </script>
+
+  <!-- Header -->
+  <div class="header">
+    <h1><span class="icon">&#x1F504;</span>JavaFX Loop Dashboard</h1>
+    <div class="meta">
+      <div id="project-name">--</div>
+      <div id="last-updated">--</div>
+      <div class="refresh-badge">Auto-refresh: 10s</div>
+    </div>
+  </div>
+
+  <!-- Status Cards -->
+  <div class="status-cards" id="status-cards"></div>
+
+  <!-- Charts -->
+  <div class="charts-row">
+    <div class="chart-container">
+      <h3>Convergence Trend</h3>
+      <div id="chart-convergence" class="chart"></div>
+    </div>
+    <div class="chart-container">
+      <h3>Severity Breakdown</h3>
+      <div id="chart-severity" class="chart"></div>
+    </div>
+  </div>
+
+  <!-- Phase Timeline -->
+  <div class="phase-timeline">
+    <h3>Phase Timeline</h3>
+    <div class="phases" id="phase-timeline"></div>
+  </div>
+
+  <!-- Fix Handoff Table -->
+  <div class="table-container">
+    <h3>Fix Handoff List</h3>
+    <table id="fix-handoff-table">
+      <thead>
+        <tr>
+          <th>Round</th>
+          <th>Target File</th>
+          <th>Lines</th>
+          <th>Type</th>
+          <th>Priority</th>
+          <th>Source</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody id="fix-handoff-body"></tbody>
+    </table>
+    <div id="fix-handoff-empty" class="empty-state" style="display:none;">No fix handoffs yet</div>
+  </div>
+
+  <!-- Rollback Events -->
+  <div id="rollback-section" style="display:none;">
+    <div class="rollback-container">
+      <h3>&#x26A0; Rollback Events</h3>
+      <div id="rollback-list"></div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="footer">
+    Generated by javafx-orchestrator &middot; Data source: <code>.loop-state.json</code> &middot; Auto-refresh every 10 seconds
+  </div>
+
+  <script>
+    // ---- Parse embedded loop state ----
+    const raw = document.getElementById('loop-state-data').textContent.trim();
+    let state;
+    try {
+      state = JSON.parse(raw);
+    } catch(e) {
+      document.body.innerHTML = '<div style="text-align:center;padding:80px;color:#f44336;"><h2>Failed to parse loop state JSON</h2><p>' + e.message + '</p></div>';
+      throw e;
+    }
+
+    // ---- Helpers ----
+    function statusBadge(status) {
+      const map = {
+        'designing': ['badge-running','Designing'],
+        'generating': ['badge-running','Generating'],
+        'reviewing_and_verifying': ['badge-running','Review & Verify'],
+        'testing': ['badge-running','Testing'],
+        'fixing': ['badge-running','Fixing'],
+        'passed': ['badge-pass','Passed'],
+        'docgen': ['badge-running','DocGen'],
+        'deploying': ['badge-running','Deploying'],
+        'delivered': ['badge-pass','Delivered'],
+        'shipped': ['badge-shipped','Shipped'],
+        'paused': ['badge-paused','Paused']
+      };
+      const [cls, label] = map[status] || ['badge-paused', status];
+      return '<span class="badge ' + cls + '">' + label + '</span>';
+    }
+
+    function gateBadge(gate) {
+      if (!gate) return '<span class="badge badge-paused">--</span>';
+      if (gate === 'Pass') return '<span class="badge badge-pass">Pass</span>';
+      if (gate === 'Conditional Pass') return '<span class="badge badge-conditional">Conditional</span>';
+      return '<span class="badge badge-fail">Fail</span>';
+    }
+
+    function shortPath(path) {
+      if (!path) return '--';
+      const parts = path.split('/');
+      if (parts.length <= 3) return path;
+      return '.../' + parts.slice(-3).join('/');
+    }
+
+    function formatTime(iso) {
+      if (!iso) return '--';
+      const d = new Date(iso);
+      return d.toLocaleString();
+    }
+
+    // ---- Header ----
+    document.getElementById('project-name').textContent = 'Project: ' + (state.project || '--');
+    document.getElementById('last-updated').textContent = 'Last Updated: ' + formatTime(state.updated_at);
+
+    // ---- Status Cards ----
+    const cards = [];
+
+    // Round card
+    cards.push({
+      label: 'Current Round',
+      value: state.current_round + ' / ' + state.max_rounds,
+      sub: state.current_round >= state.max_rounds ? 'Max rounds reached' : (state.max_rounds - state.current_round) + ' round(s) remaining'
+    });
+
+    // Status card
+    cards.push({
+      label: 'Loop Status',
+      valueHtml: statusBadge(state.status),
+      sub: 'Next: ' + (state.next_action || '--')
+    });
+
+    // Convergence card
+    const trend = state.convergence_trend || [];
+    let convText = '--', convColor = '';
+    if (trend.length >= 2) {
+      const last = trend[trend.length - 1];
+      const prev = trend[trend.length - 2];
+      if (last < prev) { convText = '\u2193 Decreasing'; convColor = 'color:var(--green)'; }
+      else if (last > prev) { convText = '\u2191 Increasing'; convColor = 'color:var(--red)'; }
+      else { convText = '\u2192 Stable'; convColor = 'color:var(--orange)'; }
+    } else if (trend.length === 1) {
+      convText = trend[0] + ' issues';
+    }
+    cards.push({
+      label: 'Convergence Trend',
+      valueHtml: '<span style="' + convColor + '">' + convText + '</span>',
+      sub: trend.length > 0 ? 'History: [' + trend.join(', ') + ']' : 'No data yet'
+    });
+
+    // Combined Gate card
+    const lastRound = state.rounds && state.rounds.length > 0 ? state.rounds[state.rounds.length - 1] : null;
+    cards.push({
+      label: 'Combined Gate',
+      valueHtml: gateBadge(lastRound ? lastRound.combined_gate : null),
+      sub: lastRound ? 'Round ' + lastRound.round : '--'
+    });
+
+    // Fixes card
+    let totalApplied = 0, totalSkipped = 0, totalRolledBack = 0;
+    (state.rounds || []).forEach(r => {
+      totalApplied += r.fixes_applied || 0;
+      totalSkipped += r.fixes_skipped || 0;
+      totalRolledBack += r.fixes_rolled_back || 0;
+    });
+    cards.push({
+      label: 'Fixes Applied',
+      value: totalApplied,
+      sub: totalSkipped + ' skipped, ' + totalRolledBack + ' rolled back'
+    });
+
+    // Rollback card
+    const rollbackCount = (state.rollback_events || []).length;
+    cards.push({
+      label: 'Rollback Events',
+      value: rollbackCount,
+      sub: rollbackCount > 0 ? 'Attention required' : 'None',
+      valueStyle: rollbackCount > 0 ? 'color:var(--red)' : ''
+    });
+
+    // Render cards
+    document.getElementById('status-cards').innerHTML = cards.map(c => {
+      const valStyle = c.valueStyle ? ' style="' + c.valueStyle + '"' : '';
+      const val = c.valueHtml || '<span' + valStyle + '>' + c.value + '</span>';
+      return '<div class="card"><div class="label">' + c.label + '</div><div class="value">' + val + '</div><div class="sub">' + c.sub + '</div></div>';
+    }).join('');
+
+    // ---- Convergence Trend Chart ----
+    const roundLabels = (state.rounds || []).map(r => 'Round ' + r.round);
+    const reviewerIssues = (state.rounds || []).map(r => {
+      const rv = r.reviewer_result || {};
+      return (rv.critical || 0) + (rv.major || 0) + (rv.minor || 0);
+    });
+    const runnerIssues = (state.rounds || []).map(r => {
+      const rn = r.runner_result || {};
+      return (rn.critical || 0) + (rn.major || 0);
+    });
+    const totalIssues = state.convergence_trend || [];
+
+    const chartConv = echarts.init(document.getElementById('chart-convergence'));
+    chartConv.setOption({
+      tooltip: { trigger: 'axis' },
+      legend: { data: ['Reviewer Issues', 'Runner Issues', 'Total Issues'], textStyle: { color: '#888' } },
+      grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
+      xAxis: { type: 'category', data: roundLabels.length > 0 ? roundLabels : ['--'], axisLabel: { color: '#888' } },
+      yAxis: { type: 'value', name: 'Issue Count', axisLabel: { color: '#888' }, splitLine: { lineStyle: { color: '#2a2d3a' } } },
+      series: [
+        { name: 'Reviewer Issues', type: 'line', smooth: true, data: reviewerIssues, itemStyle: { color: '#f44336' }, lineStyle: { width: 2 } },
+        { name: 'Runner Issues', type: 'line', smooth: true, data: runnerIssues, itemStyle: { color: '#ff9800' }, lineStyle: { width: 2 } },
+        { name: 'Total Issues', type: 'line', smooth: true, data: totalIssues, itemStyle: { color: '#4fc3f7' }, lineStyle: { width: 3 }, areaStyle: { opacity: 0.1 } }
+      ]
+    });
+
+    // ---- Severity Breakdown Chart ----
+    const criticalData = (state.rounds || []).map(r => ((r.reviewer_result||{}).critical||0) + ((r.runner_result||{}).critical||0));
+    const majorData = (state.rounds || []).map(r => ((r.reviewer_result||{}).major||0) + ((r.runner_result||{}).major||0));
+    const minorData = (state.rounds || []).map(r => ((r.reviewer_result||{}).minor||0) + ((r.runner_result||{}).minor||0));
+
+    const chartSev = echarts.init(document.getElementById('chart-severity'));
+    chartSev.setOption({
+      tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+      legend: { data: ['Critical', 'Major', 'Minor'], textStyle: { color: '#888' } },
+      grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
+      xAxis: { type: 'category', data: roundLabels.length > 0 ? roundLabels : ['--'], axisLabel: { color: '#888' } },
+      yAxis: { type: 'value', name: 'Count', axisLabel: { color: '#888' }, splitLine: { lineStyle: { color: '#2a2d3a' } } },
+      series: [
+        { name: 'Critical', type: 'bar', stack: 'sev', data: criticalData, itemStyle: { color: '#f44336' } },
+        { name: 'Major', type: 'bar', stack: 'sev', data: majorData, itemStyle: { color: '#ff9800' } },
+        { name: 'Minor', type: 'bar', stack: 'sev', data: minorData, itemStyle: { color: '#ffeb3b' } }
+      ]
+    });
+
+    // ---- Phase Timeline ----
+    const phases = [];
+    // Design
+    if (state.design_result) {
+      const dr = state.design_result;
+      const cls = dr.conclusion === 'Pass' ? 'passed' : dr.conclusion === 'Pass with warnings' ? 'passed' : 'failed';
+      phases.push({ name: 'Design', cls });
+    } else {
+      phases.push({ name: 'Design', cls: 'skipped' });
+    }
+    // Generate
+    phases.push({ name: 'Generate', cls: state.current_round >= 1 ? 'passed' : (state.status === 'generating' ? 'running' : 'pending') });
+    // Review & Verify
+    if (lastRound) {
+      const rvOk = (lastRound.reviewer_result||{}).conclusion === 'Pass';
+      const rnOk = (lastRound.runner_result||{}).conclusion === 'Pass';
+      phases.push({ name: 'Review', cls: rvOk ? 'passed' : 'failed' });
+      phases.push({ name: 'Verify', cls: rnOk ? 'passed' : 'failed' });
+    } else {
+      phases.push({ name: 'Review', cls: 'pending' });
+      phases.push({ name: 'Verify', cls: 'pending' });
+    }
+    // Test
+    const testerResult = lastRound ? lastRound.tester_result : null;
+    if (testerResult) {
+      phases.push({ name: 'Test', cls: testerResult.conclusion === 'Pass' ? 'passed' : 'failed' });
+    } else {
+      phases.push({ name: 'Test', cls: 'pending' });
+    }
+    // DocGen
+    if (state.docgen_result && state.docgen_result.triggered) {
+      const dc = state.docgen_result.conclusion;
+      phases.push({ name: 'DocGen', cls: dc && dc.startsWith('Pass') ? 'passed' : 'failed' });
+    } else if (state.status === 'delivered' || state.status === 'shipped') {
+      phases.push({ name: 'DocGen', cls: 'skipped' });
+    } else {
+      phases.push({ name: 'DocGen', cls: 'pending' });
+    }
+    // Deploy
+    if (state.deploy_result && state.deploy_result.triggered) {
+      const dp = state.deploy_result.conclusion;
+      phases.push({ name: 'Deploy', cls: dp && dp.startsWith('Pass') ? 'passed' : 'failed' });
+    } else if (state.status === 'shipped') {
+      phases.push({ name: 'Deploy', cls: 'skipped' });
+    } else {
+      phases.push({ name: 'Deploy', cls: 'pending' });
+    }
+    // Shipped
+    phases.push({ name: 'Shipped', cls: state.status === 'shipped' ? 'passed' : 'pending' });
+
+    let phaseHtml = '';
+    phases.forEach((p, i) => {
+      if (i > 0) phaseHtml += '<span class="phase-arrow">&rarr;</span>';
+      phaseHtml += '<div class="phase ' + p.cls + '"><div class="status-dot"></div><div class="name">' + p.name + '</div></div>';
+    });
+    document.getElementById('phase-timeline').innerHTML = phaseHtml;
+
+    // ---- Fix Handoff Table ----
+    let allHandoffs = [];
+    (state.rounds || []).forEach(r => {
+      (r.fix_handoffs || []).forEach(fh => {
+        allHandoffs.push({ round: r.round, ...fh });
+      });
+    });
+
+    const tbody = document.getElementById('fix-handoff-body');
+    const emptyDiv = document.getElementById('fix-handoff-empty');
+    if (allHandoffs.length === 0) {
+      emptyDiv.style.display = 'block';
+      document.getElementById('fix-handoff-table').style.display = 'none';
+    } else {
+      emptyDiv.style.display = 'none';
+      tbody.innerHTML = allHandoffs.map(fh => {
+        const statusIcon = fh.status === 'applied' ? '\u2705' : fh.status === 'skipped' ? '\u23ED' : fh.status === 'rolled_back' ? '\u21A9' : fh.status;
+        const statusClass = fh.status === 'applied' ? 'status-applied' : fh.status === 'skipped' ? 'status-skipped' : 'status-rolled_back';
+        return '<tr>' +
+          '<td>' + fh.round + '</td>' +
+          '<td class="file-path" title="' + (fh.target_file||'') + '">' + shortPath(fh.target_file) + '</td>' +
+          '<td>' + (fh.target_lines || '--') + '</td>' +
+          '<td>' + (fh.fix_type || '--') + '</td>' +
+          '<td>' + (fh.fix_priority != null ? fh.fix_priority : '--') + '</td>' +
+          '<td>' + (fh.source || '--') + '</td>' +
+          '<td class="' + statusClass + '">' + statusIcon + ' ' + (fh.status || '--') + '</td>' +
+          '</tr>';
+      }).join('');
+    }
+
+    // ---- Rollback Events ----
+    const rollbackEvents = state.rollback_events || [];
+    if (rollbackEvents.length > 0) {
+      document.getElementById('rollback-section').style.display = 'block';
+      document.getElementById('rollback-list').innerHTML = rollbackEvents.map(ev => {
+        const verifyClass = ev.rollback_verification === 'passed' ? 'verify-passed' : 'verify-failed';
+        return '<div class="rollback-item">' +
+          '<span class="round">Round ' + ev.round + '</span>' +
+          '<span class="detail">' + ev.files_restored + ' files restored from ' + ev.backup_dir + ' &middot; ' + ev.compile_error_count + ' compile errors &middot; ' + ev.fix_count_rolled_back + ' fixes rolled back</span>' +
+          '<span class="verify ' + verifyClass + '">Verify: ' + ev.rollback_verification + '</span>' +
+          '</div>';
+      }).join('');
+    }
+
+    // ---- Resize handling ----
+    window.addEventListener('resize', function() {
+      chartConv.resize();
+      chartSev.resize();
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,430 @@
+# =============================================================================
+# JavaFX GitHub Actions Workflow Template
+# =============================================================================
+# This template provides a complete CI/CD pipeline for JavaFX projects with:
+#   - Multi-platform matrix (windows, macos, ubuntu)
+#   - JDK 17+ setup with Maven cache
+#   - Compile verification
+#   - Headless UI testing with Monocle (TestFX)
+#   - jpackage cross-platform packaging with platform-specific installer types
+#   - Artifact upload
+#
+# Usage:
+#   1. Copy this file to: .github/workflows/javafx-ci.yml
+#   2. Replace all {{PLACEHOLDER}} values with your project's actual values
+#   3. Configure repository secrets for code signing (optional)
+#   4. Adjust trigger events as needed
+#
+# Placeholders to replace:
+#   {{APP_NAME}}          - Application display name (e.g., MyApp)
+#   {{APP_NAME_LOWER}}    - Lowercase name for Linux packages (e.g., myapp)
+#   {{MODULE_NAME}}       - Java module name (e.g., com.example.myapp)
+#   {{MAIN_CLASS}}        - Fully qualified main class (e.g., com.example.myapp.MainApp)
+#   {{APP_VERSION}}       - Application version (e.g., 1.0.0)
+#   {{MAC_BUNDLE_ID}}     - macOS bundle identifier (e.g., com.mycompany.myapp)
+#   {{DEB_MAINTAINER}}    - Linux deb maintainer email (e.g., dev@mycompany.com)
+#   {{WIN_UPGRADE_UUID}}  - Windows upgrade UUID (generate a new UUID)
+#   {{JAVAFX_VERSION}}    - JavaFX SDK version (e.g., 21.0.11)
+# =============================================================================
+
+name: JavaFX CI/CD
+
+on:
+  # Trigger on pull requests to main/develop branches
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'src/**'
+      - 'pom.xml'
+      - 'module-info.java'
+      - '.github/workflows/javafx-ci.yml'
+
+  # Trigger on pushes to main/develop
+  push:
+    branches: [main, develop]
+    paths:
+      - 'src/**'
+      - 'pom.xml'
+      - 'module-info.java'
+
+  # Trigger on version tags for release packaging
+  tags:
+      - 'v*'
+
+  # Allow manual triggering
+  workflow_dispatch:
+    inputs:
+      skip_packaging:
+        description: 'Skip jpackage packaging stage'
+        required: false
+        type: boolean
+        default: false
+
+# Default permissions: read-only
+permissions:
+  contents: read
+
+# =============================================================================
+# Environment Variables (shared across all jobs)
+# =============================================================================
+env:
+  APP_NAME: '{{APP_NAME}}'
+  APP_NAME_LOWER: '{{APP_NAME_LOWER}}'
+  MODULE_NAME: '{{MODULE_NAME}}'
+  MAIN_CLASS: '{{MAIN_CLASS}}'
+  APP_VERSION: '{{APP_VERSION}}'
+  JAVAFX_VERSION: '{{JAVAFX_VERSION}}'
+  # JavaFX 24+ requires native access to the graphics module
+  NATIVE_ACCESS_FLAG: '--enable-native-access=javafx.graphics'
+
+# =============================================================================
+# Job: Compile Verification + Test (Fast feedback, Linux only for PRs)
+# =============================================================================
+jobs:
+
+  # ---------------------------------------------------------------------------
+  # Job 1: Compile & Test
+  # Runs on all platforms with Monocle headless testing on Linux
+  # ---------------------------------------------------------------------------
+  build-and-test:
+    name: Build & Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false  # Don't cancel other platforms on first failure
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+      # Step 1: Checkout source code
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Step 2: Setup JDK 21 (Eclipse Temurin)
+      - name: Setup JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+          cache: maven  # Automatically cache ~/.m2/repository
+
+      # Step 3: Install Linux dependencies for headless JavaFX testing
+      # Monocle requires OpenGL libraries and fonts to avoid rendering errors
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libgl1-mesa-glx \
+            libxslt1.1 \
+            libxxf86vm1 \
+            libgtk-3-0 \
+            fonts-dejavu \
+            fonts-noto-cjk
+
+      # Step 4: Compile verification
+      # This maps to javafx-runner's "compile verification" dimension
+      - name: Compile
+        run: mvn -B clean compile --no-transfer-progress
+
+      # Step 5: Test verification with Monocle headless mode
+      # The Monocle system properties are configured in pom.xml Surefire argLine
+      # See: templates/test/pom-test-dependencies.xml
+      # On Linux, tests run fully headless via Monocle
+      # On Windows/macOS, a display server is available by default
+      - name: Test (Monocle headless)
+        run: mvn -B test --no-transfer-progress
+        env:
+          # Ensure headless mode is enforced on all platforms for consistency
+          TESTFX_HEADLESS: 'true'
+          PRISM_ORDER: 'sw'
+          PRISM_TEXT: 't2k'
+
+      # Step 6: Upload test results
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.os }}
+          path: target/surefire-reports/
+          retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  # Job 2: Cross-Platform Packaging with jpackage
+  # Produces platform-specific native installers
+  # ---------------------------------------------------------------------------
+  package:
+    name: Package (${{ matrix.platform }})
+    needs: build-and-test
+    # Skip packaging for PRs unless manually triggered
+    if: |
+      (github.event_name != 'pull_request' || github.event.inputs.skip_packaging == 'false') &&
+      !inputs.skip_packaging
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            platform: windows
+            platform-suffix: windows-x64
+            installer-type: msi
+            icon-ext: ico
+            artifact-name: '${{ env.APP_NAME }}-*.msi'
+          - os: macos-latest
+            platform: mac
+            platform-suffix: osx-x64
+            installer-type: dmg
+            icon-ext: icns
+            artifact-name: '${{ env.APP_NAME }}-*.dmg'
+          - os: ubuntu-latest
+            platform: linux
+            platform-suffix: linux-x64
+            installer-type: deb
+            icon-ext: png
+            artifact-name: '${{ env.APP_NAME_LOWER }}_*.deb'
+
+    steps:
+      # Step 1: Checkout source code
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Step 2: Setup JDK 21
+      - name: Setup JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+          cache: maven
+
+      # Step 3: Install platform-specific packaging tools
+      # Windows: WiX Toolset 4.x (required for msi installer)
+      # Linux: dpkg-deb and rpm tools
+      - name: Install WiX Toolset (Windows)
+        if: matrix.platform == 'windows'
+        run: |
+          dotnet tool install --global wix
+          echo "$HOME/.dotnet/tools" >> $GITHUB_PATH
+
+      - name: Install packaging tools (Linux)
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y dpkg rpm libgl1-mesa-glx
+
+      - name: Verify Xcode tools (macOS)
+        if: matrix.platform == 'mac'
+        run: xcode-select -p
+
+      # Step 4: Download JavaFX SDK
+      # Required for jpackage to access native libraries via module path
+      - name: Download JavaFX SDK
+        shell: bash
+        run: |
+          SDK_URL="https://download2.gluonhq.com/openjfx/${JAVAFX_VERSION}/openjfx-${JAVAFX_VERSION}_${{ matrix.platform-suffix }}_bin-sdk.zip"
+          echo "Downloading JavaFX SDK from: $SDK_URL"
+          curl -L "$SDK_URL" -o javafx-sdk.zip
+          if [ "${{ matrix.platform }}" = "windows" ]; then
+            7z x javafx-sdk.zip -ojavafx-sdk
+          else
+            unzip -q javafx-sdk.zip -d javafx-sdk
+          fi
+          echo "JAVAFX_SDK=javafx-sdk/javafx-sdk-${JAVAFX_VERSION}/lib" >> $GITHUB_ENV
+
+      # Step 5: Build application JAR (skip tests, already verified)
+      - name: Build with Maven
+        run: mvn -B clean package -DskipTests --no-transfer-progress
+
+      # Step 6: Create jlink custom runtime image
+      # Produces a slim JRE containing only required modules
+      - name: Create jlink runtime image
+        shell: bash
+        run: |
+          jlink \
+            --module-path "target/modules:$JAVAFX_SDK" \
+            --add-modules $MODULE_NAME \
+            --output build/runtime \
+            --strip-debug \
+            --compress zip-6 \
+            --no-header-files \
+            --no-man-pages
+
+      # Step 7: Package with jpackage — Windows (msi)
+      - name: Package with jpackage (Windows)
+        if: matrix.platform == 'windows'
+        shell: bash
+        run: |
+          jpackage \
+            --type msi \
+            --name "$APP_NAME" \
+            --app-version "${GITHUB_REF_NAME:-$APP_VERSION}" \
+            --vendor "MyCompany" \
+            --module "$MODULE_NAME/$MAIN_CLASS" \
+            --module-path "target/modules:$JAVAFX_SDK" \
+            --runtime-image build/runtime \
+            --icon assets/icon.ico \
+            --win-menu \
+            --win-shortcut \
+            --win-dir-chooser \
+            --win-upgrade-uuid "{{WIN_UPGRADE_UUID}}" \
+            --java-options "$NATIVE_ACCESS_FLAG" \
+            --dest dist
+
+      # Step 8: Package with jpackage — macOS (dmg)
+      - name: Package with jpackage (macOS)
+        if: matrix.platform == 'mac'
+        shell: bash
+        run: |
+          jpackage \
+            --type dmg \
+            --name "$APP_NAME" \
+            --app-version "${GITHUB_REF_NAME:-$APP_VERSION}" \
+            --vendor "MyCompany" \
+            --module "$MODULE_NAME/$MAIN_CLASS" \
+            --module-path "target/modules:$JAVAFX_SDK" \
+            --runtime-image build/runtime \
+            --icon assets/icon.icns \
+            --mac-package-name "$APP_NAME" \
+            --mac-package-identifier "{{MAC_BUNDLE_ID}}" \
+            --java-options "$NATIVE_ACCESS_FLAG" \
+            --dest dist
+
+      # Step 9: Package with jpackage — Linux (deb)
+      - name: Package with jpackage (Linux)
+        if: matrix.platform == 'linux'
+        shell: bash
+        run: |
+          jpackage \
+            --type deb \
+            --name "$APP_NAME_LOWER" \
+            --app-version "${GITHUB_REF_NAME:-$APP_VERSION}" \
+            --vendor "MyCompany" \
+            --module "$MODULE_NAME/$MAIN_CLASS" \
+            --module-path "target/modules:$JAVAFX_SDK" \
+            --runtime-image build/runtime \
+            --icon assets/icon.png \
+            --linux-package-name "$APP_NAME_LOWER" \
+            --linux-deb-maintainer "{{DEB_MAINTAINER}}" \
+            --linux-rpm-license-type "MIT" \
+            --install-dir /opt/$APP_NAME_LOWER \
+            --java-options "$NATIVE_ACCESS_FLAG" \
+            --dest dist
+
+      # Step 10: Upload installer artifacts
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.APP_NAME }}-${{ matrix.platform }}
+          path: dist/${{ matrix.artifact-name }}
+          retention-days: 30
+          if-no-files-found: error
+
+      # Step 11: Upload to GitHub Release (on tag push only)
+      - name: Upload to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/${{ matrix.artifact-name }}
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ---------------------------------------------------------------------------
+  # Job 3: Nightly Full Verification (scheduled)
+  # Runs the complete suite across OS + JDK matrix
+  # ---------------------------------------------------------------------------
+  nightly:
+    name: Nightly Verification (${{ matrix.os }}, JDK ${{ matrix.jdk }})
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        jdk: ['21', '23']
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup JDK ${{ matrix.jdk }}
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: ${{ matrix.jdk }}
+          cache: maven
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libgl1-mesa-glx \
+            libxslt1.1 \
+            libxxf86vm1 \
+            libgtk-3-0 \
+            fonts-dejavu \
+            fonts-noto-cjk
+
+      # Full verification: compile + test + integration tests
+      - name: Full verification (mvn verify)
+        run: mvn -B clean verify --no-transfer-progress
+        env:
+          TESTFX_HEADLESS: 'true'
+          PRISM_ORDER: 'sw'
+          PRISM_TEXT: 't2k'
+
+      # jpackage smoke test (verify packaging works, don't keep artifacts)
+      - name: jpackage smoke test
+        shell: bash
+        run: |
+          # Download JavaFX SDK for smoke test
+          PLATFORM_SUFFIX=""
+          case "${{ matrix.os }}" in
+            ubuntu-latest)  PLATFORM_SUFFIX="linux-x64" ;;
+            windows-latest) PLATFORM_SUFFIX="windows-x64" ;;
+            macos-latest)   PLATFORM_SUFFIX="osx-x64" ;;
+          esac
+          curl -L "https://download2.gluonhq.com/openjfx/${JAVAFX_VERSION}/openjfx-${JAVAFX_VERSION}_${PLATFORM_SUFFIX}_bin-sdk.zip" -o javafx-sdk.zip
+          unzip -q javafx-sdk.zip -d javafx-sdk || 7z x javafx-sdk.zip -ojavafx-sdk
+          export JAVAFX_SDK="javafx-sdk/javafx-sdk-${JAVAFX_VERSION}/lib"
+
+          # Create runtime image
+          jlink \
+            --module-path "target/modules:$JAVAFX_SDK" \
+            --add-modules $MODULE_NAME \
+            --output build/runtime-smoke \
+            --strip-debug \
+            --compress zip-6 \
+            --no-header-files \
+            --no-man-pages
+
+          # Determine installer type based on OS
+          INSTALLER_TYPE="deb"
+          case "${{ matrix.os }}" in
+            windows-latest) INSTALLER_TYPE="msi" ;;
+            macos-latest)   INSTALLER_TYPE="dmg" ;;
+            ubuntu-latest)  INSTALLER_TYPE="deb" ;;
+          esac
+
+          # Run jpackage (output to temp dir, discarded after)
+          jpackage \
+            --type "$INSTALLER_TYPE" \
+            --name "$APP_NAME-smoke" \
+            --app-version "0.0.0-smoke" \
+            --module "$MODULE_NAME/$MAIN_CLASS" \
+            --module-path "target/modules:$JAVAFX_SDK" \
+            --runtime-image build/runtime-smoke \
+            --java-options "$NATIVE_ACCESS_FLAG" \
+            --dest dist-smoke
+
+          echo "Smoke test packaging completed successfully"
+
+      - name: Upload nightly test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-results-${{ matrix.os }}-jdk${{ matrix.jdk }}
+          path: |
+            target/surefire-reports/
+            target/failsafe-reports/
+          retention-days: 14

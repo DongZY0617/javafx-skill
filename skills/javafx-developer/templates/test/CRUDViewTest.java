@@ -24,6 +24,8 @@ import static org.testfx.matcher.control.TableViewMatchers.*;
  * - testfx-junit5 + openjfx-monocle dependencies in pom.xml
  * - FXML file with TableView (fx:id="tableView"), TextField (fx:id="searchField")
  * - For CI: configure headless mode via surefire argLine
+ *
+ * @req FR-002, FR-004
  */
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class CRUDViewTest extends ApplicationTest {
@@ -41,15 +43,21 @@ public class CRUDViewTest extends ApplicationTest {
         tableView = lookup("#tableView").query();
     }
 
+    /**
+     * @req FR-002
+     */
     @Test
-    void tableViewInitializesWithData() {
+    void tableViewInitializesWithData_FR_002() {
         WaitForAsyncUtils.waitForFxEvents();
         assertTrue(tableView.getItems().size() > 0,
                 "TableView should have initial data after load");
     }
 
+    /**
+     * @req FR-002
+     */
     @Test
-    void addNewItemInsertsRow() {
+    void addNewItemInsertsRow_FR_002() {
         int initialCount = tableView.getItems().size();
         clickOn("#addButton");
         WaitForAsyncUtils.waitForFxEvents();
@@ -57,8 +65,11 @@ public class CRUDViewTest extends ApplicationTest {
                 "Adding an item should increase row count by 1");
     }
 
+    /**
+     * @req FR-002
+     */
     @Test
-    void deleteSelectedRemovesRow() {
+    void deleteSelectedRemovesRow_FR_002() {
         // Select first row
         clickOn(tableView);
         WaitForAsyncUtils.waitForFxEvents();
@@ -69,8 +80,11 @@ public class CRUDViewTest extends ApplicationTest {
                 "Deleting an item should decrease row count by 1");
     }
 
+    /**
+     * @req FR-004
+     */
     @Test
-    void searchFieldFiltersTable() {
+    void searchFieldFiltersTable_FR_004() {
         // Type in search field to filter
         clickOn("#searchField").write("nonexistent");
         WaitForAsyncUtils.waitForFxEvents();
@@ -84,8 +98,11 @@ public class CRUDViewTest extends ApplicationTest {
                 "Clearing search should restore all items");
     }
 
+    /**
+     * @req FR-002
+     */
     @Test
-    void editSelectedUpdatesRow() {
+    void editSelectedUpdatesRow_FR_002() {
         // Double-click first cell to edit
         doubleClickOn(tableView);
         WaitForAsyncUtils.waitForFxEvents();

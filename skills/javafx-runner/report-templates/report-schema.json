@@ -1,0 +1,379 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://javafx-skill.dev/schemas/verification-report.json",
+  "title": "JavaFX Verification Report (JSON)",
+  "description": "Machine-readable verification report schema for javafx-runner. Mirrors the Markdown verification-report.md template. Used by javafx-developer Fix Consumption, CI/CD quality gates, and IDE plugins.",
+  "type": "object",
+  "required": [
+    "report_type",
+    "report_version",
+    "generated_at",
+    "project",
+    "verification_mode",
+    "round",
+    "summary",
+    "issues",
+    "fix_handoffs",
+    "loop_state"
+  ],
+  "properties": {
+    "report_type": {
+      "type": "string",
+      "const": "verification",
+      "description": "Always 'verification' to distinguish from code review reports"
+    },
+    "report_version": {
+      "type": "string",
+      "const": "1.0",
+      "description": "Schema version"
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp of report generation"
+    },
+    "project": {
+      "type": "string",
+      "description": "Project name"
+    },
+    "verification_mode": {
+      "type": "string",
+      "enum": ["full", "targeted"],
+      "description": "Verification mode: full (Round 1) or targeted (Round 2+, compile always + selective dimensions)"
+    },
+    "round": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Current loop round number"
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "conclusion",
+        "pass_rate",
+        "total_issues",
+        "critical_count",
+        "major_count",
+        "minor_count",
+        "info_count",
+        "dimensions"
+      ],
+      "properties": {
+        "conclusion": {
+          "type": "string",
+          "enum": ["Pass", "Conditional Pass", "Fail"],
+          "description": "Overall verification conclusion. Pass = no Critical/Major, pass rate >= 80%. Conditional Pass = has Major but no Critical. Fail = has Critical (compile errors, startup failures)."
+        },
+        "pass_rate": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "total_issues": { "type": "integer", "minimum": 0 },
+        "critical_count": { "type": "integer", "minimum": 0 },
+        "major_count": { "type": "integer", "minimum": 0 },
+        "minor_count": { "type": "integer", "minimum": 0 },
+        "info_count": { "type": "integer", "minimum": 0 },
+        "dimensions": {
+          "type": "object",
+          "description": "Per-dimension verification results",
+          "properties": {
+            "compile": {
+              "type": "object",
+              "required": ["conclusion", "issues"],
+              "properties": {
+                "conclusion": { "type": "string", "enum": ["Pass", "Conditional Pass", "Fail", "Skipped"] },
+                "issues": { "type": "integer", "minimum": 0 },
+                "compile_mode": {
+                  "type": "string",
+                  "enum": ["incremental", "full"],
+                  "description": "Whether incremental or full (clean) compilation was used"
+                }
+              }
+            },
+            "runtime": {
+              "type": "object",
+              "required": ["conclusion", "issues"],
+              "properties": {
+                "conclusion": { "type": "string", "enum": ["Pass", "Conditional Pass", "Fail", "Skipped"] },
+                "issues": { "type": "integer", "minimum": 0 }
+              }
+            },
+            "test": {
+              "type": "object",
+              "required": ["conclusion", "issues"],
+              "properties": {
+                "conclusion": { "type": "string", "enum": ["Pass", "Conditional Pass", "Fail", "Skipped"] },
+                "issues": { "type": "integer", "minimum": 0 },
+                "jacoco_line_coverage": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1,
+                  "description": "JaCoCo line coverage (0.0-1.0), present if report was generated"
+                }
+              }
+            },
+            "packaging": {
+              "type": "object",
+              "required": ["conclusion", "issues"],
+              "properties": {
+                "conclusion": { "type": "string", "enum": ["Pass", "Conditional Pass", "Fail", "Skipped"] },
+                "issues": { "type": "integer", "minimum": 0 }
+              }
+            }
+          }
+        }
+      }
+    },
+    "issues": {
+      "type": "array",
+      "description": "List of all issues found, sorted by severity descending (Critical -> Major -> Minor -> Info), then by verification dimension (Compile -> Runtime -> Test -> Packaging)",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "severity",
+          "dimension",
+          "title",
+          "description",
+          "rule_reference"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "severity": {
+            "type": "string",
+            "enum": ["Critical", "Major", "Minor", "Info"]
+          },
+          "dimension": {
+            "type": "string",
+            "enum": ["Compile Verification", "Runtime Verification", "Test Verification", "Packaging Verification"],
+            "description": "Verification dimension that detected this issue"
+          },
+          "title": { "type": "string" },
+          "description": { "type": "string" },
+          "file": {
+            "type": "string",
+            "description": "File path relative to project root (if applicable)"
+          },
+          "lines": {
+            "type": "string",
+            "pattern": "^\\d+(-\\d+)?$",
+            "description": "Line number range (if applicable)"
+          },
+          "rule_reference": {
+            "type": "string",
+            "description": "Reference to rule in references/, format: 'document-name.md -- Check Item title'"
+          },
+          "raw_output": {
+            "type": "string",
+            "description": "Verbatim compiler/runtime/jpackage output snippet"
+          },
+          "root_cause_analysis": {
+            "type": "string",
+            "description": "Explanation of why verification failed"
+          },
+          "corrected_example": {
+            "type": "string",
+            "description": "Corrected code or configuration"
+          },
+          "escalation_note": {
+            "type": "string",
+            "description": "If severity deviates from default baseline, note the condition; 'None' if at default"
+          },
+          "fix_handoff": {
+            "type": "object",
+            "description": "Present only for issues with fix plans",
+            "required": [
+              "target_file",
+              "target_lines",
+              "fix_type",
+              "fix_priority",
+              "code_fingerprint",
+              "anchor_pattern",
+              "ast_node_signature"
+            ],
+            "properties": {
+              "target_file": { "type": "string" },
+              "target_lines": { "type": "string", "pattern": "^\\d+(-\\d+)?$" },
+              "fix_type": {
+                "type": "string",
+                "enum": ["replace", "insert", "delete"]
+              },
+              "fix_priority": { "type": "integer", "minimum": 1 },
+              "code_fingerprint": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "anchor_pattern": { "type": "string" },
+              "ast_node_signature": {
+                "type": ["string", "null"],
+                "description": "AST-level anchor: fully qualified method/field/class signature. Null for non-Java files."
+              }
+            }
+          }
+        }
+      }
+    },
+    "fix_handoffs": {
+      "type": "array",
+      "description": "Standalone array of all fix handoffs, sorted by fix_priority ascending. Fix handoff format is fully consistent with javafx-code-reviewer.",
+      "items": {
+        "type": "object",
+        "required": [
+          "target_file",
+          "target_lines",
+          "fix_type",
+          "fix_priority",
+          "code_fingerprint",
+          "anchor_pattern",
+          "ast_node_signature",
+          "issue_id",
+          "severity"
+        ],
+        "properties": {
+          "target_file": { "type": "string" },
+          "target_lines": { "type": "string", "pattern": "^\\d+(-\\d+)?$" },
+          "fix_type": {
+            "type": "string",
+            "enum": ["replace", "insert", "delete"]
+          },
+          "fix_priority": { "type": "integer", "minimum": 1 },
+          "code_fingerprint": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "anchor_pattern": { "type": "string" },
+          "ast_node_signature": {
+            "type": ["string", "null"],
+            "description": "AST-level anchor: fully qualified method/field/class signature. Null for non-Java files."
+          },
+          "corrected_example": { "type": "string" },
+          "issue_id": { "type": "integer", "minimum": 1 },
+          "severity": {
+            "type": "string",
+            "enum": ["Critical", "Major", "Minor", "Info"]
+          }
+        }
+      }
+    },
+    "ui_preview": {
+      "type": "object",
+      "description": "UI screenshot capture result. Omitted if no screenshot was captured.",
+      "properties": {
+        "available": { "type": "boolean" },
+        "method": {
+          "type": "string",
+          "enum": ["Headless Preview API", "Monocle + Robot", "AWT Robot", "FXML control tree diagram"]
+        },
+        "file": {
+          "type": "string",
+          "description": "Path to the screenshot file"
+        },
+        "resolution": {
+          "type": "string",
+          "description": "Screenshot resolution, e.g. '800x600'"
+        },
+        "fallback_reason": {
+          "type": "string",
+          "description": "If available is false, explain why screenshot capture was not possible"
+        }
+      }
+    },
+    "jacoco_report": {
+      "type": "object",
+      "description": "JaCoCo coverage report summary. Present if JaCoCo report was generated during test verification.",
+      "required": ["overall_line_coverage", "threshold", "passed"],
+      "properties": {
+        "overall_line_coverage": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "controller_line_coverage": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "viewmodel_line_coverage": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "threshold": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Coverage threshold (default 0.60, configurable via .loop-config.json)"
+        },
+        "passed": {
+          "type": "boolean",
+          "description": "true if overall_line_coverage >= threshold"
+        },
+        "uncovered_methods": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["class", "method", "lines_missed"],
+            "properties": {
+              "class": { "type": "string" },
+              "method": { "type": "string" },
+              "lines_missed": { "type": "integer", "minimum": 0 }
+            }
+          }
+        }
+      }
+    },
+    "runtime_findings_feedback": {
+      "type": "array",
+      "description": "Novel runtime issue patterns discovered by the runner that are NOT covered by the reviewer's static rules. These are suggestions for the reviewer's rule library. Omitted if no novel patterns were found.",
+      "items": {
+        "type": "object",
+        "required": ["pattern", "runner_check", "suggested_reviewer_rule", "evidence"],
+        "properties": {
+          "pattern": { "type": "string", "description": "Description of the recurring runtime issue pattern" },
+          "runner_check": { "type": "string", "description": "Which runner check item detected this" },
+          "suggested_reviewer_rule": {
+            "type": "object",
+            "required": ["target_document", "suggested_check_item", "description", "suggested_severity"],
+            "properties": {
+              "target_document": { "type": "string" },
+              "suggested_check_item": { "type": "string" },
+              "description": { "type": "string" },
+              "suggested_severity": { "type": "string", "enum": ["Critical", "Major", "Minor"] }
+            }
+          },
+          "evidence": {
+            "type": "object",
+            "required": ["occurrences", "affected_files"],
+            "properties": {
+              "occurrences": { "type": "integer", "minimum": 1 },
+              "sample_stack_trace": { "type": "string" },
+              "affected_files": {
+                "type": "array",
+                "items": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "loop_state": {
+      "type": "object",
+      "required": ["current_round", "convergence_trend", "next_action"],
+      "properties": {
+        "current_round": { "type": "integer", "minimum": 1 },
+        "convergence_trend": {
+          "type": "array",
+          "items": { "type": "integer" }
+        },
+        "next_action": {
+          "type": "string",
+          "enum": ["fixing", "incremental_review_and_verify", "passed", "paused"]
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,274 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://javafx-skill.dev/schemas/review-report.json",
+  "title": "JavaFX Code Review Report (JSON)",
+  "description": "Machine-readable code review report schema for javafx-code-reviewer. Mirrors the Markdown review-report.md template. Used by javafx-developer Fix Consumption, CI/CD quality gates, and IDE plugins.",
+  "type": "object",
+  "required": [
+    "report_type",
+    "report_version",
+    "generated_at",
+    "project",
+    "review_mode",
+    "round",
+    "summary",
+    "issues",
+    "fix_handoffs",
+    "loop_state"
+  ],
+  "properties": {
+    "report_type": {
+      "type": "string",
+      "const": "code-review",
+      "description": "Always 'code-review' to distinguish from verification reports"
+    },
+    "report_version": {
+      "type": "string",
+      "const": "1.0",
+      "description": "Schema version"
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp of report generation"
+    },
+    "project": {
+      "type": "string",
+      "description": "Project name"
+    },
+    "review_mode": {
+      "type": "string",
+      "enum": ["full", "incremental", "targeted"],
+      "description": "Review mode: full (Round 1), incremental (Round 2+, fix-affected dimensions only), targeted (single dimension)"
+    },
+    "round": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Current loop round number"
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "conclusion",
+        "pass_rate",
+        "total_issues",
+        "critical_count",
+        "major_count",
+        "minor_count",
+        "info_count"
+      ],
+      "properties": {
+        "conclusion": {
+          "type": "string",
+          "enum": ["Pass", "Conditional Pass", "Fail"],
+          "description": "Overall review conclusion. Pass = no Critical/Major, pass rate >= 80%. Conditional Pass = has Major but no Critical. Fail = has Critical."
+        },
+        "pass_rate": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Overall pass rate across all dimensions (0.0-1.0)"
+        },
+        "total_issues": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "critical_count": { "type": "integer", "minimum": 0 },
+        "major_count": { "type": "integer", "minimum": 0 },
+        "minor_count": { "type": "integer", "minimum": 0 },
+        "info_count": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "issues": {
+      "type": "array",
+      "description": "List of all issues found, sorted by severity descending (Critical -> Major -> Minor -> Info), then by code location",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "severity",
+          "dimension",
+          "title",
+          "description",
+          "file",
+          "lines",
+          "rule_reference"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Sequential issue ID starting from 1"
+          },
+          "severity": {
+            "type": "string",
+            "enum": ["Critical", "Major", "Minor", "Info"]
+          },
+          "dimension": {
+            "type": "string",
+            "enum": [
+              "Code Structure",
+              "UI Thread Safety",
+              "FXML Standards",
+              "Memory Leak Risks",
+              "Performance",
+              "Deep Compliance Audit",
+              "Database Access Safety"
+            ],
+            "description": "Review dimension this issue belongs to"
+          },
+          "title": { "type": "string" },
+          "description": { "type": "string" },
+          "file": {
+            "type": "string",
+            "description": "File path relative to project root"
+          },
+          "lines": {
+            "type": "string",
+            "pattern": "^\\d+(-\\d+)?$",
+            "description": "Line number range, e.g. '45-60' or '12'"
+          },
+          "rule_reference": {
+            "type": "string",
+            "description": "Reference to rule in references/, format: 'document-name.md -- Check Item title'"
+          },
+          "problematic_code": {
+            "type": "string",
+            "description": "The problematic code snippet"
+          },
+          "corrected_example": {
+            "type": "string",
+            "description": "Corrected code example"
+          },
+          "escalation_note": {
+            "type": "string",
+            "description": "If severity deviates from default baseline, note the triggering condition; 'Default baseline' if at default"
+          },
+          "fix_handoff": {
+            "type": "object",
+            "description": "Present only for issues with fix plans. Omitted for Info-level issues without actionable fixes.",
+            "required": [
+              "target_file",
+              "target_lines",
+              "fix_type",
+              "fix_priority",
+              "code_fingerprint",
+              "anchor_pattern",
+              "ast_node_signature"
+            ],
+            "properties": {
+              "target_file": { "type": "string" },
+              "target_lines": {
+                "type": "string",
+                "pattern": "^\\d+(-\\d+)?$"
+              },
+              "fix_type": {
+                "type": "string",
+                "enum": ["replace", "insert", "delete"]
+              },
+              "fix_priority": {
+                "type": "integer",
+                "minimum": 1,
+                "description": "Fix priority, 1 = highest. Sorted by severity + code location."
+              },
+              "code_fingerprint": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$",
+                "description": "SHA-256 hash of problematic code snippet (whitespace-normalized)"
+              },
+              "anchor_pattern": {
+                "type": "string",
+                "description": "Surrounding context signature (2 lines before + 2 lines after, normalized)"
+              },
+              "ast_node_signature": {
+                "type": ["string", "null"],
+                "description": "AST-level anchor: fully qualified method/field/class signature (e.g., com.example.Class#method(params)). Null for non-Java files.",
+                "pattern": "^([a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*\\.[A-Z][A-Za-z0-9_]*)(#[A-Za-z0-9_]+\\([^)]*\\)|#[A-Za-z0-9_]+)?$"
+              }
+            }
+          }
+        }
+      }
+    },
+    "fix_handoffs": {
+      "type": "array",
+      "description": "Standalone array of all fix handoffs, sorted by fix_priority ascending (1 = highest). Extracted from issues for direct programmatic consumption by javafx-developer.",
+      "items": {
+        "type": "object",
+        "required": [
+          "target_file",
+          "target_lines",
+          "fix_type",
+          "fix_priority",
+          "code_fingerprint",
+          "anchor_pattern",
+          "ast_node_signature",
+          "issue_id",
+          "severity"
+        ],
+        "properties": {
+          "target_file": { "type": "string" },
+          "target_lines": { "type": "string", "pattern": "^\\d+(-\\d+)?$" },
+          "fix_type": {
+            "type": "string",
+            "enum": ["replace", "insert", "delete"]
+          },
+          "fix_priority": { "type": "integer", "minimum": 1 },
+          "code_fingerprint": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "anchor_pattern": { "type": "string" },
+          "ast_node_signature": {
+            "type": ["string", "null"],
+            "description": "AST-level anchor: fully qualified method/field/class signature. Null for non-Java files."
+          },
+          "corrected_example": { "type": "string" },
+          "issue_id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "References the issue ID in the issues array"
+          },
+          "severity": {
+            "type": "string",
+            "enum": ["Critical", "Major", "Minor", "Info"]
+          }
+        }
+      }
+    },
+    "compliance_summary": {
+      "type": "array",
+      "description": "Per-dimension compliance statistics",
+      "items": {
+        "type": "object",
+        "required": ["name", "check_items", "passed", "failed", "pass_rate"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Dimension name"
+          },
+          "check_items": { "type": "integer", "minimum": 0 },
+          "passed": { "type": "integer", "minimum": 0 },
+          "failed": { "type": "integer", "minimum": 0 },
+          "pass_rate": { "type": "number", "minimum": 0, "maximum": 1 }
+        }
+      }
+    },
+    "loop_state": {
+      "type": "object",
+      "required": ["current_round", "convergence_trend", "next_action"],
+      "properties": {
+        "current_round": { "type": "integer", "minimum": 1 },
+        "convergence_trend": {
+          "type": "array",
+          "items": { "type": "integer" },
+          "description": "Issue count per round, e.g. [10, 6, 3] shows convergence"
+        },
+        "next_action": {
+          "type": "string",
+          "enum": ["fixing", "incremental_review_and_verify", "passed", "paused"]
+        }
+      }
+    }
+  }
+}

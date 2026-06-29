@@ -1,0 +1,140 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://javafx-skill.dev/schemas/docgen-report.json",
+  "title": "JavaFX DocGen Report (JSON)",
+  "description": "Machine-readable documentation generation report schema for javafx-docgen. Lists generated documents, coverage metrics, and warnings.",
+  "type": "object",
+  "required": [
+    "report_type",
+    "report_version",
+    "generated_at",
+    "project_info",
+    "docgen_mode",
+    "conclusion",
+    "generated_documents",
+    "coverage"
+  ],
+  "properties": {
+    "report_type": {
+      "type": "string",
+      "const": "docgen",
+      "description": "Always 'docgen' to distinguish from review, verification, and test reports"
+    },
+    "report_version": {
+      "type": "string",
+      "const": "1.0"
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "project_info": {
+      "type": "object",
+      "required": ["project_name", "build_tool", "module_system"],
+      "properties": {
+        "project_name": { "type": "string" },
+        "project_version": { "type": "string" },
+        "build_tool": { "type": "string", "enum": ["Maven", "Gradle", "Unknown"] },
+        "jdk_version": { "type": "string" },
+        "javafx_version": { "type": "string" },
+        "architecture_pattern": { "type": "string", "enum": ["MVC", "MVVM", "MVP", "Layered", "Unknown"] },
+        "module_system": { "type": "string", "enum": ["Modular", "Non-modular"] },
+        "main_class": { "type": "string" }
+      }
+    },
+    "docgen_mode": {
+      "type": "string",
+      "enum": ["post-loop", "standalone"],
+      "description": "post-loop = triggered after quality gate passes; standalone = user-requested independently"
+    },
+    "conclusion": {
+      "type": "string",
+      "enum": ["Pass", "Pass with warnings", "Fail"],
+      "description": "Pass = all docs generated; Pass with warnings = generated with gaps; Fail = generation failed"
+    },
+    "generated_documents": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["document_type", "file_path", "status"],
+        "properties": {
+          "document_type": {
+            "type": "string",
+            "enum": ["api-reference", "api-reference-json", "user-manual", "architecture", "changelog", "readme", "docgen-report"]
+          },
+          "file_path": { "type": "string" },
+          "status": { "type": "string", "enum": ["generated", "skipped", "failed"] },
+          "content_summary": { "type": "string" },
+          "file_size_bytes": { "type": "integer", "minimum": 0 }
+        }
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "required": ["api", "user_manual", "architecture"],
+      "properties": {
+        "api": {
+          "type": "object",
+          "required": ["total_classes", "classes_with_javadoc", "coverage_percent"],
+          "properties": {
+            "total_classes": { "type": "integer", "minimum": 0 },
+            "classes_with_javadoc": { "type": "integer", "minimum": 0 },
+            "coverage_percent": { "type": "number", "minimum": 0, "maximum": 100 },
+            "total_methods": { "type": "integer", "minimum": 0 },
+            "methods_with_javadoc": { "type": "integer", "minimum": 0 },
+            "method_coverage_percent": { "type": "number", "minimum": 0, "maximum": 100 },
+            "total_fields": { "type": "integer", "minimum": 0 },
+            "fields_with_javadoc": { "type": "integer", "minimum": 0 },
+            "field_coverage_percent": { "type": "number", "minimum": 0, "maximum": 100 }
+          }
+        },
+        "user_manual": {
+          "type": "object",
+          "required": ["total_fxml", "fxml_with_manual", "coverage_percent"],
+          "properties": {
+            "total_fxml": { "type": "integer", "minimum": 0 },
+            "fxml_with_manual": { "type": "integer", "minimum": 0 },
+            "coverage_percent": { "type": "number", "minimum": 0, "maximum": 100 },
+            "total_controls_documented": { "type": "integer", "minimum": 0 },
+            "total_workflows_documented": { "type": "integer", "minimum": 0 },
+            "total_shortcuts_documented": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "architecture": {
+          "type": "object",
+          "required": ["packages_documented", "dependencies_listed"],
+          "properties": {
+            "packages_documented": { "type": "integer", "minimum": 0 },
+            "dependencies_listed": { "type": "integer", "minimum": 0 },
+            "diagrams_generated": { "type": "integer", "minimum": 0 }
+          }
+        }
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "description": "Non-blocking warnings indicating documentation gaps",
+      "items": {
+        "type": "object",
+        "required": ["id", "message"],
+        "properties": {
+          "id": { "type": "string" },
+          "message": { "type": "string" },
+          "severity": { "type": "string", "enum": ["info", "warning"], "default": "warning" }
+        }
+      }
+    },
+    "loop_state": {
+      "type": "object",
+      "description": "Present only in post-loop mode. Omitted in standalone mode.",
+      "properties": {
+        "loop_status": { "type": "string", "enum": ["passed"] },
+        "current_round": { "type": "integer", "minimum": 1 },
+        "reviewer_conclusion": { "type": "string", "enum": ["Pass"] },
+        "runner_conclusion": { "type": "string", "enum": ["Pass"] },
+        "tester_conclusion": { "type": "string", "enum": ["Pass", "Skipped"] },
+        "docgen_conclusion": { "type": "string", "enum": ["Pass", "Pass with warnings", "Fail"] }
+      }
+    }
+  }
+}
