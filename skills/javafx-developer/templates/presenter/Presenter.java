@@ -7,14 +7,16 @@ import {{packageName}}.service.{{entityName}}Service;
 import {{packageName}}.view.{{entityName}}View;
 
 /**
- * Presenter 模板（MVP 模式）。
+ * Presenter template (MVP pattern).
  * <p>
- * 持有 {@link {{entityName}}View} 接口引用，通过接口显式控制 UI，
- * 不依赖任何 JavaFX 控件，可独立进行单元测试。
+ * Holds a reference to {@link {{entityName}}View} and explicitly controls the UI
+ * through this interface without depending on any JavaFX controls,
+ * enabling independent unit testing.
  * </p>
  * <p>
- * Controller 实现 View 接口后，将自身引用传入 Presenter 构造器，
- * 所有业务逻辑由 Presenter 处理，Controller 仅负责 UI 操作的胶水代码。
+ * The Controller implements the View interface and passes itself to the
+ * Presenter constructor. All business logic is handled by the Presenter;
+ * the Controller only provides glue code for UI operations.
  * </p>
  */
 public class {{entityName}}Presenter {
@@ -23,10 +25,10 @@ public class {{entityName}}Presenter {
     private final {{entityName}}Service service;
 
     /**
-     * 构造 Presenter。
+     * Constructs the Presenter.
      *
-     * @param view    View 接口引用（通常由 Controller 实现）
-     * @param service 业务逻辑层
+     * @param view    the View interface reference (typically implemented by the Controller)
+     * @param service the business logic layer
      */
     public {{entityName}}Presenter({{entityName}}View view, {{entityName}}Service service) {
         this.view = view;
@@ -34,7 +36,7 @@ public class {{entityName}}Presenter {
     }
 
     /**
-     * 加载全部数据并更新视图。
+     * Loads all data and updates the view.
      */
     public void onLoadData() {
         List<{{entityName}}> list = service.findAll();
@@ -42,15 +44,16 @@ public class {{entityName}}Presenter {
     }
 
     /**
-     * 处理新增操作。
+     * Handles the add operation.
      * <p>
-     * 从视图获取输入数据，校验后调用 Service 保存，并刷新列表。
+     * Retrieves input data from the view, validates it, saves via the
+     * Service, and refreshes the list.
      * </p>
      */
     public void onAdd() {
         {{entityName}} entity = view.getInputData();
         if (entity == null || !isValid(entity)) {
-            view.showValidationError("数据不完整或格式错误");
+            view.showValidationError("Data is incomplete or invalid");
             return;
         }
         service.save(entity);
@@ -59,9 +62,9 @@ public class {{entityName}}Presenter {
     }
 
     /**
-     * 处理删除操作。
+     * Handles the delete operation.
      *
-     * @param id 待删除记录的主键
+     * @param id the primary key of the record to delete
      */
     public void onDelete(Long id) {
         service.deleteById(id);
@@ -69,10 +72,10 @@ public class {{entityName}}Presenter {
     }
 
     /**
-     * 简单的数据校验，可按需扩展。
+     * Simple validation, extend as needed.
      *
-     * @param entity 待校验实体
-     * @return 校验通过返回 true
+     * @param entity the entity to validate
+     * @return true if validation passes
      */
     private boolean isValid({{entityName}} entity) {
         return entity != null;

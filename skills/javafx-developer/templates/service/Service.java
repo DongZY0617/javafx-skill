@@ -1,35 +1,35 @@
 package {{packageName}}.service;
 
 /**
- * Service 层模板。
- * 封装业务逻辑，与 Controller/ViewModel 解耦。
- * Controller/ViewModel 通过此层访问数据源。
+ * Service layer template.
+ * Encapsulates business logic, decoupled from the Controller/ViewModel.
+ * Controllers/ViewModels access data sources through this layer.
  */
 public class Service<T> {
 
-    // TODO: 注入 Repository 或数据访问层
+    // TODO: inject a Repository or data access layer
 
     /**
-     * 根据ID查询单条记录
+     * Query a single record by ID.
      */
     public T findById(Long id) {
-        // TODO: 实现查询逻辑
-        throw new UnsupportedOperationException("尚未实现");
+        // TODO: implement query logic
+        throw new UnsupportedOperationException("Not yet implemented");
     }
 
     /**
-     * 保存记录（新增或更新）
+     * Save a record (insert or update).
      */
     public T save(T entity) {
-        // TODO: 实现保存逻辑
-        throw new UnsupportedOperationException("尚未实现");
+        // TODO: implement save logic
+        throw new UnsupportedOperationException("Not yet implemented");
     }
 
     /**
-     * 根据ID删除记录
+     * Delete a record by ID.
      */
     public void deleteById(Long id) {
-        // TODO: 实现删除逻辑
-        throw new UnsupportedOperationException("尚未实现");
+        // TODO: implement delete logic
+        throw new UnsupportedOperationException("Not yet implemented");
     }
 }

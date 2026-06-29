@@ -17,9 +17,11 @@ import javafx.stage.Modality;
 import javafx.stage.Stage;
 
 /**
- * 控制器抽象基类，为所有应用控制器提供通用功能。
+ * Abstract base controller providing common functionality shared by all
+ * application controllers.
  * <p>
- * 提供舞台（Stage）管理、视图导航以及标准对话框（提示与确认）显示等辅助方法。
+ * Provides helpers for stage management, view navigation, and standard
+ * dialog display (alerts and confirmations).
  * </p>
  */
 public abstract class BaseController implements Initializable {
@@ -28,28 +30,31 @@ public abstract class BaseController implements Initializable {
 
     @Override
     public void initialize(URL location, ResourceBundle resources) {
-        // 默认空实现，子类可按需重写。
+        // Default no-op implementation. Subclasses may override.
     }
 
     /**
-     * 返回该控制器视图的根节点。
+     * Returns the root node of this controller's view.
      * <p>
-     * 子类必须实现此方法以暴露根区域，从而支持舞台与窗口查找。
+     * Subclasses must implement this to expose the root region so that
+     * stage and window lookups can be performed.
      * </p>
      *
-     * @return 视图的根区域
+     * @return the root region of the view
      */
     protected abstract Region getRoot();
 
     /**
-     * 返回与此控制器关联的舞台，按需从根节点的场景窗口中延迟解析。
+     * Returns the stage associated with this controller, lazily resolving
+     * it from the root node's scene window.
      *
-     * @return 关联的舞台；若视图尚未挂载或根节点为空则返回 {@code null}
+     * @return the stage, or {@code null} if the view is not yet attached
+     *         or the root node is null
      */
     public Stage getStage() {
         if (stage == null) {
             Region root = getRoot();
-            // 根节点尚未就绪时安全返回 null，避免空指针异常
+            // Safely return null when the root is not yet ready, avoiding a NullPointerException
             if (root == null) {
                 return null;
             }
@@ -62,39 +67,41 @@ public abstract class BaseController implements Initializable {
     }
 
     /**
-     * 显式设置与此控制器关联的舞台。
+     * Explicitly sets the stage for this controller.
      *
-     * @param stage 要关联的舞台
+     * @param stage the stage to associate with this controller
      */
     public void setStage(Stage stage) {
         this.stage = stage;
     }
 
     /**
-     * 从给定的 FXML 资源路径加载视图，为其创建新舞台，并返回加载得到的控制器。
+     * Loads a view from the given FXML resource path, creates a new stage
+     * for it, and returns the loaded controller.
      * <p>
-     * 当存在属主舞台时会设置属主关系，保证对话框层级与焦点归属正确。
+     * When an owner stage exists it is set as the owner to ensure correct
+     * dialog layering and focus ownership.
      * </p>
      *
-     * @param <T>       控制器类型
-     * @param fxmlPath  FXML 资源路径
-     * @param title     新舞台的标题
-     * @param modality  新舞台采用的模态类型
-     * @return 加载视图的控制器
-     * @throws IOException 若 FXML 资源无法加载
+     * @param <T>       the controller type
+     * @param fxmlPath  the path to the FXML resource
+     * @param title     the title for the new stage
+     * @param modality  the modality to apply to the new stage
+     * @return the controller of the loaded view
+     * @throws IOException if the FXML resource cannot be loaded
      */
     protected <T extends BaseController> T loadView(String fxmlPath, String title, Modality modality)
             throws IOException {
         FXMLLoader loader = new FXMLLoader(Objects.requireNonNull(
                 getClass().getResource(fxmlPath),
-                "未找到 FXML 资源: " + fxmlPath));
+                "FXML resource not found: " + fxmlPath));
         Parent root = loader.load();
         T controller = loader.getController();
 
         Stage dialogStage = new Stage();
         dialogStage.setTitle(title);
         dialogStage.initModality(modality);
-        // 当存在属主舞台时设置属主，确保对话框层级与焦点归属正确
+        // Set the owner when one exists to ensure correct dialog layering and focus ownership
         Stage owner = getStage();
         if (owner != null) {
             dialogStage.initOwner(owner);
@@ -106,12 +113,13 @@ public abstract class BaseController implements Initializable {
     }
 
     /**
-     * 显示指定类型的提示对话框，附带标题与消息，并以当前控制器的舞台作为属主。
+     * Displays an alert dialog of the given type with the supplied title
+     * and message, owned by this controller's stage.
      *
-     * @param type    提示框类型
-     * @param title   对话框标题
-     * @param message 消息内容
-     * @return 包含用户响应的 Optional
+     * @param type    the alert type
+     * @param title   the dialog title
+     * @param message the message content
+     * @return an optional containing the user's response
      */
     protected Optional<ButtonType> showAlert(Alert.AlertType type, String title, String message) {
         Alert alert = new Alert(type);
@@ -126,11 +134,12 @@ public abstract class BaseController implements Initializable {
     }
 
     /**
-     * 显示确认对话框，并返回用户是否确认（点击了"确定"）。
+     * Displays a confirmation dialog and returns whether the user
+     * confirmed (clicked OK).
      *
-     * @param title   对话框标题
-     * @param message 消息内容
-     * @return 若用户确认返回 {@code true}，否则返回 {@code false}
+     * @param title   the dialog title
+     * @param message the message content
+     * @return {@code true} if the user confirmed, {@code false} otherwise
      */
     protected boolean showConfirmation(String title, String message) {
         return showAlert(Alert.AlertType.CONFIRMATION, title, message)

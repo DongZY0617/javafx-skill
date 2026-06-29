@@ -2,7 +2,7 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
-                             http://maven.apache.org/xsd/maven-4.0.0.xsd">
+                            http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>{{groupId}}</groupId>
@@ -20,14 +20,14 @@
     </properties>
 
     <dependencies>
-        <!-- JavaFX 控件模块 -->
+        <!-- JavaFX Controls -->
         <dependency>
             <groupId>org.openjfx</groupId>
             <artifactId>javafx-controls</artifactId>
             <version>${javafx.version}</version>
         </dependency>
 
-        <!-- JavaFX FXML 模块 -->
+        <!-- JavaFX FXML -->
         <dependency>
             <groupId>org.openjfx</groupId>
             <artifactId>javafx-fxml</artifactId>
@@ -38,19 +38,19 @@
     <build>
         <finalName>{{artifactId}}-{{version}}</finalName>
         <plugins>
-            <!-- Maven 编译插件 -->
+            <!-- Maven Compiler Plugin -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.13.0</version>
                 <configuration>
-                    <!-- 使用 release 统一编译目标版本（替代 source/target） -->
+                    <!-- Use release to set a single compile target version (replaces source/target) -->
                     <release>{{jdkVersion}}</release>
                     <encoding>UTF-8</encoding>
                 </configuration>
             </plugin>
 
-            <!-- JavaFX Maven 插件（运行与调试） -->
+            <!-- JavaFX Maven Plugin (run and debug) -->
             <plugin>
                 <groupId>org.openjfx</groupId>
                 <artifactId>javafx-maven-plugin</artifactId>
@@ -58,7 +58,7 @@
                 <configuration>
                     <mainClass>{{mainClass}}</mainClass>
                     <options>
-                        <!-- 启用对本机访问的支持：JavaFX 21 无害，JavaFX 24+ 必需 -->
+                        <!-- Enable native access support: harmless on JavaFX 21, required on JavaFX 24+ -->
                         <option>--enable-native-access=javafx.graphics</option>
                     </options>
                 </configuration>

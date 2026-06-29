@@ -1,174 +1,250 @@
-# JavaFX 验证报告
+# JavaFX Verification Report
 
-<!--
-  本文件是验证报告的空白可套用模板。
-  使用时复制本文件内容，填入实际验证结果。
-  报告格式规范见 SKILL.md "验证报告格式"章节。
-  代码片段、文件路径、类名、API 名称、命令行、错误输出保持英文原样不翻译。
-  报告与 javafx-code-reviewer 评审报告同构，修复交接字段完全一致，
-  供 javafx-developer 用同一套逻辑消费两种报告。
--->
-
-## 验证摘要
-
-- **验证模式**：[全量 / 增量 / 指定维度]
-- **验证范围**：[执行的验证维度清单，如：编译验证 + 运行验证 + 打包验证]
-- **环境信息**：JDK [版本] / Maven [版本] / JavaFX [版本] / OS [平台]
-- **模块化**：[是 / 否]
-- **显示器**：[有 / 无（headless）]
-- **验证命令**：[实际执行的命令清单]
-  ```
-  mvn compile -q
-  mvn javafx:run
-  mvn package -DskipTests
-  jpackage ...
-  ```
-- **发现问题总数**：[X] 个（Critical: [a] / Major: [b] / Minor: [c] / Info: [d]）
-- **验证结论**：[通过 / 有条件通过 / 不通过]
+> **Usage**: This template is a reusable skeleton for verification reports. When generating an actual report, replace all `[placeholder]` content, remove unnecessary sections, and fill in actual verification data. The report must contain three parts: Verification Summary, Issue List, and Verification Result Summary. The fix handoff field format is fully consistent with `javafx-code-reviewer`'s review report, for `javafx-developer` to directly consume.
 
 ---
 
-## 问题清单
+## Verification Summary
 
-<!--
-  按严重性降序排列：Critical → Major → Minor → Info。
-  同等级按验证维度排列（编译验证 → 运行验证 → 打包验证）。
-  同一根因引发的编译错误和运行时异常合并为一个问题（去重）。
-  每个问题须含：问题描述、验证维度、代码位置、错误输出、根因分析、
-  修复建议、修正示例、规范依据、升降级说明、修复交接。
--->
-
-### [Critical] 问题标题
-
-- **问题描述**：[具体说明验证失败的表现]
-- **验证维度**：[编译验证 / 运行验证 / 打包验证]
-- **代码位置**：`文件路径:行号`（如适用）
-- **错误输出**：
-  ```
-  实际的编译器 / 运行时 / jpackage 输出片段
-  ```
-- **根因分析**：[说明为什么验证失败]
-- **修复建议**：[说明如何修复]
-- **修正示例**：
-  ```java
-  // 修正后的代码或配置
-  ```
-- **规范依据**：`references/文档名 — 条目标题`
-- **升降级说明**：[若严重性偏离默认基线，注明触发条件；未偏离则填"无"]
-- **修复交接**：
-  - `target_file: 文件路径`
-  - `target_lines: 起始行-结束行`
-  - `fix_type: [replace / insert / delete]`
-  - `fix_priority: [1-N]`（修复优先级，1=最高）
-
-### [Major] 问题标题
-
-- **问题描述**：[具体说明验证失败的表现]
-- **验证维度**：[编译验证 / 运行验证 / 打包验证]
-- **代码位置**：`文件路径:行号`（如适用）
-- **错误输出**：
-  ```
-  实际的编译器 / 运行时 / jpackage 输出片段
-  ```
-- **根因分析**：[说明为什么验证失败]
-- **修复建议**：[说明如何修复]
-- **修正示例**：
-  ```java
-  // 修正后的代码或配置
-  ```
-- **规范依据**：`references/文档名 — 条目标题`
-- **升降级说明**：[若严重性偏离默认基线，注明触发条件；未偏离则填"无"]
-- **修复交接**：
-  - `target_file: 文件路径`
-  - `target_lines: 起始行-结束行`
-  - `fix_type: [replace / insert / delete]`
-  - `fix_priority: [1-N]`
-
-### [Minor] 问题标题
-
-- **问题描述**：[具体说明验证失败的表现]
-- **验证维度**：[编译验证 / 运行验证 / 打包验证]
-- **代码位置**：`文件路径:行号`（如适用）
-- **错误输出**：
-  ```
-  实际的编译器 / 运行时 / jpackage 输出片段
-  ```
-- **根因分析**：[说明为什么验证失败]
-- **修复建议**：[说明如何修复]
-- **修正示例**：
-  ```java
-  // 修正后的代码或配置
-  ```
-- **规范依据**：`references/文档名 — 条目标题`
-- **升降级说明**：[若严重性偏离默认基线，注明触发条件；未偏离则填"无"]
-- **修复交接**：
-  - `target_file: 文件路径`
-  - `target_lines: 起始行-结束行`
-  - `fix_type: [replace / insert / delete]`
-  - `fix_priority: [1-N]`
-
-### [Info] 问题标题
-
-- **问题描述**：[具体说明优化建议或环境提示]
-- **验证维度**：[编译验证 / 运行验证 / 打包验证]
-- **代码位置**：`文件路径:行号`（如适用）
-- **错误输出**：
-  ```
-  实际的编译器 / 运行时 / jpackage 输出片段
-  ```
-- **根因分析**：[说明验证提示的原因]
-- **修复建议**：[说明如何优化或解决]
-- **修正示例**：
-  ```
-  修正后的命令或配置
-  ```
-- **规范依据**：`references/文档名 — 条目标题`
-- **升降级说明**：[若严重性偏离默认基线，注明触发条件；未偏离则填"无"]
-- **修复交接**：
-  - `target_file: 文件路径`
-  - `target_lines: 起始行-结束行`
-  - `fix_type: [replace / insert / delete]`
-  - `fix_priority: [1-N]`
+- **Verification Mode**: [Full Verification / Incremental Verification / Targeted Dimension Verification]
+- **Verification Scope**: [List of verification dimensions executed]
+- **Environment**: JDK [version] / Maven [version] / JavaFX [version] / OS [platform]
+- **Modular**: [Yes / No]
+- **Display**: [Available (local desktop) / Unavailable (CI, using Monocle headless)]
+- **Verification Commands**: [List of commands actually executed]
+- **Verification Date**: [YYYY-MM-DD]
+- **Total Issues Found**: [X] (Critical: [a] / Major: [b] / Minor: [c] / Info: [d])
+- **Verification Conclusion**: [Pass / Conditional Pass / Fail]
 
 ---
 
-## 验证结果总结
+## Issue List
 
-<!--
-  列出每个维度的检查项数、通过数、不通过数、跳过数、通过率。
-  检查项数对应各维度 references 文档的检查项数量：
-    编译验证 = compile-verification.md 的 7 个检查项
-    运行验证 = runtime-verification.md 的 10 个检查项
-    打包验证 = packaging-verification.md 的 8 个检查项
-  通过率 = 通过数 / 检查项数 × 100%。
-  "跳过"列用于编译失败短路场景：编译失败时运行验证与打包验证标记为跳过。
--->
+> Issues are sorted in descending severity order (Critical -> Major -> Minor -> Info); within the same level, sorted by verification dimension (Compile -> Runtime -> Test -> Packaging). Multiple manifestations of the same root cause are merged into one issue.
 
-| 维度 | 检查项数 | 通过 | 不通过 | 跳过 | 通过率 |
-|------|---------|------|--------|------|--------|
-| 编译验证 | 7 | [N] | [N] | [N] | [N%] |
-| 运行验证 | 10 | [N] | [N] | [N] | [N%] |
-| 打包验证 | 8 | [N] | [N] | [N] | [N%] |
-| **总计** | **[N]** | **[N]** | **[N]** | **[N]** | **[N%]** |
+### [Critical] Issue 1: [Issue Title]
+
+- **Problem Description**: [Specific description of the verification failure]
+- **Verification Dimension**: [Compile Verification / Runtime Verification / Packaging Verification]
+- **Code Location**: `[file path]:[line number range]` (if applicable)
+- **Error Output**:
+  ```
+  [Actual compiler / runtime / jpackage output snippet]
+  ```
+- **Root Cause Analysis**: [Explain why verification failed]
+- **Fix Recommendation**: [How to fix it, explaining the fix idea]
+- **Corrected Example**:
+  ```java
+  // [Corrected code or configuration]
+  ```
+- **Rule Reference**: [Reference to check item in references/, format: `document name -- Check Item title`]
+- **Escalation/De-escalation Note**: [If severity deviates from the default baseline, note the triggering condition; if at default baseline, fill "None"]
+- **Fix Handoff**:
+  - `target_file: [file path]`
+  - `target_lines: [start line]-[end line]`
+  - `fix_type: [replace / insert / delete]`
+  - `fix_priority: 1`
 
 ---
 
-## 修复交接汇总
+### [Critical] Issue 2: [Issue Title]
 
-<!--
-  汇总所有问题的修复交接字段，按 fix_priority 排序，供 javafx-developer 或自动化工具批量执行修复。
-  排序规则：严重性（Critical > Major > Minor > Info），同等级按验证维度（编译验证 > 运行验证 > 打包验证）。
-  fix_type 说明：
-    replace — 用"修正示例"替换 target_lines 指定的代码段
-    insert  — 在 target_lines 之后插入"修正示例"
-    delete  — 删除 target_lines 指定的代码段（无修正示例）
--->
+- **Problem Description**: [Description]
+- **Verification Dimension**: [Dimension name]
+- **Code Location**: `[file path]:[line number range]`
+- **Error Output**:
+  ```
+  [Output snippet]
+  ```
+- **Root Cause Analysis**: [Analysis]
+- **Fix Recommendation**: [Recommendation]
+- **Corrected Example**:
+  ```java
+  // [Corrected code]
+  ```
+- **Rule Reference**: [`document name -- Check Item title`]
+- **Escalation/De-escalation Note**: [Note]
+- **Fix Handoff**:
+  - `target_file: [file path]`
+  - `target_lines: [start line]-[end line]`
+  - `fix_type: [replace / insert / delete]`
+  - `fix_priority: 2`
 
-| 优先级 | 严重性 | 维度 | 文件 | 行号 | 修复类型 | 问题摘要 |
-|--------|--------|------|------|------|---------|---------|
-| 1 | Critical | 编译验证 | `文件路径` | `起始-结束` | replace | [问题摘要] |
-| 2 | Critical | 运行验证 | `文件路径` | `起始-结束` | insert | [问题摘要] |
-| 3 | Major | 打包验证 | `文件路径` | `起始-结束` | replace | [问题摘要] |
-| 4 | Minor | 编译验证 | `文件路径` | `起始-结束` | delete | [问题摘要] |
-| 5 | Info | 打包验证 | `文件路径` | `起始-结束` | replace | [问题摘要] |
+---
+
+### [Major] Issue 3: [Issue Title]
+
+- **Problem Description**: [Description]
+- **Verification Dimension**: [Dimension name]
+- **Code Location**: `[file path]:[line number range]`
+- **Error Output**:
+  ```
+  [Output snippet]
+  ```
+- **Root Cause Analysis**: [Analysis]
+- **Fix Recommendation**: [Recommendation]
+- **Corrected Example**:
+  ```bash
+  # [Corrected command or configuration]
+  ```
+- **Rule Reference**: [`document name -- Check Item title`]
+- **Escalation/De-escalation Note**: [Note]
+- **Fix Handoff**:
+  - `target_file: [file path]`
+  - `target_lines: [start line]-[end line]`
+  - `fix_type: [replace / insert / delete]`
+  - `fix_priority: 3`
+
+---
+
+### [Minor] Issue 4: [Issue Title]
+
+- **Problem Description**: [Description]
+- **Verification Dimension**: [Dimension name]
+- **Code Location**: `[file path]:[line number range]`
+- **Error Output**:
+  ```
+  [Output snippet]
+  ```
+- **Root Cause Analysis**: [Analysis]
+- **Fix Recommendation**: [Recommendation]
+- **Corrected Example**:
+  ```java
+  // [Corrected code]
+  ```
+- **Rule Reference**: [`document name -- Check Item title`]
+- **Escalation/De-escalation Note**: [Note]
+- **Fix Handoff**:
+  - `target_file: [file path]`
+  - `target_lines: [start line]-[end line]`
+  - `fix_type: [replace / insert / delete]`
+  - `fix_priority: 4`
+
+---
+
+### [Info] Issue 5: [Issue Title]
+
+- **Problem Description**: [Description]
+- **Verification Dimension**: [Dimension name]
+- **Code Location**: `[file path]:[line number range]` (if applicable)
+- **Error Output**:
+  ```
+  [Output snippet]
+  ```
+- **Root Cause Analysis**: [Analysis]
+- **Fix Recommendation**: [Recommendation]
+- **Corrected Example**:
+  ```bash
+  # [Corrected command or configuration]
+  ```
+- **Rule Reference**: [`document name -- Check Item title`]
+- **Escalation/De-escalation Note**: [Note]
+- **Fix Handoff**:
+  - `target_file: [file path]`
+  - `target_lines: [start line]-[end line]`
+  - `fix_type: [replace / insert / delete]`
+  - `fix_priority: 5`
+
+---
+
+## Verification Result Summary
+
+> Lists the check item count, pass count, fail count, skipped count, and pass rate for each dimension.
+
+| Dimension | Check Items | Passed | Failed | Skipped | Pass Rate |
+|-----------|-------------|--------|--------|---------|-----------|
+| Compile Verification | 7 | [N] | [N] | [N] | [N%] |
+| Runtime Verification | 10 | [N] | [N] | [N] | [N%] |
+| Test Verification | 5 | [N] | [N] | [N] | [N%] |
+| Packaging Verification | 8 | [N] | [N] | [N] | [N%] |
+| **Total** | **[N]** | **[N]** | **[N]** | **[N]** | **[N%]** |
+
+> **Skipped Note**: A dimension is skipped when compile verification short-circuits (compile failure prevents running uncompiled code and tests), when test verification short-circuits (test failure prevents packaging untested code), when the toolchain is missing (packaging cannot proceed), or when incremental/targeted mode excludes it.
+
+---
+
+## Fix Handoff Summary
+
+> Sorted by fix_priority (1 is highest). `javafx-developer` can execute fixes item by item in this order.
+
+| Priority | Severity | Dimension | File | Lines | Fix Type | Issue Summary |
+|----------|----------|-----------|------|-------|----------|---------------|
+| 1 | Critical | Compile Verification | `[file path]` | `[start-end]` | replace | [issue summary] |
+| 2 | Critical | Runtime Verification | `[file path]` | `[start-end]` | insert | [issue summary] |
+| 3 | Major | Packaging Verification | `[file path]` | `[start-end]` | replace | [issue summary] |
 | ... | ... | ... | ... | ... | ... | ... |
+
+---
+
+## Verification Conclusion
+
+[Based on the issue statistics and severity distribution, give the overall verification conclusion:]
+
+- **Pass**: No Critical or Major issues, all check items pass (or skipped items are documented), pass rate >= 80%
+- **Conditional Pass**: Has Major issues but no Critical issues, all Major issues have clear fix plans; runtime verification passes but packaging verification has non-blocking issues
+- **Fail**: Has Critical issues (compilation errors, startup failures, etc.), must be fixed before delivery
+
+**Conclusion**: [Pass / Conditional Pass / Fail]
+
+**Recommendations**:
+1. [Recommendation 1: e.g., Fix all Critical compile errors first, as they short-circuit subsequent verification]
+2. [Recommendation 2: e.g., Plan Major packaging issues within this iteration]
+3. [Recommendation 3: e.g., Minor warnings can be batch fixed in the next iteration]
+
+---
+
+## Runtime Findings Feedback
+
+> **Usage**: This section is populated when `javafx-runner` discovers runtime issue patterns NOT covered by `javafx-code-reviewer`'s static rules. These findings are suggestions for the reviewer's rule library — they require human/maintainer review before adoption. Omit this entire section if no novel patterns were found.
+
+### Finding 1: [Pattern Title]
+
+- **Pattern**: [Description of the recurring runtime issue pattern, e.g., "Task.setOnSucceeded callback spawns further background work without returning to FX thread"]
+- **Runner Check**: [Which runner check item detected this, e.g., `runtime-verification.md` #6 (Thread Safety)]
+- **Suggested Reviewer Rule**:
+  - **Target Document**: [e.g., `thread-safety-rules.md`]
+  - **Suggested Check Item**: [e.g., "Task Callback Thread Context"]
+  - **Description**: [What the new check item should verify]
+  - **Suggested Severity**: [Critical / Major / Minor]
+- **Evidence**:
+  - **Occurrences**: [N times in this project]
+  - **Sample Stack Trace**:
+    ```
+    [Relevant stack trace snippet]
+    ```
+  - **Affected Files**: [List of files where this pattern was found]
+
+### Finding 2: [Pattern Title]
+
+- **Pattern**: [Description]
+- **Runner Check**: [Source check item]
+- **Suggested Reviewer Rule**:
+  - **Target Document**: [e.g., `memory-management.md`]
+  - **Suggested Check Item**: [Title]
+  - **Description**: [Description]
+  - **Suggested Severity**: [Level]
+- **Evidence**:
+  - **Occurrences**: [N]
+  - **Sample Stack Trace**:
+    ```
+    [Snippet]
+    ```
+  - **Affected Files**: [List]
+
+---
+
+> **Feedback Notes**:
+> - These findings are **suggestions**, not automatic rule additions — a maintainer must review and approve before adding to reviewer's `references/` documents
+> - The goal is to enable skill set self-evolution: runtime-discovered patterns flow back to static rules, so future reviews can catch them earlier
+> - If no novel patterns were found (all runtime issues were already covered by reviewer rules), this section should state: "No novel runtime patterns found; all issues were covered by existing reviewer rules."
+
+---
+
+> **Report Notes**:
+> - Code snippets, file paths, class names, API names, and command lines in this report remain in English without translation
+> - The raw output of the compiler / runtime / jpackage is kept verbatim without translation
+> - Rule references uniformly cite `references/` document items, in the format `document name -- Check Item title`
+> - Fix Handoff fields can be directly consumed by `javafx-developer` or automation tools to execute fixes
+> - `fix_priority` is sorted by severity + verification dimension, 1 is the highest priority, for ordering during batch fixes
+> - The fix handoff field format is fully consistent with `javafx-code-reviewer`, ensuring `javafx-developer` can consume both reports using the same logic
+> - **Closed-Loop**: This report can trigger the automated closed-loop cycle. `javafx-developer` consumes fix handoff entries via its **Fix Consumption Protocol** (Step 5.5), then incremental re-review and re-verify are triggered automatically. See **Loop Orchestration Protocol** in each skill's SKILL.md for loop rules, termination conditions, and the combined quality gate.

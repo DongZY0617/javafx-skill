@@ -1,105 +1,105 @@
-# 数据绑定合规
+# Data Binding Compliance
 
-本文档是**跨维度文档**，不单独对应某个维度，而是同时服务于三个维度：内存泄漏（绑定释放）、性能（绑定效率）、深度合规（Properties null 安全）。与 `javafx-developer` 的 `data-binding-patterns.md` 同源。
+This document is a **cross-dimension document**; it does not correspond to a single dimension but simultaneously serves three dimensions: memory leaks (binding disposal), performance (binding efficiency), and deep compliance (Properties null safety). Shares the same origin as `javafx-developer`'s `data-binding-patterns.md`.
 
-| 检查项 | 服务维度 | 严重性基线 |
-|--------|---------|-----------|
-| 绑定释放规则 | 内存泄漏风险 | Critical |
-| 绑定效率规则 | 性能表现 | Major |
-| Properties null 安全 | 深度合规审核 | Major |
+| Check Item | Served Dimension | Severity Baseline |
+|------------|------------------|-------------------|
+| Binding Disposal Rules | Memory Leak Risks | Critical |
+| Binding Efficiency Rules | Performance | Major |
+| Properties Null Safety | Deep Compliance Audit | Major |
 
 ---
 
-## 检查项 1：绑定释放规则（服务维度：内存泄漏风险）
+## Check Item 1: Binding Disposal Rules (Served Dimension: Memory Leak Risks)
 
-**关注点**：`Bindings.createXxxBinding()` 返回的 Binding 对象在不需要时是否调用 `dispose()`；单向 / 双向绑定在视图销毁时是否解绑。
+**Focus**: Whether Binding objects returned by `Bindings.createXxxBinding()` call `dispose()` when no longer needed; whether one-way / bidirectional bindings are unbound when the view is destroyed.
 
-**通过判定标准**：
-- 通过 `Bindings.createXxxBinding()` 创建的 Binding 保存为字段，在视图销毁时调用 `dispose()`
-- 通过 `bind()` 建立的单向绑定在视图销毁时调用 `unbind()`
-- 通过 `bindBidirectional()` 建立的双向绑定在视图销毁时调用 `unbindBidirectional()`
-- 不在循环或高频事件中反复创建 Binding 而不释放旧绑定
+**Pass Criteria**:
+- Bindings created via `Bindings.createXxxBinding()` are saved as fields and `dispose()` is called when the view is destroyed
+- One-way bindings established via `bind()` call `unbind()` when the view is destroyed
+- Bidirectional bindings established via `bindBidirectional()` call `unbindBidirectional()` when the view is destroyed
+- No repeatedly creating Bindings in loops or high-frequency events without releasing old ones
 
-**不通过判定标准**（任一即不通过）：
-- `Bindings.createXxxBinding()` 创建的 Binding 未保存引用，无法 `dispose()`
-- 视图销毁时未调用 `unbind()` / `unbindBidirectional()` / `dispose()`
-- 反复创建新 Binding 替换旧绑定但未释放旧的（绑定链累积 = 内存泄漏）
+**Fail Criteria** (any one constitutes failure):
+- Bindings created via `Bindings.createXxxBinding()` are not saved as references, making `dispose()` impossible
+- `unbind()` / `unbindBidirectional()` / `dispose()` not called when the view is destroyed
+- Repeatedly creating new Bindings to replace old ones without releasing the old ones (binding chain accumulation = memory leak)
 
-**严重性基线**：Critical
-- 降级条件：短生命周期视图（如对话框）→ Major
-- 升级条件：长生命周期视图（主窗口）且绑定数量多 → 保持 Critical
+**Severity Baseline**: Critical
+- De-escalation condition: Short-lived view (e.g., dialog) → Major
+- Escalation condition: Long-lived view (main window) with many bindings → remain Critical
 
-**反例**：
+**Bad Example**:
 ```java
-// ❌ 反复创建 Binding 不释放，绑定链累积导致内存泄漏
+// Repeatedly creating Bindings without releasing, binding chain accumulates causing memory leak
 @FXML
 private void handleRefresh() {
-    // 每次刷新都创建新 Binding，旧的不 dispose
+    // Creates a new Binding on every refresh, old ones not disposed
     statusLabel.textProperty().bind(Bindings.createStringBinding(
-        () -> "共 " + users.size() + " 条",
+        () -> "Total " + users.size() + " items",
         Bindings.size(users)));
 }
 
-// ❌ 创建后无法释放（未保存引用）
+// Cannot release after creation (reference not saved)
 public void init() {
     label.textProperty().bind(Bindings.createStringBinding(
         () -> compute(), model.prop1(), model.prop2()));
-    // Binding 对象匿名创建，dispose 时找不到引用
+    // Binding object created anonymously, cannot find reference for dispose
 }
 ```
 
-**正例**：
+**Good Example**:
 ```java
-// ✅ 保存 Binding 引用，dispose 时释放
+// Save Binding reference, release on dispose
 private StringBinding statusBinding;
 
 @Override
 public void initialize(URL location, ResourceBundle resources) {
     statusBinding = Bindings.createStringBinding(
-        () -> "共 " + users.size() + " 条",
+        () -> "Total " + users.size() + " items",
         Bindings.size(users));
     statusLabel.textProperty().bind(statusBinding);
 }
 
 public void dispose() {
-    statusLabel.textProperty().unbind();  // 先解绑
+    statusLabel.textProperty().unbind();  // Unbind first
     if (statusBinding != null) {
-        statusBinding.dispose();           // 再释放 Binding
+        statusBinding.dispose();           // Then release Binding
     }
 }
 ```
 
-> **关键区别**：`unbind()` 解除属性与 Binding 的关联（属性可再次 set），`dispose()` 释放 Binding 内部资源（移除对所有依赖的监听）。两者都需调用，顺序为先 `unbind()` 再 `dispose()`。
+> **Key Distinction**: `unbind()` removes the association between the property and the Binding (the property can be set again), while `dispose()` releases the Binding's internal resources (removes listeners on all dependencies). Both must be called, in the order of `unbind()` first, then `dispose()`.
 
 ---
 
-## 检查项 2：绑定效率规则（服务维度：性能表现）
+## Check Item 2: Binding Efficiency Rules (Served Dimension: Performance)
 
-**关注点**：是否避免在循环中创建 `Bindings.createXxxBinding()`，计算绑定是否可用更高效的替代方案。
+**Focus**: Whether creating `Bindings.createXxxBinding()` in loops is avoided, whether computed bindings can use more efficient alternatives.
 
-**通过判定标准**：
-- 不在循环或高频事件中创建 `Bindings.createXxxBinding()`
-- 简单算术绑定使用 `add` / `subtract` / `multiply` / `divide` 等 Fluent API，而非 `createXxxBinding` 包装
-- 字符串拼接使用 `Bindings.concat()` 或 `concat()`，而非 `createStringBinding` 手动拼接
-- 绑定创建在初始化时一次性完成，运行时仅更新数据源
-- 绑定依赖项控制在合理范围（建议 < 5 个），避免级联重算
+**Pass Criteria**:
+- No creating `Bindings.createXxxBinding()` in loops or high-frequency events
+- Simple arithmetic bindings use Fluent API such as `add` / `subtract` / `multiply` / `divide`, rather than `createXxxBinding` wrapping
+- String concatenation uses `Bindings.concat()` or `concat()`, rather than `createStringBinding` manual concatenation
+- Binding creation is done once at initialization, only data sources are updated at runtime
+- Binding dependencies are kept within a reasonable range (recommended < 5), avoiding cascading recomputation
 
-**不通过判定标准**（任一即不通过）：
-- 在循环中创建 `Bindings.createXxxBinding()`（绑定链累积，内存与 CPU 开销大）
-- 简单的双属性映射使用 `createXxxBinding` 而非 Fluent API（不必要的开销）
-- 绑定依赖项过多（> 10 个），任一变化都触发全量重算
-- 在 `ChangeListener` 中手动同步 UI（应使用绑定声明式同步）
+**Fail Criteria** (any one constitutes failure):
+- Creating `Bindings.createXxxBinding()` in loops (binding chains accumulate, high memory and CPU overhead)
+- Simple two-property mapping uses `createXxxBinding` instead of Fluent API (unnecessary overhead)
+- Too many binding dependencies (> 10), any change triggers full recomputation
+- Manually syncing UI in `ChangeListener` (should use declarative binding sync)
 
-**严重性基线**：Major
+**Severity Baseline**: Major
 
-**反例**：
+**Bad Example**:
 ```java
-// ❌ 简单算术用 createXxxBinding 包装，效率低
+// Simple arithmetic wrapped with createXxxBinding, inefficient
 NumberBinding total = Bindings.createDoubleBinding(
     () -> price.get() * quantity.get(),
     price, quantity);
 
-// ❌ 在循环中创建绑定
+// Creating bindings in a loop
 for (Item item : items) {
     Label label = new Label();
     label.textProperty().bind(Bindings.createStringBinding(
@@ -108,74 +108,74 @@ for (Item item : items) {
     container.getChildren().add(label);
 }
 
-// ❌ 用 ChangeListener 手动同步（应使用绑定）
+// Manual sync with ChangeListener (should use binding)
 price.addListener((obs, old, val) -> totalLabel.setText(
     String.valueOf(val.doubleValue() * quantity.get())));
 ```
 
-**正例**：
+**Good Example**:
 ```java
-// ✅ 简单算术用 Fluent API
+// Simple arithmetic with Fluent API
 NumberBinding total = price.multiply(quantity);
 
-// ✅ 字符串拼接用 concat
+// String concatenation with concat
 label.textProperty().bind(
     item.nameProperty().concat(": ").concat(item.countProperty().asString()));
 
-// ✅ 声明式绑定，无需手动监听
+// Declarative binding, no manual listening needed
 totalLabel.textProperty().bind(total.asString());
 ```
 
 ---
 
-## 检查项 3：Properties null 安全（服务维度：深度合规审核）
+## Check Item 3: Properties Null Safety (Served Dimension: Deep Compliance Audit)
 
-**关注点**：`SimpleLongProperty.set(null)` 等基本类型 Property 的 null 处理是否防 NPE。
+**Focus**: Whether `SimpleLongProperty.set(null)` and other primitive type Property null handling prevents NPE.
 
-**通过判定标准**：
-- 基本类型 Property（`IntegerProperty`、`LongProperty`、`DoubleProperty`、`FloatProperty`、`BooleanProperty`）的 `set()` 不接受 null
-- 从数据库或外部数据源读取可能为 null 的值时，先做 null 检查再 `set()`
-- `ObjectProperty<T>` 的 `set(null)` 是合法的，但使用 `get()` 返回值前检查 null
-- 双向绑定中 `StringConverter.fromString()` 处理空字符串返回默认值而非 null
+**Pass Criteria**:
+- Primitive type Properties (`IntegerProperty`, `LongProperty`, `DoubleProperty`, `FloatProperty`, `BooleanProperty`) `set()` does not accept null
+- When reading values that may be null from a database or external data source, perform a null check before `set()`
+- `ObjectProperty<T>` `set(null)` is legal, but check null before using the `get()` return value
+- `StringConverter.fromString()` in bidirectional bindings handles empty strings by returning a default value rather than null
 
-**不通过判定标准**（任一即不通过）：
-- `SimpleIntegerProperty.set(null)` / `SimpleLongProperty.set(null)` 等（抛 `NullPointerException`）
-- 从数据库读取 `null` 直接 `set()` 到基本类型 Property
-- 双向绑定中 `NumberStringConverter` 转换空字符串导致 NPE
-- `ObjectProperty` 的 `get()` 返回值未判空直接调用方法
+**Fail Criteria** (any one constitutes failure):
+- `SimpleIntegerProperty.set(null)` / `SimpleLongProperty.set(null)` etc. (throws `NullPointerException`)
+- Reading `null` from a database and directly `set()`-ing it to a primitive type Property
+- `NumberStringConverter` converting an empty string in a bidirectional binding causing NPE
+- `ObjectProperty` `get()` return value used directly without null check, calling methods on it
 
-**严重性基线**：Major
+**Severity Baseline**: Major
 
-> **关键事实**：`SimpleIntegerProperty`、`SimpleLongProperty`、`SimpleDoubleProperty`、`SimpleFloatProperty`、`SimpleBooleanProperty` 的 `set()` 方法接受基本类型参数，若传入 `null`（如从 `Number` 自动拆箱），将抛出 `NullPointerException`。这是 Spring Boot + MyBatis 场景的常见陷阱。
+> **Key Fact**: `SimpleIntegerProperty`, `SimpleLongProperty`, `SimpleDoubleProperty`, `SimpleFloatProperty`, `SimpleBooleanProperty` `set()` methods accept primitive type parameters; if `null` is passed (e.g., auto-unboxing from `Number`), a `NullPointerException` will be thrown. This is a common pitfall in Spring Boot + MyBatis scenarios.
 
-**反例**：
+**Bad Example**:
 ```java
-// ❌ 数据库返回 null 直接 set 到 LongProperty，NPE
+// Database returns null, directly set to LongProperty, NPE
 public void loadFromDb(UserEntity entity) {
-    id.set(entity.getId());      // 若 getId() 返回 null → NPE
-    age.set(entity.getAge());    // 若 getAge() 返回 null → NPE
+    id.set(entity.getId());      // If getId() returns null -> NPE
+    age.set(entity.getAge());    // If getAge() returns null -> NPE
 }
 
-// ❌ 双向绑定中 NumberStringConverter 转换空字符串 NPE
+// NumberStringConverter converting empty string in bidirectional binding, NPE
 ageField.textProperty().bindBidirectional(viewModel.ageProperty(),
     new NumberStringConverter());
-// 用户清空输入框 → fromString("") → 可能返回 null → ageProperty.set(null) → NPE
+// User clears input box -> fromString("") -> may return null -> ageProperty.set(null) -> NPE
 ```
 
-**正例**：
+**Good Example**:
 ```java
-// ✅ null 检查后再 set
+// Null check before set
 public void loadFromDb(UserEntity entity) {
     id.set(entity.getId() != null ? entity.getId() : 0);
     age.set(entity.getAge() != null ? entity.getAge() : 0);
 }
 
-// ✅ 自定义 Converter 处理空字符串
+// Custom Converter to handle empty strings
 public class SafeNumberConverter extends NumberStringConverter {
     @Override
     public Number fromString(String value) {
         if (value == null || value.trim().isEmpty()) {
-            return 0;  // 空字符串返回默认值，不返回 null
+            return 0;  // Empty string returns default value, not null
         }
         return super.fromString(value);
     }

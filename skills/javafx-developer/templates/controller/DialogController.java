@@ -11,8 +11,8 @@ import javafx.scene.layout.GridPane;
 import javafx.stage.Stage;
 
 /**
- * 对话框控制器模板。
- * 配合 dialog.fxml 使用，处理用户输入并返回结果。
+ * Dialog controller template.
+ * Used together with dialog.fxml to handle user input and return results.
  */
 public class DialogController extends BaseController {
 
@@ -32,7 +32,7 @@ public class DialogController extends BaseController {
 
     @Override
     public void initialize(URL location, ResourceBundle resources) {
-        // 确定按钮在名称为空时禁用
+        // Disable the OK button when the name is empty
         okButton.disableProperty().bind(
             nameField.textProperty().isEmpty()
         );
@@ -59,9 +59,9 @@ public class DialogController extends BaseController {
         }
     }
 
-    /** 获取用户输入的名称 */
+    /** Returns the name entered by the user */
     public String getName() { return name; }
 
-    /** 获取用户输入的描述 */
+    /** Returns the description entered by the user */
     public String getDescription() { return description; }
 }

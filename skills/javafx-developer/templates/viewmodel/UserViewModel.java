@@ -7,8 +7,8 @@ import javafx.beans.property.StringProperty;
 import {{packageName}}.model.ObservableModel;
 
 /**
- * ViewModel 模板（MVVM 模式）。
- * 暴露 Properties 供 View 绑定，封装业务逻辑。
+ * ViewModel template (MVVM pattern).
+ * Exposes Properties for the View to bind to and encapsulates business logic.
  */
 public class UserViewModel {
 
@@ -17,34 +17,34 @@ public class UserViewModel {
     private final BooleanProperty saveDisabled = new SimpleBooleanProperty(true);
 
     public UserViewModel() {
-        // 保存按钮在名称为空时禁用
+        // Disable the save button when the name is empty
         saveDisabled.bind(name.isEmpty());
     }
 
-    // 名称属性
+    // Name property
     public StringProperty nameProperty() { return name; }
     public String getName() { return name.get(); }
     public void setName(String value) { name.set(value); }
 
-    // 描述属性
+    // Description property
     public StringProperty descriptionProperty() { return description; }
     public String getDescription() { return description.get(); }
     public void setDescription(String value) { description.set(value); }
 
-    // 保存按钮禁用状态（只读）
+    // Save button disabled state (read-only)
     public BooleanProperty saveDisabledProperty() { return saveDisabled; }
 
-    /** 保存操作（委托给 Service 层） */
+    /** Save action (delegated to the Service layer) */
     public void save() {
-        // TODO: 委托给 Service 层执行持久化
-        System.out.println("保存: " + getName());
+        // TODO: delegate to the Service layer for persistence
+        System.out.println("Save: " + getName());
     }
 
-    /** 从模型加载数据 */
+    /** Load data from a model */
     public void loadFromModel(ObservableModel model) {
         if (model != null) {
-            // TODO: 从模型同步数据到 ViewModel
-            // 可用字段：model.getName() / model.getCreatedAt()
+            // TODO: sync data from the model into the ViewModel
+            // Available fields: model.getName() / model.getCreatedAt()
         }
     }
 }

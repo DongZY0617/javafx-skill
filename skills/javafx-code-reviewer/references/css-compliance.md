@@ -1,148 +1,148 @@
-# CSS 合规规则
+# CSS Compliance Rules
 
-本文档是"深度合规审核"维度中 CSS 合规的判定依据，管辖 3 个检查项：`var()` 禁止、字面量数值规则、查找色使用规则。默认严重性基线：Major。与 `javafx-developer` 的 `css-best-practices.md` 同源。
+This document is the criteria for CSS compliance within the "Deep Compliance Audit" dimension, governing 3 check items: `var()` prohibition, literal numeric value rules, and looked-up color usage rules. Default severity baseline: Major. Shares the same origin as `javafx-developer`'s `css-best-practices.md`.
 
-> **核心差异**：JavaFX CSS 不是 Web CSS。JavaFX CSS 基于 CSS 语法但有诸多限制，最关键的是不支持 `var()` 函数。JavaFX 通过"查找色（looked-up color）"机制实现变量功能，在 `.root` 上定义后子节点直接按名引用，无需 `var()` 包裹。
+> **Core Difference**: JavaFX CSS is not Web CSS. JavaFX CSS is based on CSS syntax but has many limitations; the most critical is that it does not support the `var()` function. JavaFX implements variable functionality through the "looked-up color" mechanism, where colors defined on `.root` are referenced directly by name by child nodes, without `var()` wrapping.
 
 ---
 
-## 检查项 1：var() 禁止规则
+## Check Item 1: var() Prohibition Rule
 
-**关注点**：是否不使用 `var()`（JavaFX CSS 不支持）。
+**Focus**: Whether `var()` is not used (JavaFX CSS does not support it).
 
-**通过判定标准**：
-- CSS 文件中不出现任何 `var()` 函数调用
-- 颜色变量通过查找色机制使用：`.root` 中定义 `-fx-xxx-color`，子节点直接按名引用（如 `-fx-background-color: -fx-primary-color;`）
-- 尺寸值使用字面量数值（如 `-fx-background-radius: 8;`），不通过 `var()` 引用
+**Pass Criteria**:
+- No `var()` function calls appear in CSS files
+- Color variables use the looked-up color mechanism: define `-fx-xxx-color` in `.root`, child nodes reference directly by name (e.g., `-fx-background-color: -fx-primary-color;`)
+- Size values use literal numeric values (e.g., `-fx-background-radius: 8;`), not referenced via `var()`
 
-**不通过判定标准**（任一即不通过）：
-- CSS 中使用 `var(-fx-primary-color)` 语法（JavaFX CSS 不支持，样式不生效）
-- CSS 中使用 `var(-fx-radius)` 引用尺寸变量
-- 将 Web CSS 的 `var()` 习惯带入 JavaFX CSS
+**Fail Criteria** (any one constitutes failure):
+- CSS uses `var(-fx-primary-color)` syntax (JavaFX CSS does not support it, style does not take effect)
+- CSS uses `var(-fx-radius)` to reference size variables
+- Bringing Web CSS `var()` habits into JavaFX CSS
 
-**严重性基线**：Major（不支持语法，样式不生效，不可降级）
+**Severity Baseline**: Major (unsupported syntax, style does not take effect, cannot be de-escalated)
 
-> **关键事实**：JavaFX CSS 解析器不识别 `var()` 函数。使用 `var()` 的属性声明会被静默忽略，对应的样式不会生效。这是从 Web CSS 迁移到 JavaFX CSS 时最常见的错误。
+> **Key Fact**: The JavaFX CSS parser does not recognize the `var()` function. Property declarations using `var()` are silently ignored, and the corresponding styles do not take effect. This is the most common error when migrating from Web CSS to JavaFX CSS.
 
-**反例**：
+**Bad Example**:
 ```css
-/* ❌ 使用 var()，JavaFX CSS 不支持，样式不生效 */
+/* Using var(), JavaFX CSS does not support, style does not take effect */
 .root {
     -fx-primary-color: #2196f3;
     -fx-radius: 8;
 }
 .button-primary {
-    -fx-background-color: var(-fx-primary-color);      /* 不生效 */
-    -fx-background-radius: var(-fx-radius);             /* 不生效 */
-    -fx-text-fill: var(-fx-text-color, #333333);        /* 不支持 fallback 语法 */
+    -fx-background-color: var(-fx-primary-color);      /* Does not take effect */
+    -fx-background-radius: var(-fx-radius);             /* Does not take effect */
+    -fx-text-fill: var(-fx-text-color, #333333);        /* Fallback syntax not supported */
 }
 ```
 
-**正例**：
+**Good Example**:
 ```css
-/* ✅ 直接引用查找色，无需 var() 包裹 */
+/* Directly reference looked-up color, no var() wrapping needed */
 .root {
     -fx-primary-color: #2196f3;
     -fx-text-color: #333333;
 }
 .button-primary {
-    -fx-background-color: -fx-primary-color;   /* 直接按名引用 */
-    -fx-background-radius: 8;                   /* 字面量数值 */
-    -fx-text-fill: -fx-text-color;              /* 直接按名引用 */
+    -fx-background-color: -fx-primary-color;   /* Direct reference by name */
+    -fx-background-radius: 8;                   /* Literal numeric value */
+    -fx-text-fill: -fx-text-color;              /* Direct reference by name */
 }
 ```
 
 ---
 
-## 检查项 2：字面量数值规则
+## Check Item 2: Literal Numeric Value Rule
 
-**关注点**：圆角等尺寸属性是否使用字面量数值，而非查找色引用尺寸变量。
+**Focus**: Whether size properties such as border radius use literal numeric values, rather than looked-up color references to size variables.
 
-**通过判定标准**：
-- `-fx-background-radius`、`-fx-border-radius`、`-fx-padding` 等尺寸属性使用字面量数值（如 `8`、`4px`、`10 5 10 5`）
-- 尺寸值不通过查找色变量引用（查找色主要用于颜色值）
-- 字面量数值在多处使用时保持一致，或通过 CSS 注释说明约定
+**Pass Criteria**:
+- Size properties such as `-fx-background-radius`, `-fx-border-radius`, `-fx-padding` use literal numeric values (e.g., `8`, `4px`, `10 5 10 5`)
+- Size values are not referenced via looked-up color variables (looked-up colors are primarily used for color values)
+- Literal numeric values are consistent across multiple uses, or documented via CSS comments
 
-**不通过判定标准**（任一即不通过）：
-- `-fx-background-radius: -fx-radius;`（通过查找色引用尺寸变量，JavaFX 中不可靠）
-- `-fx-padding: -fx-spacing;`（尺寸属性引用查找色变量）
-- 尺寸属性值使用 `var()` 引用（同时违反检查项 1）
+**Fail Criteria** (any one constitutes failure):
+- `-fx-background-radius: -fx-radius;` (referencing a size variable via looked-up color, unreliable in JavaFX)
+- `-fx-padding: -fx-spacing;` (size property referencing a looked-up color variable)
+- Size property values use `var()` references (also violates Check Item 1)
 
-**严重性基线**：Major
-- 降级条件：仅个别尺寸属性误用查找色引用，不影响整体布局 → Minor
+**Severity Baseline**: Major
+- De-escalation condition: Only individual size properties misuse looked-up color references, does not affect overall layout → Minor
 
-> **关键事实**：查找色（looked-up color）机制在 JavaFX 中主要用于**颜色**值。将查找色直接用于 `-fx-background-radius`、`-fx-border-radius` 等尺寸属性在 JavaFX 中不可靠，可能不被解析或解析为错误值。尺寸属性应使用字面量数值。
+> **Key Fact**: The looked-up color mechanism in JavaFX is primarily used for **color** values. Using looked-up colors directly for size properties such as `-fx-background-radius` and `-fx-border-radius` is unreliable in JavaFX and may not be parsed or may be parsed to incorrect values. Size properties should use literal numeric values.
 
-**反例**：
+**Bad Example**:
 ```css
-/* ❌ 尺寸属性通过查找色引用，不可靠 */
+/* Size properties referenced via looked-up color, unreliable */
 .root {
     -fx-radius: 8;
     -fx-spacing: 10;
 }
 .card {
-    -fx-background-radius: -fx-radius;    /* 不可靠，可能不生效 */
-    -fx-border-radius: -fx-radius;        /* 不可靠 */
-    -fx-padding: -fx-spacing;             /* 不可靠 */
+    -fx-background-radius: -fx-radius;    /* Unreliable, may not take effect */
+    -fx-border-radius: -fx-radius;        /* Unreliable */
+    -fx-padding: -fx-spacing;             /* Unreliable */
 }
 ```
 
-**正例**：
+**Good Example**:
 ```css
-/* ✅ 尺寸属性使用字面量数值 */
+/* Size properties use literal numeric values */
 .root {
-    -fx-primary-color: #2196f3;  /* 查找色仅用于颜色 */
+    -fx-primary-color: #2196f3;  /* Looked-up color only for colors */
 }
 .card {
-    -fx-background-color: -fx-primary-color;  /* 颜色用查找色 */
-    -fx-background-radius: 8;                  /* 尺寸用字面量 */
-    -fx-border-radius: 8;                      /* 尺寸用字面量 */
-    -fx-padding: 10;                           /* 尺寸用字面量 */
+    -fx-background-color: -fx-primary-color;  /* Color uses looked-up color */
+    -fx-background-radius: 8;                  /* Size uses literal */
+    -fx-border-radius: 8;                      /* Size uses literal */
+    -fx-padding: 10;                           /* Size uses literal */
 }
 ```
 
 ---
 
-## 检查项 3：查找色使用规则
+## Check Item 3: Looked-up Color Usage Rule
 
-**关注点**：查找色是否在 `.root` 中定义后由子节点直接按名引用，作用域是否正确。
+**Focus**: Whether looked-up colors are defined in `.root` and referenced directly by name by child nodes, whether the scope is correct.
 
-**通过判定标准**：
-- 查找色在 `.root` 中以 `-fx-` 前缀定义（如 `-fx-primary-color: #2196f3;`）
-- 子节点直接按名引用查找色（如 `-fx-background-color: -fx-primary-color;`），无需 `var()` 包裹
-- 主题切换通过替换 `.root` 上的查找色定义实现（或切换不同 CSS 文件）
-- 局部覆盖查找色时在特定节点上重新定义，仅影响该节点及子节点
+**Pass Criteria**:
+- Looked-up colors are defined in `.root` with the `-fx-` prefix (e.g., `-fx-primary-color: #2196f3;`)
+- Child nodes reference looked-up colors directly by name (e.g., `-fx-background-color: -fx-primary-color;`), without `var()` wrapping
+- Theme switching is achieved by replacing looked-up color definitions on `.root` (or switching different CSS files)
+- When locally overriding looked-up colors, redefine on a specific node, affecting only that node and its children
 
-**不通过判定标准**（任一即不通过）：
-- 查找色未在 `.root` 中定义而直接在子节点引用（未定义的查找色回退为默认值）
-- 查找色定义不以 `-fx-` 前缀开头（如 `primary-color` 而非 `-fx-primary-color`，可能不被识别）
-- 颜色值使用 Web CSS 语法而非 JavaFX 支持的格式（如使用 `rgb()` 但未加空格）
-- 主题切换通过逐个修改节点样式实现，而非替换 `.root` 查找色定义
+**Fail Criteria** (any one constitutes failure):
+- Looked-up color referenced by a child node without being defined in `.root` (undefined looked-up color falls back to default value)
+- Looked-up color definition does not start with the `-fx-` prefix (e.g., `primary-color` instead of `-fx-primary-color`, may not be recognized)
+- Color values use Web CSS syntax instead of JavaFX-supported formats (e.g., using `rgb()` without spaces)
+- Theme switching achieved by modifying node styles one by one, rather than replacing `.root` looked-up color definitions
 
-**严重性基线**：Major
-- 降级条件：仅个别查找色定义不规范但功能正常 → Minor
+**Severity Baseline**: Major
+- De-escalation condition: Only individual looked-up color definitions are non-standard but functionality is normal → Minor
 
-**反例**：
+**Bad Example**:
 ```css
-/* ❌ 查找色未在 .root 定义就直接引用 */
+/* Looked-up color referenced without being defined in .root */
 .button {
-    -fx-background-color: -fx-primary-color;  /* -fx-primary-color 未定义，回退默认 */
+    -fx-background-color: -fx-primary-color;  /* -fx-primary-color is undefined, falls back to default */
 }
 
-/* ❌ 查找色定义无 -fx- 前缀 */
+/* Looked-up color definition without -fx- prefix */
 .root {
-    primary-color: #2196f3;  /* 无 -fx- 前缀，可能不被识别为查找色 */
+    primary-color: #2196f3;  /* No -fx- prefix, may not be recognized as a looked-up color */
 }
 
-/* ❌ 主题切换逐个改节点，而非替换 .root 定义 */
-/* JS/Java 中：button1.setStyle("-fx-background-color: #ff0000;"); */
+/* Theme switching modifies nodes one by one, rather than replacing .root definition */
+/* In JS/Java: button1.setStyle("-fx-background-color: #ff0000;"); */
 /* button2.setStyle("-fx-background-color: #ff0000;"); */
-/* 应改为切换 .root 上的查找色 */
+/* Should instead switch looked-up color definitions on .root */
 ```
 
-**正例**：
+**Good Example**:
 ```css
-/* ✅ 查找色在 .root 中定义，子节点直接引用 */
+/* Looked-up colors defined in .root, child nodes reference directly */
 .root {
     -fx-primary-color: #2196f3;
     -fx-accent-color: #ff9800;
@@ -151,20 +151,20 @@
 }
 
 .button-primary {
-    -fx-background-color: -fx-primary-color;  /* 直接引用 */
+    -fx-background-color: -fx-primary-color;  /* Direct reference */
     -fx-text-fill: white;
 }
 
 .label-title {
-    -fx-text-fill: -fx-text-color;  /* 直接引用 */
+    -fx-text-fill: -fx-text-color;  /* Direct reference */
 }
 
-/* ✅ 主题切换：切换 .root 上的查找色定义 */
+/* Theme switching: switch looked-up color definitions on .root */
 /* dark-theme.css */
 .root {
     -fx-primary-color: #1565c0;
     -fx-bg-color: #1e1e1e;
     -fx-text-color: #e0e0e0;
 }
-/* Java 中切换：scene.getStylesheets().setAll("/css/dark-theme.css"); */
+/* In Java: scene.getStylesheets().setAll("/css/dark-theme.css"); */
 ```

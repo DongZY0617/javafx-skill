@@ -1,9 +1,10 @@
 /**
- * {{artifactId}} 应用的模块描述符。
+ * Module descriptor for the {{artifactId}} application.
  *
- * 声明对 JavaFX 模块的依赖，并向 javafx.fxml 开放 controller 包，
- * 以便 FXML 加载器能够注入控制器。
- * 同时向 javafx.controls 开放 model 包，以支持 PropertyValueFactory 的反射访问。
+ * Declares dependencies on JavaFX modules and opens the controller
+ * package to javafx.fxml so the FXML loader can inject controllers.
+ * Also opens the model package to javafx.controls to support reflective
+ * access by PropertyValueFactory.
  */
 module {{moduleName}} {
     requires javafx.controls;

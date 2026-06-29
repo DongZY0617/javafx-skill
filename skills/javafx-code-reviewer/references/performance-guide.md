@@ -1,109 +1,115 @@
-# 性能优化指南
+﻿# Performance Optimization Guide
 
-本文档是"性能表现"维度的判定依据，管辖 9 个检查项（对应设计书 3.5 节）。审查代码是否存在性能瓶颈，是否遵循 JavaFX 性能优化最佳实践。默认严重性基线：Major。绑定效率的详细规则参见跨维度文档 `binding-compliance.md`。
+This document is the criteria for the "Performance" dimension, governing 9 check items (corresponding to design spec section 3.5). It reviews whether the code has performance bottlenecks and whether it follows JavaFX performance optimization best practices. Default severity baseline: Major. For detailed binding efficiency rules, see the cross-dimension document `binding-compliance.md`.
 
 ---
 
-## 检查项 1：TableView 虚拟化
+## Check Item 1: TableView Virtualization
 
-**关注点**：大数据量是否依赖 `TableView` 虚拟化，是否误用 `ListView` + 手动渲染导致性能下降。
+**Focus**: Whether large datasets rely on `TableView` virtualization, whether `ListView` + manual rendering is misused causing performance degradation.
 
-**通过判定标准**：
-- 大数据量列表展示使用 `TableView` 或 `ListView`，依赖其内置虚拟化（仅渲染可见行）
-- 不在 CellFactory 中创建重型节点（如嵌套 FXML、大量子节点）
-- `CellFactory` 中正确实现 `updateItem`，复用单元格而非每次创建新节点
+**Pass Criteria**:
+- Large dataset list display uses `TableView` or `ListView`, relying on their built-in virtualization (only visible rows are rendered)
+- No heavy nodes (e.g., nested FXML, many child nodes) are created in CellFactory
+- `CellFactory` correctly implements `updateItem`, reusing cells rather than creating new nodes each time
 
-**不通过判定标准**（任一即不通过）：
-- 使用 `VBox` / `FlowPane` 等非虚拟化容器手动渲染大量数据行（全部节点同时在场景图中）
-- `CellFactory` 中每次 `updateItem` 都 `new` 新控件，未复用单元格
-- 在 `CellFactory` 中加载 FXML 或执行耗时操作
+**Fail Criteria** (any one constitutes failure):
+- Using non-virtualized containers like `VBox` / `FlowPane` to manually render many data rows (all nodes in the scene graph simultaneously)
+- `CellFactory` creates new controls on every `updateItem` without reusing cells
+- Loading FXML or performing time-consuming operations in `CellFactory`
 
-**严重性基线**：Major
+**Severity Baseline**: Major
 
-**反例**：
+**Bad Example**:
 ```java
-// ❌ 用 VBox 手动渲染 1000 行，全部节点同时在场景图中
+// Using VBox to manually render 1000 rows, all nodes in the scene graph simultaneously
 for (User user : users) {
     HBox row = new HBox(new Label(user.getName()), new Label(user.getEmail()));
-    dataContainer.getChildren().add(row);  // 无虚拟化，内存与渲染开销巨大
+    dataContainer.getChildren().add(row);  // No virtualization, huge memory and rendering overhead
 }
 ```
 
-**正例**：
+**Good Example**:
 ```java
-// ✅ 使用 TableView 虚拟化，仅渲染可见行
+// Use TableView virtualization, only visible rows are rendered
 TableView<User> table = new TableView<>();
-TableColumn<User, String> nameCol = new TableColumn<>("姓名");
+TableColumn<User, String> nameCol = new TableColumn<>("Name");
 nameCol.setCellValueFactory(c -> c.getValue().nameProperty());
-table.setItems(users);  // 虚拟化，自动仅渲染可见行
+table.setItems(users);  // Virtualization, automatically only renders visible rows
 ```
 
 ---
 
-## 检查项 2：批量更新
+## Check Item 2: Batch Updates
 
-**关注点**：批量修改 `ObservableList` 时是否使用 `setAll()` 一次性替换，而非循环 `add()` 逐条添加。
+**Focus**: Whether batch modifications to `ObservableList` use `setAll()` for one-time replacement, rather than looping `add()` item by item.
 
-**通过判定标准**：
-- 批量替换数据使用 `setAll(collection)`（触发 1 次变更事件）
-- 批量添加使用 `addAll(collection)`（触发 1 次变更事件），而非循环 `add()`
-- 需要静默批量更新时使用 `FXCollections.observableArrayList` + `beginChange()` / `endChange()`
+**Pass Criteria**:
+- Batch data replacement uses `setAll(collection)` (triggers 1 change event)
+- Batch addition uses `addAll(collection)` (triggers 1 change event), rather than looping `add()`
+- When silent batch updates are needed, use `FXCollections.observableArrayList` + `beginChange()` / `endChange()`
 
-**不通过判定标准**（任一即不通过）：
-- 循环调用 `add()` 逐条添加（触发 N 次变更事件，TableView 频繁重绘）
-- 循环调用 `remove()` 逐条删除（触发 N 次变更事件）
-- 在 FX 线程上对大数据量（>10000）执行批量操作且未优化
+**Fail Criteria** (any one constitutes failure):
+- Looping `add()` to add items one by one (triggers N change events, TableView repaints frequently)
+- Looping `remove()` to delete items one by one (triggers N change events)
+- Performing batch operations on large datasets (>10000) on the FX thread without optimization
 
-**严重性基线**：Major
-- 降级条件：数据量 < 100 条 → Minor
-- 升级条件：数据量 > 10000 条且在 FX 线程执行 → Critical
+**Severity Baseline**: Major
+- De-escalation condition: Data volume < 100 items → Minor
+- Escalation condition: Data volume > 10000 items and executing on FX thread → Critical
 
-**反例**：
+**Bad Example**:
 ```java
-// ❌ 循环 add，触发 5000 次变更事件
+// Loop add, triggers 5000 change events
 List<User> loaded = userService.loadAll();
 for (User user : loaded) {
-    users.add(user);  // 每次 add 触发一次 ListChangeListener
+    users.add(user);  // Each add triggers a ListChangeListener
 }
 ```
 
-**正例**：
+**Good Example**:
 ```java
-// ✅ 使用 setAll 一次性替换，仅触发 1 次变更事件
+// Use setAll for one-time replacement, only triggers 1 change event
 List<User> loaded = userService.loadAll();
-users.setAll(loaded);  // 1 次事件，TableView 仅重绘一次
+users.setAll(loaded);  // 1 event, TableView repaints only once
 ```
+
+> **Runtime Verification Required**
+> - Static analysis cannot determine actual runtime data volume
+> - Runner check: `test-verification.md` #2 (Test Execution) — TestFX tests can assert TableView row count after data load
+> - If static result is uncertain (data volume unknown), trigger runner test verification to confirm
+> - Runner finding supersedes static heuristic when conflicting
 
 ---
 
-## 检查项 3：节流防抖
+## Check Item 3: Throttle/Debounce
 
-**关注点**：高频输入（搜索框、滑块）是否使用防抖定时器，避免每次输入触发完整刷新。
+**Focus**: Whether high-frequency input (search boxes, sliders) uses debounce timers to avoid triggering full refreshes on every input.
 
-**通过判定标准**：
-- 搜索框输入使用防抖（如延迟 300ms 后触发搜索，期间输入重置计时器）
-- 滑块（`Slider`）拖动使用防抖或 `AnimationTimer` 节流
-- 高频事件（`textProperty` 变化、`valueProperty` 变化）不直接触发重型操作
+**Pass Criteria**:
+- Search box input uses debounce (e.g., trigger search after 300ms delay, resetting the timer on input during that period)
+- Slider (`Slider`) dragging uses debounce or `AnimationTimer` throttling
+- High-frequency events (`textProperty` changes, `valueProperty` changes) do not directly trigger heavy operations
 
-**不通过判定标准**（任一即不通过）：
-- 搜索框每次按键直接触发数据库查询或网络请求（无防抖）
-- `Slider.valueProperty` 每次变化直接触发重计算（无节流）
-- 高频事件处理器中执行重型操作（文件 I/O、数据库查询）
+**Fail Criteria** (any one constitutes failure):
+- Search box triggers database query or network request on every keystroke (no debounce)
+- `Slider.valueProperty` triggers recomputation on every change (no throttling)
+- Heavy operations (file I/O, database queries) in high-frequency event handlers
 
-**严重性基线**：Major
+**Severity Baseline**: Major
 
-**反例**：
+**Bad Example**:
 ```java
-// ❌ 每次按键都触发搜索，输入"hello"触发 5 次查询
+// Triggers search on every keystroke, typing "hello" triggers 5 queries
 searchField.textProperty().addListener((obs, old, text) -> {
-    List<Result> results = searchService.search(text);  // 每次按键查询
+    List<Result> results = searchService.search(text);  // Query on every keystroke
     resultsList.setAll(results);
 });
 ```
 
-**正例**：
+**Good Example**:
 ```java
-// ✅ 使用防抖，停止输入 300ms 后才触发搜索
+// Use debounce, search is triggered 300ms after input stops
 Timeline debounceTimer = new Timeline();
 searchField.textProperty().addListener((obs, old, text) -> {
     debounceTimer.stop();
@@ -118,165 +124,165 @@ searchField.textProperty().addListener((obs, old, text) -> {
 
 ---
 
-## 检查项 4：CSS 选择器效率
+## Check Item 4: CSS Selector Efficiency
 
-**关注点**：CSS 是否避免深层嵌套选择器、是否避免在循环中切换样式类。
+**Focus**: Whether CSS avoids deeply nested selectors, whether style class switching in loops is avoided.
 
-**通过判定标准**：
-- CSS 选择器简洁，避免深层嵌套（如 `.root .vbox .hbox .button`）
-- 使用样式类（`getStyleClass().add()`）切换样式，而非 `setStyle()` 内联
-- 不在循环中频繁 `getStyleClass().add()` / `remove()` 切换样式类
+**Pass Criteria**:
+- CSS selectors are concise, avoiding deep nesting (e.g., `.root .vbox .hbox .button`)
+- Style switching uses style classes (`getStyleClass().add()`) rather than `setStyle()` inline
+- No frequent `getStyleClass().add()` / `remove()` style class switching in loops
 
-**不通过判定标准**（任一即不通过）：
-- CSS 选择器深层嵌套（> 3 层），匹配开销大
-- 在循环中使用 `setStyle()` 设置内联样式（每次触发 CSS 重新计算）
-- 在循环中频繁切换 `styleClass`（每次切换触发 CSS 重新匹配）
+**Fail Criteria** (any one constitutes failure):
+- CSS selectors are deeply nested (> 3 levels), with high matching overhead
+- Using `setStyle()` to set inline styles in loops (triggers CSS recalculation each time)
+- Frequently switching `styleClass` in loops (each switch triggers CSS re-matching)
 
-**严重性基线**：Major
-- 降级条件：仅个别选择器略深，不影响整体性能 → Minor
+**Severity Baseline**: Major
+- De-escalation condition: Only individual selectors slightly deep, does not affect overall performance → Minor
 
-**反例**：
+**Bad Example**:
 ```java
-// ❌ 在循环中 setStyle，每次触发 CSS 重新计算
+// setStyle in loop, triggers CSS recalculation each time
 for (Node node : nodes) {
-    node.setStyle("-fx-background-color: #ff0000;");  // 内联样式，性能差
+    node.setStyle("-fx-background-color: #ff0000;");  // Inline style, poor performance
 }
 ```
 ```css
-/* ❌ 深层嵌套选择器 */
+/* Deeply nested selector */
 .root .content .panel .form .button { -fx-background-color: blue; }
 ```
 
-**正例**：
+**Good Example**:
 ```java
-// ✅ 使用样式类，CSS 中定义
+// Use style classes, defined in CSS
 for (Node node : nodes) {
-    node.getStyleClass().add("highlight");  // 批量添加样式类
+    node.getStyleClass().add("highlight");  // Batch add style class
 }
 ```
 ```css
-/* ✅ 简洁的选择器 */
+/* Concise selector */
 .highlight { -fx-background-color: #ff0000; }
 ```
 
 ---
 
-## 检查项 5：懒加载
+## Check Item 5: Lazy Loading
 
-**关注点**：重型视图 / 标签页是否使用懒加载，而非启动时全量初始化。
+**Focus**: Whether heavy views / tabs use lazy loading, rather than full initialization at startup.
 
-**通过判定标准**：
-- `Tab` / `TabPane` 的内容在首次切换到该 Tab 时才加载（懒加载）
-- 重型视图（图表、大表格）在需要显示时才创建
-- 启动时仅初始化主视图，子视图按需加载
+**Pass Criteria**:
+- `Tab` / `TabPane` content is loaded only when first switched to that Tab (lazy loading)
+- Heavy views (charts, large tables) are created only when needed for display
+- Only the main view is initialized at startup, sub-views are loaded on demand
 
-**不通过判定标准**（任一即不通过）：
-- 启动时全量初始化所有 Tab 内容（含未访问的 Tab）
-- 所有视图在 `start()` 中一次性加载到内存
-- 重型组件（如 `WebView`、大图表）在启动时创建但未立即显示
+**Fail Criteria** (any one constitutes failure):
+- Full initialization of all Tab content at startup (including unvisited Tabs)
+- All views loaded into memory at once in `start()`
+- Heavy components (e.g., `WebView`, large charts) created at startup but not immediately displayed
 
-**严重性基线**：Major
+**Severity Baseline**: Major
 
-**反例**：
+**Bad Example**:
 ```java
-// ❌ 启动时全量初始化所有 Tab 内容
+// Full initialization of all Tab content at startup
 TabPane tabPane = new TabPane();
 tabPane.getTabs().addAll(
-    createUsersTab(),      // 立即加载用户管理
-    createOrdersTab(),     // 立即加载订单管理
-    createReportsTab(),    // 立即加载报表（重型）
-    createSettingsTab()    // 立即加载设置
+    createUsersTab(),      // Immediately load user management
+    createOrdersTab(),     // Immediately load order management
+    createReportsTab(),    // Immediately load reports (heavy)
+    createSettingsTab()    // Immediately load settings
 );
 ```
 
-**正例**：
+**Good Example**:
 ```java
-// ✅ Tab 内容懒加载，首次切换时才创建
+// Tab content lazy loading, created on first switch
 TabPane tabPane = new TabPane();
-Tab usersTab = new Tab("用户管理");
+Tab usersTab = new Tab("User Management");
 usersTab.selectedProperty().addListener((obs, wasSel, isSel) -> {
     if (isSel && usersTab.getContent() == null) {
-        usersTab.setContent(createUsersTab());  // 首次切换时加载
+        usersTab.setContent(createUsersTab());  // Load on first switch
     }
 });
 ```
 
 ---
 
-## 检查项 6：布局计算
+## Check Item 6: Layout Computation
 
-**关注点**：是否在循环中调用 `layout()` / `requestLayout()`，是否避免不必要的 `autosize()`。
+**Focus**: Whether `layout()` / `requestLayout()` are called in loops, whether unnecessary `autosize()` is avoided.
 
-**通过判定标准**：
-- 不在循环中手动调用 `layout()` 或 `requestLayout()`
-- 依赖 JavaFX 自动布局传递，仅在必要时手动触发
-- 批量修改节点属性后一次性触发布局，而非每次修改后触发
+**Pass Criteria**:
+- No manual `layout()` or `requestLayout()` calls in loops
+- Rely on JavaFX automatic layout passes, only manually triggering when necessary
+- Trigger layout once after batch modifying node properties, rather than triggering after each modification
 
-**不通过判定标准**（任一即不通过）：
-- 在循环中调用 `layout()` 或 `requestLayout()`（每次迭代触发完整布局传递）
-- 不必要地调用 `autosize()`（JavaFX 会自动处理）
-- 在 `layoutChildren()` 中执行重型操作
+**Fail Criteria** (any one constitutes failure):
+- Calling `layout()` or `requestLayout()` in loops (each iteration triggers a full layout pass)
+- Unnecessarily calling `autosize()` (JavaFX handles this automatically)
+- Performing heavy operations in `layoutChildren()`
 
-**严重性基线**：Major
+**Severity Baseline**: Major
 
-**反例**：
+**Bad Example**:
 ```java
-// ❌ 循环中调用 requestLayout，每次迭代触发布局传递
+// Calling requestLayout in loop, triggers layout pass on each iteration
 for (Node node : nodes) {
     node.setPrefSize(100, 50);
-    node.requestLayout();  // 每次迭代都触发布局，性能极差
+    node.requestLayout();  // Triggers layout on each iteration, extremely poor performance
 }
 ```
 
-**正例**：
+**Good Example**:
 ```java
-// ✅ 批量修改后由 JavaFX 自动合并布局传递
+// After batch modifications, JavaFX automatically merges layout passes
 for (Node node : nodes) {
     node.setPrefSize(100, 50);
-    // 不手动调用 requestLayout，JavaFX 自动在下一次 pulse 中处理
+    // Do not manually call requestLayout, JavaFX automatically handles it in the next pulse
 }
 ```
 
 ---
 
-## 检查项 7：图片加载
+## Check Item 7: Image Loading
 
-**关注点**：大图是否使用后台线程加载并缩放，是否避免在 FX 线程解码大图。
+**Focus**: Whether large images are loaded and scaled on background threads, whether decoding large images on the FX thread is avoided.
 
-**通过判定标准**：
-- 大图在后台线程解码和缩放，完成后通过 `Platform.runLater()` 设置到 `ImageView`
-- 使用 `Image` 的后台加载构造器：`new Image(url, true)`（后台加载）
-- 大图缩放到显示尺寸后再设置，避免在内存中保存全分辨率图片
+**Pass Criteria**:
+- Large images are decoded and scaled on background threads, then set to `ImageView` via `Platform.runLater()` when complete
+- Using the `Image` background loading constructor: `new Image(url, true)` (background loading)
+- Large images are scaled to display size before setting, avoiding keeping full-resolution images in memory
 
-**不通过判定标准**（任一即不通过）：
-- 在 FX 线程上加载大图（如 `new Image("file:big-photo.jpg")` 同步加载），阻塞 UI
-- 加载大图后未缩放，在内存中保存全分辨率图片（内存浪费）
-- 在 `ImageView.setImage()` 前在 FX 线程解码
+**Fail Criteria** (any one constitutes failure):
+- Loading large images on the FX thread (e.g., `new Image("file:big-photo.jpg")` synchronous loading), blocking UI
+- Loading large images without scaling, keeping full-resolution images in memory (memory waste)
+- Decoding on the FX thread before `ImageView.setImage()`
 
-**严重性基线**：Major
+**Severity Baseline**: Major
 
-**反例**：
+**Bad Example**:
 ```java
-// ❌ 在 FX 线程同步加载大图，阻塞 UI
+// Synchronously loading a large image on the FX thread, blocking UI
 @FXML
 private void loadImage() {
-    Image image = new Image("file:/photos/large.jpg");  // 同步加载，阻塞
+    Image image = new Image("file:/photos/large.jpg");  // Synchronous load, blocks
     imageView.setImage(image);
 }
 ```
 
-**正例**：
+**Good Example**:
 ```java
-// ✅ 方式一：后台加载
-Image image = new Image("file:/photos/large.jpg", true);  // true = 后台加载
+// Option 1: Background loading
+Image image = new Image("file:/photos/large.jpg", true);  // true = background loading
 imageView.setImage(image);
 
-// ✅ 方式二：Task 后台解码 + 缩放
+// Option 2: Task background decoding + scaling
 Task<Image> loadTask = new Task<>() {
     @Override
     protected Image call() {
         Image full = new Image("file:/photos/large.jpg");
-        // 缩放到显示尺寸
+        // Scale to display size
         return scaleImage(full, 400, 300);
     }
 };
@@ -286,72 +292,72 @@ new Thread(loadTask).start();
 
 ---
 
-## 检查项 8：FilteredList 效率
+## Check Item 8: FilteredList Efficiency
 
-**关注点**：`FilteredList` 的 predicate 是否过于复杂，大数据量是否考虑索引优化。
+**Focus**: Whether the `FilteredList` predicate is overly complex, whether index optimization is considered for large datasets.
 
-**通过判定标准**：
-- `FilteredList` 的 predicate 逻辑简洁，无重型操作（无 I/O、无复杂计算）
-- 大数据量（> 10000）考虑使用索引或预过滤优化
-- predicate 不在每次评估时创建新对象
+**Pass Criteria**:
+- The `FilteredList` predicate logic is concise, with no heavy operations (no I/O, no complex computation)
+- Large datasets (> 10000) consider using indexes or pre-filtering optimization
+- The predicate does not create new objects on each evaluation
 
-**不通过判定标准**（任一即不通过）：
-- `FilteredList` 的 predicate 中执行数据库查询或文件 I/O
-- predicate 过于复杂（多重嵌套条件、正则匹配大量数据），导致过滤延迟
-- 大数据量未优化，每次输入变化都全量重新过滤
+**Fail Criteria** (any one constitutes failure):
+- The `FilteredList` predicate executes database queries or file I/O
+- The predicate is overly complex (multiple nested conditions, regex matching large datasets), causing filtering latency
+- Large datasets without optimization, fully re-filtering on every input change
 
-**严重性基线**：Major
-- 降级条件：数据量 < 1000 条 → Minor
+**Severity Baseline**: Major
+- De-escalation condition: Data volume < 1000 items → Minor
 
-**反例**：
+**Bad Example**:
 ```java
-// ❌ predicate 中执行重型正则匹配 + 数据库查询
+// Predicate executes heavy regex matching + database query
 FilteredList<User> filtered = new FilteredList<>(users);
 filtered.predicateProperty().bind(Bindings.createObjectBinding(() -> {
-    Pattern pattern = Pattern.compile(searchField.getText());  // 每次编译正则
+    Pattern pattern = Pattern.compile(searchField.getText());  // Compiles regex each time
     return user -> {
-        // predicate 中查数据库验证，极慢
+        // Database query in predicate, extremely slow
         return pattern.matcher(user.getName()).matches()
             && dbService.isActive(user.getId());
     };
 }, searchField.textProperty()));
 ```
 
-**正例**：
+**Good Example**:
 ```java
-// ✅ predicate 逻辑简洁，预编译正则，无 I/O
+// Predicate logic is concise, pre-compiled regex, no I/O
 FilteredList<User> filtered = new FilteredList<>(users);
 filtered.predicateProperty().bind(Bindings.createObjectBinding(() -> {
     String query = searchField.getText().toLowerCase();
-    if (query.isEmpty()) return null;  // 无过滤
-    return user -> user.getName().toLowerCase().contains(query);  // 纯内存操作
+    if (query.isEmpty()) return null;  // No filtering
+    return user -> user.getName().toLowerCase().contains(query);  // Pure memory operation
 }, searchField.textProperty()));
 ```
 
 ---
 
-## 检查项 9：绑定效率
+## Check Item 9: Binding Efficiency
 
-**关注点**：是否避免在循环中创建 `Bindings.createXxxBinding()`，计算绑定是否可用更高效的替代方案。
+**Focus**: Whether creating `Bindings.createXxxBinding()` in loops is avoided, whether computed bindings can use more efficient alternatives.
 
-**通过判定标准**：
-- 不在循环中创建 `Bindings.createXxxBinding()`（每次创建新绑定链，内存与 CPU 开销大）
-- 简单属性映射使用 `bind()` 直接绑定，而非 `createXxxBinding` 包装
-- 复杂计算绑定评估是否可用 `SelectBinding` / `ObjectBinding` 等更高效的 API
-- 绑定创建在初始化时一次性完成，而非每次事件触发时重建
+**Pass Criteria**:
+- No creating `Bindings.createXxxBinding()` in loops (each creation builds a new binding chain, with high memory and CPU overhead)
+- Simple property mapping uses `bind()` direct binding, rather than `createXxxBinding` wrapping
+- Complex computed bindings evaluate whether more efficient APIs like `SelectBinding` / `ObjectBinding` can be used
+- Binding creation is done once at initialization, rather than rebuilt on each event trigger
 
-**不通过判定标准**（任一即不通过）：
-- 在循环或高频事件中创建 `Bindings.createXxxBinding()`（绑定链累积）
-- 简单的双属性映射使用 `createXxxBinding` 而非直接 `bind` / `add` / `subtract`
-- 绑定依赖项过多（> 5 个），导致每次任一依赖变化都全量重算
+**Fail Criteria** (any one constitutes failure):
+- Creating `Bindings.createXxxBinding()` in loops or high-frequency events (binding chains accumulate)
+- Simple two-property mapping uses `createXxxBinding` instead of direct `bind` / `add` / `subtract`
+- Too many binding dependencies (> 5), causing full recomputation on any dependency change
 
-**严重性基线**：Major
+**Severity Baseline**: Major
 
-> **补充规则**：绑定效率的详细判定标准与正反例参见 `binding-compliance.md — 绑定效率规则`。
+> **Supplementary Rule**: For detailed binding efficiency criteria and good/bad examples, see `binding-compliance.md - Binding Efficiency Rules`.
 
-**反例**：
+**Bad Example**:
 ```java
-// ❌ 在循环中创建绑定，每次迭代新建绑定链
+// Creating bindings in a loop, each iteration builds a new binding chain
 for (Item item : items) {
     Label label = new Label();
     label.textProperty().bind(Bindings.createStringBinding(
@@ -359,14 +365,14 @@ for (Item item : items) {
         item.nameProperty(), item.countProperty()));
     container.getChildren().add(label);
 }
-// 若 items 频繁变化，绑定链不断累积，内存泄漏 + 性能下降
+// If items change frequently, binding chains accumulate, memory leak + performance degradation
 ```
 
-**正例**：
+**Good Example**:
 ```java
-// ✅ 简单映射使用 Bindings.concat 或直接算术绑定
+// Simple mapping uses Bindings.concat or direct arithmetic binding
 label.textProperty().bind(
     item.nameProperty().concat(" (").concat(item.countProperty().asString()).concat(")")
 );
-// 或在 CellFactory 中复用单元格，仅 updateItem 时更新文本
+// Or reuse cells in CellFactory, only updating text on updateItem
 ```

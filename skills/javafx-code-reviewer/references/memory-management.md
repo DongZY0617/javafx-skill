@@ -1,44 +1,44 @@
-# 内存管理规则
+﻿# Memory Management Rules
 
-本文档是"内存泄漏风险"维度的判定依据，管辖 7 个检查项（对应设计书 3.4 节）。审查监听器、绑定、静态引用等是否存在泄漏风险。此维度违规默认为 Critical。与 `javafx-developer` 的 `data-binding-patterns.md` 同源，绑定释放的详细规则参见跨维度文档 `binding-compliance.md`。
+This document is the criteria for the "Memory Leak Risks" dimension, governing 7 check items (corresponding to design spec section 3.4). It reviews whether listeners, bindings, static references, and other constructs pose leak risks. Violations in this dimension default to Critical. Shares the same origin as `javafx-developer`'s `data-binding-patterns.md`; for detailed binding disposal rules, see the cross-dimension document `binding-compliance.md`.
 
-> **核心风险**：JavaFX 的事件监听和绑定机制是内存泄漏的高发区。监听器注册后会持有目标对象的引用，若不在视图销毁时移除，将导致旧 Controller 无法被 GC，持续接收事件并占用内存。
+> **Core Risk**: JavaFX's event listener and binding mechanisms are high-incidence areas for memory leaks. After a listener is registered, it holds a reference to the target object; if not removed when the view is destroyed, the old Controller cannot be GC'd, continues receiving events, and occupies memory.
 
 ---
 
-## 检查项 1：监听器移除
+## Check Item 1: Listener Removal
 
-**关注点**：通过 `addListener()` 注册的 `ChangeListener` / `ListChangeListener` 是否在视图销毁时通过 `removeListener()` 移除。
+**Focus**: Whether `ChangeListener` / `ListChangeListener` registered via `addListener()` are removed via `removeListener()` when the view is destroyed.
 
-**通过判定标准**：
-- 所有通过 `addListener()` 注册的监听器在视图销毁时通过 `removeListener()` 移除
-- 监听器引用保存为字段，确保移除的是同一实例
-- 移除操作在 `setOnCloseRequest`、视图切换回调或自定义 `dispose()` 方法中执行
+**Pass Criteria**:
+- All listeners registered via `addListener()` are removed via `removeListener()` when the view is destroyed
+- Listener references are saved as fields, ensuring the same instance is removed
+- Removal is performed in `setOnCloseRequest`, view-switching callbacks, or a custom `dispose()` method
 
-**不通过判定标准**（任一即不通过）：
-- 注册了 `ChangeListener` / `ListChangeListener` 但无对应的 `removeListener()` 调用
-- 使用匿名 lambda 注册监听器且未保存引用，导致无法移除
-- 视图切换 / Stage 关闭时未执行监听器清理
+**Fail Criteria** (any one constitutes failure):
+- Registered `ChangeListener` / `ListChangeListener` with no corresponding `removeListener()` call
+- Registered listeners using anonymous lambdas without saving references, making removal impossible
+- No listener cleanup performed during view switching / Stage closing
 
-**严重性基线**：Critical
-- 降级条件：监听对象生命周期与 Controller 相同（同生共灭）→ Major
-- 升级条件：已致 OOM 或内存持续增长可复现 → 保持 Critical
+**Severity Baseline**: Critical
+- De-escalation condition: Listener object lifecycle is the same as the Controller (co-terminus) → Major
+- Escalation condition: Has caused OOM or reproducible memory growth → remain Critical
 
-**反例**：
+**Bad Example**:
 ```java
-// ❌ 注册监听器但无清理方法，视图切换后旧 Controller 无法 GC
+// Registered listener but no cleanup method, old Controller cannot be GC'd after view switching
 public class DetailController implements Initializable {
     @Override
     public void initialize(URL location, ResourceBundle resources) {
         model.addItemListener((ListChangeListener<Item>) c -> updateView());
-        // 无 removeListener，无 dispose，无 setOnCloseRequest
+        // No removeListener, no dispose, no setOnCloseRequest
     }
 }
 ```
 
-**正例**：
+**Good Example**:
 ```java
-// ✅ 保存监听器引用，在 dispose() 中移除
+// Save listener reference, remove in dispose()
 public class DetailController implements Initializable {
     private ListChangeListener<Item> itemListener;
 
@@ -48,50 +48,56 @@ public class DetailController implements Initializable {
         model.getItems().addListener(itemListener);
     }
 
-    /** 视图销毁时调用，移除监听器 */
+    /** Called when the view is destroyed, removes the listener */
     public void dispose() {
         model.getItems().removeListener(itemListener);
     }
 }
-// 在视图切换回调中：oldController.dispose();
+// In view-switching callback: oldController.dispose();
 ```
+
+> **Runtime Verification Required**
+> - Static analysis cannot determine if OOM has occurred or memory is growing
+> - Runner check: `runtime-verification.md` #6 (Thread Safety) and `test-verification.md` #2 (Test Execution) — runtime tests can detect memory growth patterns
+> - If static result is uncertain (OOM risk unclear), trigger runner runtime verification to confirm
+> - Runner finding supersedes static heuristic when conflicting
 
 ---
 
-## 检查项 2：Binding 释放
+## Check Item 2: Binding Disposal
 
-**关注点**：`Bindings.createXxxBinding()` 返回的 Binding 对象在不需要时是否调用 `dispose()`。
+**Focus**: Whether Binding objects returned by `Bindings.createXxxBinding()` call `dispose()` when no longer needed.
 
-**通过判定标准**：
-- 通过 `Bindings.createXxxBinding()` 创建的 Binding 对象保存为字段，在视图销毁时调用 `dispose()`
-- 短生命周期视图（对话框、弹出窗口）中的 Binding 在关闭时释放
-- 使用 `bind()` 建立的单向绑定，在视图销毁时调用 `unbind()`
+**Pass Criteria**:
+- Binding objects created via `Bindings.createXxxBinding()` are saved as fields and `dispose()` is called when the view is destroyed
+- Bindings in short-lived views (dialogs, popups) are released when closed
+- One-way bindings established via `bind()` call `unbind()` when the view is destroyed
 
-**不通过判定标准**（任一即不通过）：
-- `Bindings.createXxxBinding()` 创建的 Binding 未保存引用，无法 `dispose()`
-- 长生命周期视图中反复创建 Binding 但不释放，导致绑定链累积
-- 视图销毁时未释放已创建的 Binding
+**Fail Criteria** (any one constitutes failure):
+- Bindings created via `Bindings.createXxxBinding()` are not saved as references, making `dispose()` impossible
+- Bindings are repeatedly created in long-lived views without release, causing binding chains to accumulate
+- Created Bindings are not released when the view is destroyed
 
-**严重性基线**：Critical
-- 降级条件：短生命周期视图（如对话框）→ Major
-- 升级条件：长生命周期视图（主窗口）且绑定数量多 → 保持 Critical
+**Severity Baseline**: Critical
+- De-escalation condition: Short-lived view (e.g., dialog) → Major
+- Escalation condition: Long-lived view (main window) with many bindings → remain Critical
 
-> **补充规则**：绑定释放的详细判定标准与正反例参见 `binding-compliance.md — 绑定释放规则`。
+> **Supplementary Rule**: For detailed binding disposal criteria and good/bad examples, see `binding-compliance.md - Binding Disposal Rules`.
 
-**反例**：
+**Bad Example**:
 ```java
-// ❌ 每次刷新都创建新 Binding 但不释放，绑定链累积
+// Creates a new Binding on every refresh without releasing, binding chain accumulates
 @FXML
 private void handleRefresh() {
-    // 每次创建新 Binding，旧的不释放
+    // Creates a new Binding each time, old ones not released
     label.textProperty().bind(Bindings.createStringBinding(
         () -> computeLabel(), model.nameProperty(), model.ageProperty()));
 }
 ```
 
-**正例**：
+**Good Example**:
 ```java
-// ✅ 保存 Binding 引用，dispose 时释放
+// Save Binding reference, release on dispose
 private StringBinding labelBinding;
 
 @Override
@@ -109,38 +115,38 @@ public void dispose() {
 
 ---
 
-## 检查项 3：弱引用使用
+## Check Item 3: Weak Reference Usage
 
-**关注点**：长生命周期对象上的监听器是否考虑使用 `WeakChangeListener` / `WeakListChangeListener`。
+**Focus**: Whether listeners on long-lived objects consider using `WeakChangeListener` / `WeakListChangeListener`.
 
-**通过判定标准**：
-- 长生命周期对象（全局 Model、单例 Service）上注册的监听器使用 `WeakChangeListener` / `WeakListChangeListener`
-- 或确保在短生命周期 Controller 销毁时显式 `removeListener`
-- 使用弱引用监听器时，保持对原始监听器的强引用（防止被过早 GC）
+**Pass Criteria**:
+- Listeners registered on long-lived objects (global Model, singleton Service) use `WeakChangeListener` / `WeakListChangeListener`
+- Or ensure explicit `removeListener` when the short-lived Controller is destroyed
+- When using weak reference listeners, maintain a strong reference to the original listener (to prevent premature GC)
 
-**不通过判定标准**（任一即不通过）：
-- 在长生命周期对象上注册普通（非弱引用）监听器且无移除机制
-- 使用 `WeakChangeListener` 但未保持对原始监听器的强引用，导致监听器被过早回收失效
+**Fail Criteria** (any one constitutes failure):
+- Registering regular (non-weak) listeners on long-lived objects with no removal mechanism
+- Using `WeakChangeListener` but not maintaining a strong reference to the original listener, causing the listener to be prematurely reclaimed and become ineffective
 
-**严重性基线**：Major
+**Severity Baseline**: Major
 
-**反例**：
+**Bad Example**:
 ```java
-// ❌ 在全局 Model（长生命周期）上注册普通监听器，无移除机制
+// Registering a regular listener on a global Model (long-lived) with no removal mechanism
 public class GlobalModel {
     private static final GlobalModel INSTANCE = new GlobalModel();
     // ...
 }
-// Controller 中
+// In Controller
 GlobalModel.getInstance().addListener((ChangeListener<String>) (obs, old, val) -> {
-    updateView();  // 普通监听器，Controller 销毁后仍被 Model 持有
+    updateView();  // Regular listener, still held by Model after Controller is destroyed
 });
 ```
 
-**正例**：
+**Good Example**:
 ```java
-// ✅ 使用 WeakChangeListener 包装
-private ChangeListener<String> strongRef;  // 保持强引用防止过早 GC
+// Wrap with WeakChangeListener
+private ChangeListener<String> strongRef;  // Maintain strong reference to prevent premature GC
 
 @Override
 public void initialize(URL location, ResourceBundle resources) {
@@ -152,43 +158,43 @@ public void initialize(URL location, ResourceBundle resources) {
 
 ---
 
-## 检查项 4：静态引用排查
+## Check Item 4: Static Reference Detection
 
-**关注点**：静态字段是否持有 UI 组件（`Stage`、`Node`）引用，导致无法 GC。
+**Focus**: Whether static fields hold references to UI components (`Stage`, `Node`), preventing GC.
 
-**通过判定标准**：
-- 静态字段不持有 UI 组件（`Stage`、`Node`、`Scene`、`Control`）的强引用
-- 如需全局访问 UI 组件，使用 `WeakReference` 或 `ObjectProperty<T>` 并在适当时机清除
-- 静态字段仅持有无状态的工具对象、配置常量等
+**Pass Criteria**:
+- Static fields do not hold strong references to UI components (`Stage`, `Node`, `Scene`, `Control`)
+- If global access to UI components is needed, use `WeakReference` or `ObjectProperty<T>` and clear at the appropriate time
+- Static fields only hold stateless utility objects, configuration constants, etc.
 
-**不通过判定标准**（任一即不通过）：
-- `static` 字段持有 `Stage`、`Node`、`Control` 等 UI 组件引用
-- 静态集合中缓存 UI 组件且无清除机制
-- 单例类持有 UI 组件引用且单例生命周期长于 UI 组件
+**Fail Criteria** (any one constitutes failure):
+- `static` fields hold references to UI components such as `Stage`, `Node`, `Control`
+- Static collections cache UI components without a clearing mechanism
+- Singleton classes hold UI component references and the singleton lifecycle is longer than the UI component
 
-**严重性基线**：Critical（不可降级）
+**Severity Baseline**: Critical (cannot be de-escalated)
 
-**反例**：
+**Bad Example**:
 ```java
-// ❌ 静态字段持有 Stage 引用，Stage 关闭后仍被静态引用保持，无法 GC
+// Static field holding Stage reference, after Stage is closed it is still retained by the static reference, cannot be GC'd
 public class StageManager {
     private static Stage mainStage;
 
     public static void setMainStage(Stage stage) {
-        mainStage = stage;  // 静态引用泄漏
+        mainStage = stage;  // Static reference leak
     }
 }
 ```
 
-**正例**：
+**Good Example**:
 ```java
-// ✅ 方式一：改为实例字段
+// Option 1: Change to instance field
 public class StageManager {
-    private Stage mainStage;  // 实例字段，随 Manager 一起回收
+    private Stage mainStage;  // Instance field, reclaimed together with Manager
     public void setMainStage(Stage stage) { this.mainStage = stage; }
 }
 
-// ✅ 方式二：使用 WeakReference
+// Option 2: Use WeakReference
 public class StageManager {
     private static WeakReference<Stage> mainStageRef;
     public static void setMainStage(Stage stage) {
@@ -196,7 +202,7 @@ public class StageManager {
     }
 }
 
-// ✅ 方式三：使用 ObjectProperty 并在关闭时清除
+// Option 3: Use ObjectProperty and clear on close
 public class StageManager {
     private static final ObjectProperty<Stage> mainStage = new SimpleObjectProperty<>();
     public static ObjectProperty<Stage> mainStageProperty() { return mainStage; }
@@ -206,37 +212,37 @@ public class StageManager {
 
 ---
 
-## 检查项 5：匿名内部类
+## Check Item 5: Anonymous Inner Classes
 
-**关注点**：事件处理器匿名内部类是否隐式持有外部 Controller 引用，导致泄漏。
+**Focus**: Whether event handler anonymous inner classes implicitly hold outer Controller references, causing leaks.
 
-**通过判定标准**：
-- 匿名内部类 / lambda 捕获的外部引用在 Controller 销毁时可被释放
-- 事件处理器通过 `setOnXxx(null)` 清除，或在 `dispose()` 中解绑
-- 长生命周期对象上的匿名监听器使用弱引用或显式移除
+**Pass Criteria**:
+- Outer references captured by anonymous inner classes / lambdas can be released when the Controller is destroyed
+- Event handlers are cleared via `setOnXxx(null)` or unbound in `dispose()`
+- Anonymous listeners on long-lived objects use weak references or explicit removal
 
-**不通过判定标准**（任一即不通过）：
-- 在长生命周期对象上注册匿名内部类监听器且无移除机制（匿名内部类隐式持有外部类 `this` 引用）
-- 事件处理器注册到外部长生命周期对象但未在视图销毁时清除
+**Fail Criteria** (any one constitutes failure):
+- Registering anonymous inner class listeners on long-lived objects with no removal mechanism (anonymous inner classes implicitly hold the outer class `this` reference)
+- Event handlers registered to external long-lived objects but not cleared when the view is destroyed
 
-**严重性基线**：Major
+**Severity Baseline**: Major
 
-**反例**：
+**Bad Example**:
 ```java
-// ❌ 在长生命周期的 EventBus 上注册匿名监听器，隐式持有 Controller
+// Registering an anonymous listener on a long-lived EventBus, implicitly holding Controller
 public class MyController implements Initializable {
     @Override
     public void initialize(URL location, ResourceBundle resources) {
-        // 匿名 lambda 隐式持有 this（MyController），EventBus 持有 lambda → Controller 无法 GC
+        // Anonymous lambda implicitly holds this (MyController), EventBus holds lambda -> Controller cannot be GC'd
         GlobalEventBus.subscribe(UserUpdatedEvent.class, e -> refreshView());
     }
-    // 无 unsubscribe
+    // No unsubscribe
 }
 ```
 
-**正例**：
+**Good Example**:
 ```java
-// ✅ 保存监听器引用，dispose 时注销
+// Save listener reference, unsubscribe on dispose
 public class MyController implements Initializable {
     private Consumer<UserUpdatedEvent> handler;
 
@@ -254,26 +260,26 @@ public class MyController implements Initializable {
 
 ---
 
-## 检查项 6：Stage 关闭清理
+## Check Item 6: Stage Close Cleanup
 
-**关注点**：`setOnCloseRequest` 或视图切换回调中是否执行资源清理。
+**Focus**: Whether `setOnCloseRequest` or view-switching callbacks perform resource cleanup.
 
-**通过判定标准**：
-- `Stage.setOnCloseRequest()` 或 `setOnHiding()` 中执行资源清理
-- 视图切换时通过回调调用旧 Controller 的 `dispose()` 方法
-- 清理内容包括：停止 `Timeline` / `Animation`、关闭流、释放绑定、移除监听器
-- `ScheduledService` 在视图销毁时 `cancel()`
+**Pass Criteria**:
+- `Stage.setOnCloseRequest()` or `setOnHiding()` performs resource cleanup
+- View switching calls the old Controller's `dispose()` method via callback
+- Cleanup includes: stopping `Timeline` / `Animation`, closing streams, releasing bindings, removing listeners
+- `ScheduledService` is `cancel()`-ed when the view is destroyed
 
-**不通过判定标准**（任一即不通过）：
-- Stage 关闭或视图切换时未执行任何资源清理
-- 运行中的 `Timeline` / `Animation` / `ScheduledService` 未停止
-- 打开的文件流 / 数据库连接未关闭
+**Fail Criteria** (any one constitutes failure):
+- No resource cleanup performed when the Stage is closed or view is switched
+- Running `Timeline` / `Animation` / `ScheduledService` not stopped
+- Open file streams / database connections not closed
 
-**严重性基线**：Critical
+**Severity Baseline**: Critical
 
-**反例**：
+**Bad Example**:
 ```java
-// ❌ Stage 关闭时无清理逻辑，Timeline 持续运行
+// No cleanup logic on Stage close, Timeline keeps running
 public class DashboardController implements Initializable {
     private Timeline timeline;
     @Override
@@ -282,13 +288,13 @@ public class DashboardController implements Initializable {
         timeline.setCycleCount(Animation.INDEFINITE);
         timeline.play();
     }
-    // 无 setOnCloseRequest 清理，Stage 关闭后 timeline 仍在运行
+    // No setOnCloseRequest cleanup, timeline still running after Stage is closed
 }
 ```
 
-**正例**：
+**Good Example**:
 ```java
-// ✅ Stage 关闭时停止 Timeline 并释放资源
+// Stop Timeline and release resources on Stage close
 public class DashboardController implements Initializable {
     private Timeline timeline;
 
@@ -301,46 +307,46 @@ public class DashboardController implements Initializable {
 
     public void dispose() {
         if (timeline != null) timeline.stop();
-        // 其他清理：移除监听器、释放绑定等
+        // Other cleanup: remove listeners, release bindings, etc.
     }
 }
-// 在 Application 或父控制器中
+// In Application or parent controller
 stage.setOnCloseRequest(e -> dashboardController.dispose());
-// 或视图切换时
+// Or on view switching
 oldController.dispose();
 ```
 
 ---
 
-## 检查项 7：双向绑定解绑
+## Check Item 7: Bidirectional Binding Unbinding
 
-**关注点**：`bindBidirectional()` 建立的绑定在视图销毁时是否调用 `unbindBidirectional()`。
+**Focus**: Whether bindings established by `bindBidirectional()` call `unbindBidirectional()` when the view is destroyed.
 
-**通过判定标准**：
-- 通过 `bindBidirectional()` 建立的双向绑定在视图销毁时调用 `unbindBidirectional()`
-- 双向绑定涉及的两个属性在视图销毁后不再相互影响
-- 自定义 `StringConverter`（双向绑定常用）无状态泄漏
+**Pass Criteria**:
+- Bidirectional bindings established via `bindBidirectional()` call `unbindBidirectional()` when the view is destroyed
+- The two properties involved in the bidirectional binding no longer affect each other after the view is destroyed
+- Custom `StringConverter` (commonly used in bidirectional bindings) has no state leaks
 
-**不通过判定标准**（任一即不通过）：
-- 使用 `bindBidirectional()` 但在视图销毁时未调用 `unbindBidirectional()`
-- 视图销毁后双向绑定仍生效，导致已关闭视图的属性被意外修改
+**Fail Criteria** (any one constitutes failure):
+- Using `bindBidirectional()` but not calling `unbindBidirectional()` when the view is destroyed
+- Bidirectional binding still in effect after the view is destroyed, causing properties of the closed view to be unexpectedly modified
 
-**严重性基线**：Critical
-- 降级条件：短生命周期视图（如对话框）→ Major
+**Severity Baseline**: Critical
+- De-escalation condition: Short-lived view (e.g., dialog) → Major
 
-**反例**：
+**Bad Example**:
 ```java
-// ❌ 双向绑定建立后无解绑
+// Bidirectional binding established but no unbinding
 @Override
 public void initialize(URL location, ResourceBundle resources) {
     nameField.textProperty().bindBidirectional(viewModel.nameProperty());
     ageField.textProperty().bindBidirectional(viewModel.ageProperty(),
         new NumberStringConverter());
-    // 无 unbindBidirectional，视图销毁后绑定仍生效
+    // No unbindBidirectional, binding still in effect after view is destroyed
 }
 ```
 
-**正例**：
+**Good Example**:
 ```java
 @Override
 public void initialize(URL location, ResourceBundle resources) {
@@ -350,7 +356,7 @@ public void initialize(URL location, ResourceBundle resources) {
 }
 
 public void dispose() {
-    // ✅ 视图销毁时解绑双向绑定
+    // Unbind bidirectional bindings when the view is destroyed
     nameField.textProperty().unbindBidirectional(viewModel.nameProperty());
     ageField.textProperty().unbindBidirectional(viewModel.ageProperty());
 }

@@ -1,10 +1,11 @@
----
-name: javafx-code-reviewer
+﻿---
+name: javafx-code-reviewer-en
 description: |
-  JavaFX 代码专业审核技能，依据官方规范与最佳实践对 JavaFX 代码
-  执行全面评审，涵盖代码结构、UI 线程安全、FXML 规范、内存泄漏
-  及性能表现。触发条件：审核 JavaFX 代码、检查 FXML 规范、
-  排查内存泄漏、评估性能、审查线程安全或代码合规性。
+  Professional JavaFX code review skill that performs comprehensive reviews of JavaFX
+  code based on official specifications and best practices, covering code structure,
+  UI thread safety, FXML standards, memory leaks, and performance. Invoke when:
+  reviewing JavaFX code, checking FXML standards, troubleshooting memory leaks,
+  evaluating performance, or auditing thread safety and code compliance.
 license: Apache-2.0
 compatibility: Requires JDK 17+. Supports JavaFX 17/21/24/25/26.
 metadata:
@@ -14,305 +15,381 @@ metadata:
 
 # JavaFX Code Reviewer
 
-你是一名专业的 JavaFX 代码审核专家。本技能依据 JavaFX 官方规范与最佳实践，对 JavaFX 代码执行全面、专业的评审，覆盖代码结构合理性、UI 线程安全性、FXML 使用规范、内存泄漏风险、性能表现及深度合规审核六大维度。
+You are a professional JavaFX code review expert. This skill performs comprehensive, professional reviews of JavaFX code based on official JavaFX specifications and best practices, covering six review dimensions: Code Structure, UI Thread Safety, FXML Standards, Memory Leak Risks, Performance, and Deep Compliance Audit.
 
-## 适用场景
+## When to Apply
 
-在以下场景使用本技能：
-- 用户要求审核 / review / 检查 JavaFX 代码
-- 用户提交 JavaFX 代码并询问"有什么问题"
-- 用户要求检查 FXML 规范、线程安全、内存泄漏
-- 用户要求评估 JavaFX 应用性能
-- 用户要求审查 JavaFX 代码合规性 / 最佳实践
-- 用户在 JavaFX 应用上线前要求代码体检
+Use this skill when:
+- User asks to review / check JavaFX code
+- User submits JavaFX code and asks "what are the issues"
+- User asks to check FXML standards, thread safety, or memory leaks
+- User asks to evaluate JavaFX application performance
+- User asks to audit JavaFX code compliance / best practices
+- User requests a code health check before shipping a JavaFX application
 
-### 与 javafx-developer 的触发消解
+### Trigger Resolution with javafx-developer
 
-当用户请求同时匹配 `javafx-developer`（"创建/构建/打包 JavaFX"）和 `javafx-code-reviewer`（"审核/检查/review/有什么问题/体检"）时，按以下规则消解：
+When a user request matches both `javafx-developer` ("create/build/package JavaFX") and `javafx-code-reviewer` ("review/check/what are the issues/health check"), resolve using the following rules:
 
-- **审核意图优先**：请求中含 *review / 审核 / 检查 / 排查 / 体检 / 有什么问题 / 合规* 等关键词时，优先匹配本技能
-- **建设意图归 developer**：请求中含 *创建 / 构建 / 生成 / 打包 / 搭建* 等关键词时，优先匹配 `javafx-developer`
-- **混合意图分步**：用户要求"生成代码并审核"时，先由 developer 生成，再由本技能审核，分两步执行
-- **歧义兜底**：无法明确判断时，向用户确认意图后再选择技能
+- **Review intent takes priority**: When the request contains keywords such as *review / check / audit / troubleshoot / health check / what are the issues / compliance*, match this skill first
+- **Build intent goes to developer**: When the request contains keywords such as *create / build / generate / package / scaffold*, match `javafx-developer` first
+- **Mixed intent split into steps**: When the user asks to "generate code and review it", first have developer generate the code, then have this skill review it, executing in two steps
+- **Ambiguity fallback**: When the intent cannot be clearly determined, confirm the intent with the user before selecting a skill
 
-## 评审维度
+## Review Dimensions
 
-本技能对 JavaFX 代码执行六大维度的全面评审。每个维度包含若干检查项，每项均有明确的通过 / 不通过判定标准。
+This skill performs a comprehensive review of JavaFX code across six dimensions. Each dimension contains several check items, each with explicit pass/fail criteria.
 
-### 0. 维度与参考文档映射
+### 0. Dimension-to-Reference Document Mapping
 
-六大评审维度与 `references/` 参考文档的对应关系如下，确保步骤 2"维度扫描"能精准加载判定依据：
+The correspondence between the six review dimensions and the `references/` documents is shown below, ensuring that Step 2 "Dimension Scanning" can precisely load the criteria:
 
-| 评审维度 | 主参考文档 | 补充参考 | 与 developer 对应文档 |
-|---------|-----------|---------|---------------------|
-| 代码结构合理性 | `structure-review.md` | — | `architecture-patterns.md` |
-| UI 线程安全性 | `thread-safety-rules.md` | — | 架构规则 · 线程安全条目 |
-| FXML 使用规范 | `fxml-standards.md` | — | 质量清单 · fx:id 条目 |
-| 内存泄漏风险 | `memory-management.md` | `binding-compliance.md`（绑定释放） | `data-binding-patterns.md` |
-| 性能表现 | `performance-guide.md` | `binding-compliance.md`（绑定效率） | — |
-| 深度合规审核 | `compliance-rules.md` / `security-checklist.md` / `css-compliance.md` | `binding-compliance.md`（Properties null） | 编码/架构/安全规则 + `css-best-practices.md` |
+| Review Dimension | Primary Reference | Supplementary Reference | Corresponding developer Document |
+|------------------|-------------------|-------------------------|----------------------------------|
+| Code Structure | `structure-review.md` | - | `architecture-patterns.md` |
+| UI Thread Safety | `thread-safety-rules.md` | - | Architecture rules · Thread safety items |
+| FXML Standards | `fxml-standards.md` | - | Quality checklist · fx:id items |
+| Memory Leak Risks | `memory-management.md` | `binding-compliance.md` (binding disposal) | `data-binding-patterns.md` |
+| Performance | `performance-guide.md` | `binding-compliance.md` (binding efficiency) | - |
+| Deep Compliance Audit | `compliance-rules.md` / `security-checklist.md` / `css-compliance.md` | `binding-compliance.md` (Properties null safety) | Coding/architecture/security rules + `css-best-practices.md` |
 
-### 1. 代码结构合理性
+### 1. Code Structure
 
-审查代码的架构分层是否清晰、职责划分是否合理、包结构是否规范。默认严重性基线：Major。
+Reviews whether the architectural layering is clear, responsibilities are properly divided, and package structure is standardized. Default severity baseline: Major.
 
-**检查项**：
-- **架构模式合规性**：MVC / MVVM / MVP 分层是否清晰，View 层是否混入业务逻辑，Controller 是否仅处理 UI 事件
-- **职责单一性**：Controller 是否承担过多职责（上帝类），Service 层是否被正确委托
-- **包结构规范**：`model / view / controller / viewmodel / service` 分层是否一致，包路径与目录结构是否匹配
-- **模块化配置**：`module-info.java` 的 `requires` / `exports` / `opens` 是否完整正确（特别是 `opens model to javafx.controls` 支持 `PropertyValueFactory` 反射）
-- **依赖方向**：是否存在循环依赖，View 层是否反向依赖 Controller 实现细节
+**Check Items**:
+- **Architecture pattern compliance**: Whether MVC / MVVM / MVP layering is clear, whether the View layer mixes in business logic, whether Controllers only handle UI events
+- **Single responsibility**: Whether a Controller bears too many responsibilities (God class), whether the Service layer is properly delegated to
+- **Package structure conventions**: Whether `model / view / controller / viewmodel / service` layering is consistent, whether package paths match directory structure
+- **Module configuration**: Whether `module-info.java` `requires` / `exports` / `opens` are complete and correct (especially `opens model to javafx.controls` to support `PropertyValueFactory` reflection)
+- **Dependency direction**: Whether circular dependencies exist, whether the View layer reversely depends on Controller implementation details
 
-### 2. UI 线程安全性
+### 2. UI Thread Safety
 
-审查所有 UI 操作是否在 JavaFX Application Thread 上执行，后台任务是否正确处理。此维度违规默认为 Critical。
+Reviews whether all UI operations execute on the JavaFX Application Thread and whether background tasks are handled correctly. Violations in this dimension default to Critical.
 
-**检查项**：
-- **FX 线程更新**：所有 UI 组件更新（`setText`、`setItems`、`setVisible` 等）是否在 JavaFX Application Thread 执行
-- **后台任务封装**：耗时操作是否使用 `Task<T>` 或 `Service` 封装，而非直接在事件处理器中阻塞
-- **Platform.runLater 正确性**：后台线程回 UI 线程是否使用 `Platform.runLater()`，是否存在过度调用导致性能问题
-- **阻塞调用排查**：FX 线程上是否存在 `Thread.sleep`、同步 I/O、网络请求等阻塞操作
-- **并发数据访问**：跨线程共享数据是否使用 `synchronized` 或并发集合；`ObservableList` 的修改是否始终在 FX 线程执行（ObservableList 非线程安全，跨线程修改必须通过 `Platform.runLater` 回到 FX 线程）
-- **ScheduledService 使用**：定时任务是否使用 `ScheduledService` 而非 `java.util.Timer`
+**Check Items**:
+- **FX thread updates**: Whether all UI component updates (`setText`, `setItems`, `setVisible`, etc.) execute on the JavaFX Application Thread
+- **Background task encapsulation**: Whether time-consuming operations use `Task<T>` or `Service` encapsulation, rather than blocking directly in event handlers
+- **Platform.runLater correctness**: Whether background threads returning to the UI thread use `Platform.runLater()`, whether excessive calls cause performance issues
+- **Blocking call detection**: Whether `Thread.sleep`, synchronous I/O, network requests, or other blocking operations exist on the FX thread
+- **Concurrent data access**: Whether cross-thread shared data uses `synchronized` or concurrent collections; whether `ObservableList` modifications always execute on the FX thread (ObservableList is not thread-safe; cross-thread modifications must return to the FX thread via `Platform.runLater`)
+- **ScheduledService usage**: Whether scheduled tasks use `ScheduledService` rather than `java.util.Timer`
 
-> **典型违规示例**：`new Thread(() -> label.setText("done")).start();` — 后台线程直接更新 UI，将抛出 `IllegalStateException: Not on FX application thread`。
+> **Typical violation**: `new Thread(() -> label.setText("done")).start();` - a background thread directly updating UI will throw `IllegalStateException: Not on FX application thread`.
 
-### 3. FXML 使用规范
+### 3. FXML Standards
 
-审查 FXML 文件与 Controller 的映射关系、资源加载方式及标记使用是否规范。默认严重性基线：Major。
+Reviews the mapping between FXML files and Controllers, resource loading methods, and markup usage. Default severity baseline: Major.
 
-**检查项**：
-- **fx:id 匹配**：FXML 中每个 `fx:id` 是否在 Controller 中有对应的 `@FXML` 字段，反之亦然
-- **控制器映射**：`fx:controller` 路径是否正确指向 Controller 全限定类名
-- **脚本禁止**：FXML 中是否使用 `<fx:script>`（应禁止，逻辑须在 Controller 中）
-- **事件处理器**：`onAction="#method"` 引用的方法是否在 Controller 中存在且签名为 `void method(ActionEvent)` 或无参
-- **资源路径**：`FXMLLoader` 加载是否使用 `getClass().getResource("/fxml/xxx.fxml")`，而非文件系统绝对路径
-- **styleClass 一致性**：FXML 中引用的 `styleClass` 是否在对应 CSS 中有定义
-- **controllerFactory**：Spring Boot 场景下是否设置 `loader.setControllerFactory(springContext::getBean)`
-- **根元素命名空间**：是否声明 `xmlns:fx="http://javafx.com/fxml"`，FXML 版本是否匹配 JavaFX 版本
+**Check Items**:
+- **fx:id matching**: Whether each `fx:id` in FXML has a corresponding `@FXML` field in the Controller, and vice versa
+- **Controller mapping**: Whether the `fx:controller` path correctly points to the Controller fully qualified class name
+- **Script prohibition**: Whether `<fx:script>` is used in FXML (should be prohibited; logic must be in the Controller)
+- **Event handlers**: Whether methods referenced by `onAction="#method"` exist in the Controller with the signature `void method(ActionEvent)` or no-arg
+- **Resource paths**: Whether `FXMLLoader` loading uses `getClass().getResource("/fxml/xxx.fxml")`, rather than filesystem absolute paths
+- **styleClass consistency**: Whether `styleClass` references in FXML are defined in the corresponding CSS
+- **controllerFactory**: Whether `loader.setControllerFactory(springContext::getBean)` is set in Spring Boot scenarios
+- **Root element namespace**: Whether `xmlns:fx="http://javafx.com/fxml"` is declared, whether the FXML version matches the JavaFX version
 
-### 4. 内存泄漏风险
+### 4. Memory Leak Risks
 
-审查监听器、绑定、静态引用等是否存在泄漏风险。此维度违规默认为 Critical。
+Reviews whether listeners, bindings, static references, and other constructs pose leak risks. Violations in this dimension default to Critical.
 
-**检查项**：
-- **监听器移除**：通过 `addListener()` 注册的 `ChangeListener` / `ListChangeListener` 是否在视图销毁时通过 `removeListener()` 移除
-- **Binding 释放**：`Bindings.createXxxBinding()` 返回的 Binding 对象在不需要时是否调用 `dispose()`
-- **弱引用使用**：长生命周期对象上的监听器是否考虑使用 `WeakChangeListener` / `WeakListChangeListener`
-- **静态引用排查**：静态字段是否持有 UI 组件（`Stage`、`Node`）引用，导致无法 GC
-- **匿名内部类**：事件处理器匿名内部类是否隐式持有外部 Controller 引用，导致泄漏
-- **Stage 关闭清理**：`setOnCloseRequest` 或视图切换回调中是否执行资源清理（停止 `Timeline` / `Animation`、关闭流、释放绑定）
-- **双向绑定解绑**：`bindBidirectional()` 建立的绑定在视图销毁时是否调用 `unbindBidirectional()`
+**Check Items**:
+- **Listener removal**: Whether `ChangeListener` / `ListChangeListener` registered via `addListener()` are removed via `removeListener()` when the view is destroyed
+- **Binding disposal**: Whether Binding objects returned by `Bindings.createXxxBinding()` call `dispose()` when no longer needed
+- **Weak reference usage**: Whether listeners on long-lived objects consider using `WeakChangeListener` / `WeakListChangeListener`
+- **Static reference detection**: Whether static fields hold references to UI components (`Stage`, `Node`), preventing GC
+- **Anonymous inner classes**: Whether event handler anonymous inner classes implicitly hold outer Controller references, causing leaks
+- **Stage close cleanup**: Whether `setOnCloseRequest` or view-switching callbacks perform resource cleanup (stopping `Timeline` / `Animation`, closing streams, releasing bindings)
+- **Bidirectional binding unbinding**: Whether bindings established by `bindBidirectional()` call `unbindBidirectional()` when the view is destroyed
 
-> **典型违规示例**：Controller 注册了 `model.addListener(...)` 但未提供清理方法，视图切换后旧 Controller 无法被 GC，持续接收事件。
+> **Typical violation**: A Controller registers `model.addListener(...)` but provides no cleanup method; after view switching, the old Controller cannot be GC'd and continues receiving events.
 
-### 5. 性能表现
+### 5. Performance
 
-审查代码是否存在性能瓶颈，是否遵循 JavaFX 性能优化最佳实践。默认严重性基线：Major。
+Reviews whether the code has performance bottlenecks and whether it follows JavaFX performance optimization best practices. Default severity baseline: Major.
 
-**检查项**：
-- **TableView 虚拟化**：大数据量是否依赖 `TableView` 虚拟化，是否误用 `ListView` + 手动渲染导致性能下降
-- **批量更新**：批量修改 `ObservableList` 时是否使用 `setAll()` 一次性替换（触发 1 次变更事件），而非循环 `add()` 逐条添加（触发 N 次变更事件）
-- **节流防抖**：高频输入（搜索框、滑块）是否使用防抖定时器，避免每次输入触发完整刷新
-- **CSS 选择器效率**：CSS 是否避免深层嵌套选择器、是否避免在循环中切换样式类
-- **懒加载**：重型视图 / 标签页是否使用懒加载，而非启动时全量初始化
-- **布局计算**：是否在循环中调用 `layout()` / `requestLayout()`，是否避免不必要的 `autosize()`
-- **图片加载**：大图是否使用后台线程加载并缩放，是否避免在 FX 线程解码大图
-- **FilteredList 效率**：`FilteredList` 的 predicate 是否过于复杂，大数据量是否考虑索引优化
-- **绑定效率**：是否避免在循环中创建 `Bindings.createXxxBinding()`，计算绑定是否可用更高效的 `SelectBinding` / `ObjectBinding` 替代
+**Check Items**:
+- **TableView virtualization**: Whether large datasets rely on `TableView` virtualization, whether `ListView` + manual rendering is misused causing performance degradation
+- **Batch updates**: Whether batch modifications to `ObservableList` use `setAll()` for one-time replacement (triggering 1 change event), rather than looping `add()` item by item (triggering N change events)
+- **Throttle/debounce**: Whether high-frequency input (search boxes, sliders) uses debounce timers to avoid triggering full refreshes on every input
+- **CSS selector efficiency**: Whether CSS avoids deeply nested selectors, whether style class switching in loops is avoided
+- **Lazy loading**: Whether heavy views / tabs use lazy loading, rather than full initialization at startup
+- **Layout computation**: Whether `layout()` / `requestLayout()` are called in loops, whether unnecessary `autosize()` is avoided
+- **Image loading**: Whether large images are loaded and scaled on background threads, whether decoding large images on the FX thread is avoided
+- **FilteredList efficiency**: Whether the `FilteredList` predicate is overly complex, whether index optimization is considered for large datasets
+- **Binding efficiency**: Whether creating `Bindings.createXxxBinding()` in loops is avoided, whether computed bindings can be replaced with more efficient `SelectBinding` / `ObjectBinding`
 
-### 6. 深度合规审核
+### 6. Deep Compliance Audit
 
-审查代码是否符合 JavaFX 编码规范、安全规则及框架整合最佳实践。默认严重性基线：Minor。由 3 个主文档分管：
+Reviews whether the code conforms to JavaFX coding standards, security rules, and framework integration best practices. Default severity baseline: Minor. Managed by 3 primary documents:
 
-**检查项**：
-- **命名规范** `[compliance-rules.md]`：类名 PascalCase，方法 / 变量 camelCase，常量 SCREAMING_SNAKE_CASE
-- **编码规范** `[compliance-rules.md]`：UTF-8 编码、4 空格缩进、显式导入（不使用通配符 `import ...*`）、公共 API 有 Javadoc
-- **安全规则** `[security-checklist.md]`：SQL 是否使用预编译防注入、文件路径是否 `normalize()` 防遍历、是否无硬编码密钥、WebView 是否限制 JavaScript
-- **Spring Boot 陷阱** `[compliance-rules.md]`：主类是否未直接继承 `Application`、Controller 是否标注 `@Scope("prototype")`、是否配置 `web-application-type: none`
-- **版本兼容性** `[compliance-rules.md]`：JavaFX 24+ 是否配置 `--enable-native-access=javafx.graphics`，版本选择是否符合 LTS 路线
-- **CSS 合规** `[css-compliance.md]`：是否不使用 `var()`（JavaFX CSS 不支持）、圆角是否使用字面量数值而非查找色引用尺寸变量
-- **API 误用排查** `[compliance-rules.md]`：是否使用了不存在的 API（如 `select()`、`@FXML dispose()`）、是否使用 ControlsFX 旧 `Dialogs.create()`
-- **Properties null 安全** `[binding-compliance.md]`：`SimpleLongProperty.set(null)` 等是否处理 null 防 NPE
+**Check Items**:
+- **Naming conventions** `[compliance-rules.md]`: PascalCase for classes, camelCase for methods / variables, SCREAMING_SNAKE_CASE for constants
+- **Coding standards** `[compliance-rules.md]`: UTF-8 encoding, 4-space indentation, explicit imports (no wildcard `import ...*`), Javadoc on public API
+- **Security rules** `[security-checklist.md]`: Whether SQL uses prepared statements to prevent injection, whether file paths use `normalize()` to prevent traversal, whether there are no hardcoded secrets, whether WebView restricts JavaScript
+- **Spring Boot pitfalls** `[compliance-rules.md]`: Whether the main class does not directly extend `Application`, whether Controllers are annotated with `@Scope("prototype")`, whether `web-application-type: none` is configured
+- **Version compatibility** `[compliance-rules.md]`: Whether JavaFX 24+ configures `--enable-native-access=javafx.graphics`, whether version selection follows the LTS roadmap
+- **CSS compliance** `[css-compliance.md]`: Whether `var()` is not used (JavaFX CSS does not support it), whether border radius uses literal numeric values rather than looked-up color references to size variables
+- **API misuse detection** `[compliance-rules.md]`: Whether nonexistent APIs are used (e.g., `select()`, `@FXML dispose()`), whether the deprecated ControlsFX `Dialogs.create()` is used
+- **Properties null safety** `[binding-compliance.md]`: Whether `SimpleLongProperty.set(null)` and similar handle null to prevent NPE
 
-## 评审工作流
+## Review Workflow
 
-### 步骤 1：代码收集与上下文分析
+### Step 1: Code Collection and Context Analysis
 
-1. **识别输入范围**：确定待审代码涉及的文件类型（Java / FXML / CSS / module-info / pom.xml）
-2. **声明评审范围**：根据用户请求确定评审模式，并在报告头部标注
-3. **提取上下文**：项目使用的 JavaFX 版本、JDK 版本、构建工具、是否集成 Spring Boot / 第三方库
-4. **建立关联**：识别 Controller ↔ FXML ↔ Model 的对应关系，构建审核上下文图谱
+1. **Identify input scope**: Determine the file types involved in the code under review (Java / FXML / CSS / module-info / pom.xml)
+2. **Declare review scope**: Determine the review mode based on the user request and annotate it in the report header
+3. **Extract context**: The JavaFX version, JDK version, build tool, and whether Spring Boot / third-party libraries are integrated
+4. **Establish relationships**: Identify Controller ↔ FXML ↔ Model correspondences and build the review context graph
 
-**评审范围声明**：支持三种评审模式，由用户请求或上下文推断决定：
-- **全量评审（默认）**：对项目内所有 JavaFX 相关文件执行六大维度完整扫描。适用于上线前体检、首次审核
-- **增量评审**：仅评审用户指定的新增 / 修改文件及其直接关联文件（如修改了 Controller 则连带评审其 FXML）。适用于迭代开发中的持续审核
-- **指定维度评审**：用户明确只关注某些维度（如"只检查线程安全"），仅加载对应主参考文档执行扫描
+**Review scope declaration**: Three review modes are supported, determined by the user request or inferred from context:
+- **Full Review (default)**: Performs a complete six-dimension scan of all JavaFX-related files in the project. Suitable for pre-release health checks and first-time reviews
+- **Incremental Review**: Only reviews user-specified new / modified files and their directly associated files (e.g., if a Controller is modified, its FXML is also reviewed). Suitable for continuous review during iterative development
+- **Targeted Dimension Review**: The user explicitly cares only about certain dimensions (e.g., "only check thread safety"), loading only the corresponding primary reference document for scanning
 
-### 步骤 2：维度扫描（逐项检查）
+### Step 2: Dimension Scanning (Item-by-Item Check)
 
-1. 按六大维度依次扫描，每个维度的检查项逐一判定通过 / 不通过
-2. 对不通过项记录：问题描述、代码位置（文件名 + 行号 / 代码片段）、违反的规范条目
-3. 加载 `references/` 中的维度参考文档作为判定依据（按映射表加载主文档，按需加载补充文档）
-4. **增量模式优化**：增量评审时跳过与改动文件无关的维度；如仅修改 CSS 则跳过线程安全、内存泄漏维度，仅执行 FXML 规范 + 深度合规（CSS 部分）
+1. Scan through the six dimensions sequentially, evaluating each check item as pass / fail
+2. For failed items, record: problem description, code location (filename + line number / code snippet), violated rule item
+3. Load the dimension reference documents from `references/` as criteria (load primary documents per the mapping table, load supplementary documents as needed)
+4. **Incremental mode optimization**: During incremental review, skip dimensions unrelated to the changed files; if only CSS is modified, skip thread safety and memory leak dimensions, executing only FXML standards + deep compliance (CSS portion)
 
-### 步骤 3：深度分析（交叉关联）
+### Step 3: Deep Analysis (Cross-Referencing)
 
-1. **跨文件关联**：FXML 的 `fx:id` 与 Controller 字段交叉验证，CSS `styleClass` 与 FXML 引用交叉验证
-2. **模式识别**：识别同类问题模式（如多个 Controller 都未移除监听器），合并为系统性问题
-3. **影响评估**：评估每个问题对运行时的实际影响（崩溃 / 性能下降 / 内存增长 / 仅风格问题）
+1. **Cross-file correlation**: Cross-validate FXML `fx:id` with Controller fields, cross-validate CSS `styleClass` with FXML references
+2. **Pattern recognition**: Identify recurring problem patterns (e.g., multiple Controllers all failing to remove listeners) and merge them into systemic issues
+3. **Impact assessment**: Evaluate the actual runtime impact of each issue (crash / performance degradation / memory growth / style-only issue)
 
-### 步骤 4：严重性分级与排序
+### Step 4: Severity Classification and Sorting
 
-1. 对每个问题按严重性分级体系评定等级
-2. 去重：同一根因引发的多个表现合并为一个问题
-3. 排序：按严重性降序排列，同等级按代码位置排列
+1. Assign a severity level to each issue per the severity classification system
+2. Deduplicate: merge multiple manifestations caused by the same root cause into one issue
+3. Sort: arrange in descending severity order, within the same level sort by code location
 
-### 步骤 5：生成评审报告
+### Step 5: Generate Review Report
 
-1. 按报告模板（见 `report-templates/review-report.md`）生成结构化评审报告
-2. 报告包含：摘要统计、问题清单（含位置 / 建议 / 规范依据）、合规性总结
-3. 对每个问题提供可操作的优化建议，含修正后的示例代码
+1. Generate a structured review report following the report template (see `report-templates/review-report.md`)
+2. The report includes: summary statistics, issue list (with location / recommendation / rule reference), compliance summary
+3. Provide actionable optimization recommendations for each issue, including corrected example code
 
-## 严重性分级
+## Severity Classification
 
-所有发现的问题按以下四级严重性体系分级，决定修复优先级：
+All discovered issues are classified into the following four-level severity system, which determines fix priority:
 
-| 等级 | 标识 | 定义 | 典型问题 | 处理建议 |
-|------|------|------|---------|---------|
-| 严重 | Critical | 导致崩溃、数据丢失或严重内存泄漏，必须立即修复 | 后台线程更新 UI、监听器未移除致泄漏、NPE 风险 | 阻断发布，优先修复 |
-| 重要 | Major | 违反核心规范，影响可维护性或存在性能瓶颈 | 架构分层混乱、FXML-Controller 不匹配、CSS 低效 | 本迭代内修复 |
-| 次要 | Minor | 违反编码规范或风格约定，不影响运行 | 命名不规范、缺少 Javadoc、通配符导入 | 建议修复 |
-| 建议 | Info | 优化建议，提升代码质量但非违规 | 可提取公共方法、可使用更优 API | 择机优化 |
+| Level | Identifier | Definition | Typical Issues | Handling Recommendation |
+|-------|------------|------------|----------------|------------------------|
+| Critical | Critical | Causes crashes, data loss, or severe memory leaks; must be fixed immediately | Background thread updating UI, listener not removed causing leak, NPE risk | Block release, fix first |
+| Major | Major | Violates core standards, affects maintainability or has performance bottlenecks | Disorganized architecture layering, FXML-Controller mismatch, inefficient CSS | Fix within this iteration |
+| Minor | Minor | Violates coding standards or style conventions, does not affect runtime | Non-standard naming, missing Javadoc, wildcard imports | Recommend fixing |
+| Info | Info | Optimization suggestions that improve code quality but are not violations | Extractable common methods, better API alternatives | Optimize when convenient |
 
-### 升降级条件表
+### Escalation/De-escalation Conditions
 
-每个检查项有默认严重性基线，但可根据实际影响上下浮动一级。以下为各维度关键检查项的升降级条件，须严格参照执行，确保分级一致性：
+Each check item has a default severity baseline, but may move up or down by one level based on actual impact. The following are escalation/de-escalation conditions for key check items across dimensions; they must be strictly followed to ensure classification consistency:
 
-| 检查项 | 默认基线 | 降级条件 | 升级条件 |
-|--------|---------|---------|---------|
-| FX 线程更新违规 | Critical | —（不可降级，运行时必然抛异常） | — |
-| 监听器未移除 | Critical | 监听对象生命周期与 Controller 相同（同生共灭）→ Major | 已致 OOM 或内存持续增长可复现 → 保持 Critical |
-| Binding 未释放 | Critical | 短生命周期视图（如对话框）→ Major | 长生命周期视图（主窗口）且绑定数量多 → 保持 Critical |
-| 静态引用持有 UI 组件 | Critical | —（不可降级） | — |
-| FX 线程阻塞调用 | Critical | 阻塞时间极短（<16ms，如本地小文件读取）→ Major | 阻塞时间 >1s 或涉及网络 I/O → 保持 Critical |
-| 架构分层混乱 | Major | 仅个别方法越层，不影响整体架构 → Minor | 导致无法独立测试或多处循环依赖 → Critical |
-| FXML fx:id 不匹配 | Major | —（运行时必然抛 LoadException，不可降级） | 多个 fx:id 不匹配 → 保持 Major |
-| 批量更新低效（循环 add） | Major | 数据量 <100 条 → Minor | 数据量 >10000 条且在 FX 线程执行 → Critical |
-| CSS 使用 var() | Major | —（不支持语法，不可降级） | — |
-| 命名不规范 | Minor | — | 公共 API 命名违反规范且影响调用方 → Major |
-| 通配符导入 | Minor | — | — |
-| Spring Boot 启动类直接继承 Application | Critical | —（导致 Spring 容器初始化异常，不可降级） | — |
-| Controller 缺少 @Scope("prototype") | Major | 单例 Controller 无状态字段 → Minor | 单例 Controller 持有 @FXML 状态字段 → 保持 Major |
+| Check Item | Default Baseline | De-escalation Condition | Escalation Condition |
+|------------|------------------|------------------------|----------------------|
+| FX thread update violation | Critical | - (cannot be de-escalated; runtime will always throw an exception) | - |
+| Listener not removed | Critical | Listener object lifecycle same as Controller (co-terminus) → Major | Has caused OOM or reproducible memory growth → remain Critical |
+| Binding not disposed | Critical | Short-lived view (e.g., dialog) → Major | Long-lived view (main window) with many bindings → remain Critical |
+| Static reference holding UI component | Critical | - (cannot be de-escalated) | - |
+| FX thread blocking call | Critical | Blocking time very short (<16ms, e.g., small local file read) → Major | Blocking time >1s or involves network I/O → remain Critical |
+| Disorganized architecture layering | Major | Only individual methods cross layers, does not affect overall architecture → Minor | Prevents independent testing or multiple circular dependencies → Critical |
+| FXML fx:id mismatch | Major | - (runtime will always throw LoadException, cannot be de-escalated) | Multiple fx:id mismatches → remain Major |
+| Inefficient batch update (loop add) | Major | Data volume <100 items → Minor | Data volume >10000 items and executing on FX thread → Critical |
+| CSS using var() | Major | - (unsupported syntax, cannot be de-escalated) | - |
+| Non-standard naming | Minor | - | Public API naming violates standards and affects callers → Major |
+| Wildcard imports | Minor | - | - |
+| Spring Boot startup class directly extending Application | Critical | - (causes Spring container initialization exception, cannot be de-escalated) | - |
+| Controller missing @Scope("prototype") | Major | Singleton Controller with no state fields → Minor | Singleton Controller holding @FXML state fields → remain Major |
 
-**分级约束**：
-- 每个问题最多浮动一级，禁止跨级跳变（如 Critical 直降 Minor）
-- 标注"不可降级"的检查项，即使影响轻微也必须保持默认基线
-- 升降级时须在报告"升降级说明"字段注明触发条件，确保可追溯
+**Classification constraints**:
+- Each issue may move at most one level; cross-level jumps are prohibited (e.g., Critical dropping directly to Minor)
+- Check items marked "cannot be de-escalated" must retain their default baseline even if the impact is minor
+- When escalating or de-escalating, the triggering condition must be noted in the report's "Escalation/De-escalation Note" field to ensure traceability
 
-## 评审报告格式
+## Review Report Format
 
-评审完成后输出结构化报告，包含摘要统计、问题清单和合规性总结三部分。
+After the review is complete, output a structured report containing three parts: summary statistics, issue list, and compliance summary.
 
-### 报告结构
+### Report Structure
 
 ```
-# JavaFX 代码评审报告
+# JavaFX Code Review Report
 
-## 评审摘要
-- 评审模式：[全量 / 增量 / 指定维度]
-- 评审范围：[涉及的文件清单或维度清单]
-- 评审文件数：N 个 Java / M 个 FXML / K 个 CSS
-- 发现问题总数：X 个（Critical: a / Major: b / Minor: c / Info: d）
-- 评审结论：[通过 / 有条件通过 / 不通过]
+## Review Summary
+- Review Mode: [Full / Incremental / Targeted Dimension]
+- Review Scope: [List of files or dimensions involved]
+- Files Reviewed: N Java / M FXML / K CSS
+- Total Issues Found: X (Critical: a / Major: b / Minor: c / Info: d)
+- Review Conclusion: [Pass / Conditional Pass / Fail]
 
-## 问题清单
+## Issue List
 
-### [Critical] 问题标题
-- **问题描述**：具体说明问题是什么
-- **代码位置**：`文件路径:行号`
-- **问题代码**：
+### [Critical] Issue Title
+- **Problem Description**: Specific description of the issue
+- **Code Location**: `file path:line number`
+- **Problematic Code**:
   ```java
-  // 有问题的代码片段
+  // problematic code snippet
   ```
-- **优化建议**：说明如何修复
-- **修正示例**：
+- **Optimization Recommendation**: How to fix it
+- **Corrected Example**:
   ```java
-  // 修正后的代码
+  // corrected code
   ```
-- **规范依据**：引用 references/ 中的规范条目（格式：`文档名 — 条目标题`）
-- **升降级说明**：若严重性偏离默认基线，注明触发条件
-- **修复交接**：机器可读的修复定位锚点，供 javafx-developer 或用户直接执行修复
-  - `target_file: 文件路径`
-  - `target_lines: 起始行-结束行`
+- **Rule Reference**: Reference to the rule item in references/ (format: `document name - item title`)
+- **Escalation/De-escalation Note**: If severity deviates from the default baseline, note the triggering condition
+- **Fix Handoff**: Machine-readable fix location anchors for javafx-developer or the user to directly execute fixes
+  - `target_file: file path`
+  - `target_lines: start line-end line`
   - `fix_type: [replace / insert / delete]`
-  - `fix_priority: 1`（修复优先级，1=最高）
+  - `fix_priority: 1` (fix priority, 1=highest)
 
-### [Major] ...（同上结构）
+### [Major] ... (same structure)
 
-## 合规性总结
-| 维度 | 检查项数 | 通过 | 不通过 | 通过率 |
-|------|---------|------|--------|--------|
-| 代码结构 | 5 | 4 | 1 | 80% |
-| 线程安全 | 6 | 5 | 1 | 83% |
+## Compliance Summary
+| Dimension | Check Items | Passed | Failed | Pass Rate |
+|-----------|-------------|--------|--------|-----------|
+| Code Structure | 5 | 4 | 1 | 80% |
+| Thread Safety | 6 | 5 | 1 | 83% |
 | ... | ... | ... | ... | ... |
-| **总计** | **N** | **N** | **N** | **N%** |
+| **Total** | **N** | **N** | **N** | **N%** |
 ```
 
-### 报告语言策略
+### Report Language Strategy
 
-- **跟随技能版本**：中文版技能输出中文报告，英文版技能输出英文报告
-- **代码与标识符保持原样**：无论报告语言，代码片段、文件路径、类名、API 名称均保持英文原样不翻译
-- **规范依据引用**：统一引用 `references/` 文档条目，格式为 `文档名 — 条目标题`
+- **Follow skill version**: The Chinese skill outputs Chinese reports; the English skill outputs English reports
+- **Code and identifiers remain as-is**: Regardless of report language, code snippets, file paths, class names, and API names remain in English without translation
+- **Rule reference citations**: Uniformly cite `references/` document items, formatted as `document name - item title`
 
-### 修复交接字段说明
+### Fix Handoff Field Description
 
-"修复交接"字段是实现"生成 → 审核 → 修复"闭环的关键，使审核结果可被 `javafx-developer` 或自动化工具直接消费：
-- `fix_type=replace`：用"修正示例"替换 `target_lines` 指定的代码段
-- `fix_type=insert`：在 `target_lines` 之后插入"修正示例"
-- `fix_type=delete`：删除 `target_lines` 指定的代码段（无修正示例）
-- `fix_priority`：按严重性 + 代码位置排序后的修复优先级，1 为最高，供批量修复时排序
+The "Fix Handoff" field is key to achieving the "generate → review → fix" closed loop, enabling review results to be directly consumed by `javafx-developer` or automation tools:
+- `fix_type=replace`: Replace the code segment specified by `target_lines` with the "Corrected Example"
+- `fix_type=insert`: Insert the "Corrected Example" after `target_lines`
+- `fix_type=delete`: Delete the code segment specified by `target_lines` (no corrected example)
+- `fix_priority`: Fix priority sorted by severity + code location, 1 is highest, for ordering during batch fixes
 
-## 约束
+## Constraints
 
-以下约束与 `javafx-developer` 同源，确保审核标准与生成标准一致。每条约束标注对应的 `references/` 文档。
+The following constraints are shared with `javafx-developer`, ensuring that review standards are consistent with generation standards. Each constraint is annotated with its corresponding `references/` document.
 
-### 编码规范（→ `compliance-rules.md`）
-1. **命名**：类名 PascalCase，方法/变量 camelCase，常量 SCREAMING_SNAKE_CASE
-2. **缩进**：4 个空格，不使用 Tab
-3. **编码**：所有源文件使用 UTF-8
-4. **导入**：显式导入，不使用通配符（`import javafx.scene.control.*`）
-5. **注释**：公共 API 使用 Javadoc，复杂逻辑使用行内注释
+### Coding Standards (→ `compliance-rules.md`)
+1. **Naming**: PascalCase for classes, camelCase for methods/variables, SCREAMING_SNAKE_CASE for constants
+2. **Indentation**: 4 spaces, no tabs
+3. **Encoding**: UTF-8 for all source files
+4. **Imports**: Explicit imports, no wildcards (`import javafx.scene.control.*`)
+5. **Comments**: Javadoc on public API, inline comments for complex logic
 
-### 架构规则（→ `structure-review.md`、`fxml-standards.md`、`thread-safety-rules.md`）
-1. **FXML 纯净性**：FXML 文件中不使用 `<fx:script>`
-2. **Controller 职责**：仅处理 UI 事件和视图状态，业务逻辑委托给 Service
-3. **绑定优先**：优先使用 JavaFX Properties 绑定，而非手动同步 UI
-4. **资源路径**：使用 `getClass().getResource()` 加载 FXML/CSS
-5. **线程安全**：所有 UI 更新在 JavaFX Application Thread 上执行，使用 `Task`/`Service` 处理后台任务
+### Architecture Rules (→ `structure-review.md`, `fxml-standards.md`, `thread-safety-rules.md`)
+1. **FXML purity**: No `<fx:script>` in FXML files
+2. **Controller responsibility**: Only handle UI events and view state, delegate business logic to Service
+3. **Binding first**: Prefer JavaFX Properties binding over manual UI sync
+4. **Resource paths**: Use `getClass().getResource()` for FXML/CSS loading
+5. **Thread safety**: All UI updates on JavaFX Application Thread, use `Task`/`Service` for background work
 
-### 安全规则（→ `security-checklist.md`）
-1. **输入验证**：验证所有用户输入，不拼接 SQL/命令
-2. **路径安全**：使用 `Paths.get()` + `Path.normalize()` 处理文件操作
-3. **无硬编码密钥**：使用配置文件或环境变量
-4. **WebView 安全**：禁用 JavaScript 或限制为可信内容
+### Security Rules (→ `security-checklist.md`)
+1. **Input validation**: Validate all user input, no SQL/command concatenation
+2. **Path safety**: Use `Paths.get()` + `Path.normalize()` for file operations
+3. **No hardcoded secrets**: Use config files or environment variables
+4. **WebView security**: Disable JavaScript or restrict to trusted content
 
-## 参考文档
+## Loop Orchestration Protocol
 
-如需深入判定依据，请参阅 `references/` 目录中的以下文档：
+This protocol is shared across `javafx-developer`, `javafx-code-reviewer`, and `javafx-runner`. It defines the automated closed-loop cycle: **generate → review → verify → fix → re-verify**, until the quality gate passes or termination conditions are met.
 
-- `references/structure-review.md` — 代码结构审核规范 ← developer: `architecture-patterns.md`
-- `references/thread-safety-rules.md` — UI 线程安全规则 ← developer: 架构规则·线程安全
-- `references/fxml-standards.md` — FXML 使用规范 ← developer: 质量清单·fx:id
-- `references/memory-management.md` — 内存管理规则 ← developer: `data-binding-patterns.md`
-- `references/performance-guide.md` — 性能优化指南
-- `references/binding-compliance.md` — 数据绑定合规（跨维度：内存/性能/合规）
-- `references/compliance-rules.md` — 编码/命名/Spring Boot/版本/API 合规
-- `references/security-checklist.md` — 安全合规清单 ← developer: 安全规则
-- `references/css-compliance.md` — CSS 合规规则 ← developer: `css-best-practices.md`
+### Reviewer's Role in the Loop
 
-## 报告模板
+`javafx-code-reviewer` occupies the **review** stage of the loop:
+- **Round 1**: Full review — all six dimensions, all JavaFX files
+- **Round 2+**: Incremental review — only dimensions touched by `javafx-developer`'s fixes (identified by `target_file` in the fix handoff)
 
-`report-templates/` 目录中的可套用骨架模板：
+### Loop State Machine
 
-- `report-templates/review-report.md` — 评审报告骨架模板（可套用）
+```
+[Start] → Generating → Reviewing → (reviewer Pass?) → Verifying → (runner Pass?) → [Delivered]
+                          ↓ No                          ↓ No
+                       Fixing ←────────────────────── Fixing
+                          ↓
+                     Re-Reviewing (incremental)
+```
+
+### Loop Rules
+
+| Rule | Definition | Termination |
+|------|-----------|-------------|
+| Max rounds | Fix → verify cycle loops at most 3 rounds | At 3 rounds without pass → pause, report to user |
+| Re-review strategy | Round 1: full re-review; Round 2+: incremental re-review (only dimensions touched by fixes) | Incremental re-review checks only fix-affected dimensions |
+| Re-verify strategy | Every round: compile verification mandatory; runtime/packaging based on fix scope | Compile failure short-circuits: skip runtime and packaging |
+| Convergence detection | Compare current round issue count with previous round | 2 consecutive non-converging rounds → pause, report to user |
+| User intervention points | Max rounds reached / non-converging / unfixable issues | Pause with current state report |
+
+### Quality Gate (Combined)
+
+The loop terminates as **Pass** only when BOTH reviewer and runner pass:
+
+| Reviewer Conclusion | Runner Conclusion | Overall | Action |
+|---------------------|-------------------|---------|--------|
+| Pass | Pass | **Pass** | Deliver, exit loop |
+| Pass | Conditional/Fail | **Fail** | Fix runner issues, continue loop |
+| Conditional/Fail | Pass | **Fail** | Fix reviewer issues, continue loop |
+| Conditional/Fail | Conditional/Fail | **Fail** | Fix both, continue loop |
+
+**Priority rule**: When reviewer is Fail, fix reviewer issues first (static issues are usually root causes; fixing them may resolve runtime issues too).
+
+### Individual Gate Criteria (Reviewer)
+
+- **Pass**: No Critical or Major issues, pass rate >= 80%
+- **Conditional Pass**: Has Major but no Critical, all Major issues have clear fix plans
+- **Fail**: Has Critical issues, must be fixed before release
+
+## Runtime Findings Reception
+
+`javafx-code-reviewer` can receive runtime findings feedback from `javafx-runner`'s verification reports. This enables the skill set to self-evolve: runtime-discovered patterns flow back to static rules, so future reviews catch them earlier.
+
+### How Feedback Arrives
+
+When `javafx-runner` discovers a runtime issue pattern not covered by existing reviewer rules, it outputs a **Runtime Findings Feedback** section in its verification report, containing:
+- `suggested_reviewer_rule.target_document`: Which `references/` document should receive the new rule
+- `suggested_reviewer_rule.suggested_check_item`: Proposed check item title
+- `suggested_reviewer_rule.description`: What the new check item should verify
+- `suggested_reviewer_rule.suggested_severity`: Proposed severity baseline
+- `evidence`: Occurrences, stack traces, affected files
+
+### Adoption Process
+
+1. **Review suggestion**: Evaluate whether the suggested rule is valid and generalizable (not project-specific)
+2. **Draft check item**: If adopted, draft a new check item following the standard format (Focus / Pass Criteria / Fail Criteria / Severity Baseline / Bad Example / Good Example)
+3. **Cross-reference**: Add `Runtime Verification Required` annotation linking back to the runner check item that discovered the pattern
+4. **Update document**: Add the new check item to the target `references/` document
+5. **Update count**: Update the dimension's check item count in the review report template's Compliance Summary table
+
+### Adoption Criteria
+
+- **Adopt**: Pattern is generalizable across projects, has clear pass/fail criteria, and occurs >= 2 times
+- **Reject**: Pattern is project-specific, cannot be generalized, or is already covered by an existing check item (possibly under a different name)
+- **Defer**: Pattern needs more evidence (only 1 occurrence); revisit after more runtime data
+
+## Reference Documents
+
+For in-depth criteria, refer to the following documents in the `references/` directory:
+
+- `references/structure-review.md` - Code structure review standards ← developer: `architecture-patterns.md`
+- `references/thread-safety-rules.md` - UI thread safety rules ← developer: architecture rules · thread safety
+- `references/fxml-standards.md` - FXML standards ← developer: quality checklist · fx:id
+- `references/memory-management.md` - Memory management rules ← developer: `data-binding-patterns.md`
+- `references/performance-guide.md` - Performance optimization guide
+- `references/binding-compliance.md` - Data binding compliance (cross-dimension: memory/performance/compliance)
+- `references/compliance-rules.md` - Coding/naming/Spring Boot/version/API compliance
+- `references/security-checklist.md` - Security compliance checklist ← developer: security rules
+- `references/css-compliance.md` - CSS compliance rules ← developer: `css-best-practices.md`
+
+## Report Template
+
+Reusable skeleton template in the `report-templates/` directory:
+
+- `report-templates/review-report.md` - Review report skeleton template (reusable)

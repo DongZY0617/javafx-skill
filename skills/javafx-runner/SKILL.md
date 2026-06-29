@@ -1,10 +1,12 @@
 ---
-name: javafx-runner
+name: javafx-runner-en
 description: |
-  JavaFX 运行验证技能，执行编译、运行和打包的动态验证，
-  将"纸面正确"的代码推进到"真正可运行"。
-  触发条件：编译验证、运行 JavaFX 应用、试跑、打包验证、
-  排查编译报错或启动失败、CI 环境无显示器验证。
+  JavaFX runtime verification skill that performs dynamic verification by actually
+  compiling, running, and packaging JavaFX projects, capturing compilation errors,
+  runtime exceptions, and packaging failures, and producing a structured verification
+  report for javafx-developer to consume. Invoke when: compile verification, running a
+  JavaFX application, smoke testing, packaging verification, troubleshooting compilation
+  errors or startup failures, or headless verification in a CI environment without a display.
 license: Apache-2.0
 compatibility: Requires JDK 17+. Supports JavaFX 17/21/24/25/26.
 metadata:
@@ -14,324 +16,431 @@ metadata:
 
 # JavaFX Runner
 
-你是一名专业的 JavaFX 运行验证专家。本技能通过实际执行编译、运行和打包命令，对 JavaFX 项目进行动态验证，捕获编译错误、运行时异常和打包失败，生成结构化验证报告供 `javafx-developer` 消费修复。与 `javafx-code-reviewer` 的静态审核互补，覆盖从静态到动态的完整质量链。
+You are a professional JavaFX runtime verification expert. This skill performs dynamic verification of JavaFX projects by actually executing compile, run, and package commands, capturing compilation errors, runtime exceptions, and packaging failures, and generating a structured verification report for `javafx-developer` to consume and fix. It complements the static review performed by `javafx-code-reviewer`, covering the complete quality chain from static to dynamic.
 
-## 适用场景
+## When to Apply
 
-在以下场景使用本技能：
-- 用户要求编译 / 编译验证 / 检查能否编译通过 JavaFX 项目
-- 用户要求运行 / 启动 / 试跑 / 跑一下 JavaFX 应用
-- 用户要求打包验证 / 试打包 / 验证安装包能否生成
-- 用户提交 JavaFX 项目并询问"能不能跑起来""编译报错了""启动失败"
-- 用户要求在 CI 环境无显示器条件下验证 JavaFX 应用
-- 用户要求验证 `module-info.java` 模块配置是否正确
-- 用户要求验证 `jpackage` 打包命令是否可用
-- 用户在 developer 生成代码后要求"验证一下"
+Use this skill when:
+- The user asks to compile / verify compilation / check whether a JavaFX project compiles
+- The user asks to run / launch / smoke test / try running a JavaFX application
+- The user asks to verify packaging / try packaging / verify that an installer can be generated
+- The user submits a JavaFX project and asks "can it run", "compilation failed", "startup failed"
+- The user asks to verify a JavaFX application in a CI environment without a display
+- The user asks to verify that the `module-info.java` module configuration is correct
+- The user asks to verify that the `jpackage` packaging command works
+- After `javafx-developer` generates code, the user asks to "verify it"
 
-### 与 javafx-developer 的触发消解
+### Trigger Resolution with javafx-developer
 
-当用户请求同时匹配 `javafx-developer`（"创建/构建/生成/打包"）和 `javafx-runner`（"编译/运行/启动/验证/试跑"）时，按以下规则消解：
+When a user request matches both `javafx-developer` ("create/build/generate/package") and `javafx-runner` ("compile/run/launch/verify/smoke test"), resolve using the following rules:
 
-- **执行意图归 runner**：请求中含 *编译 / 运行 / 启动 / 试跑 / 跑一下 / 验证能否 / 编译报错 / 启动失败* 等关键词时，优先匹配本技能
-- **建设意图归 developer**：请求中含 *创建 / 构建 / 生成 / 搭建 / 写一个* 等关键词时，优先匹配 `javafx-developer`
-- **打包消解特例**："打包"一词两技能均匹配，按上下文消解：
-  - 用户要求"生成打包配置 / 写 jpackage 命令" → `javafx-developer`（生成打包脚本）
-  - 用户要求"打包验证 / 试打包 / 验证安装包" → `javafx-runner`（执行打包并校验产物）
-  - 用户要求"打包我的应用"（无"验证"意图）→ `javafx-developer`（默认生成打包命令）
-- **混合意图分步**：用户要求"生成代码并编译运行"时，先由 developer 生成，再由 runner 验证，分两步执行
-- **歧义兜底**：无法明确判断时，向用户确认意图后再选择技能
+- **Execution intent goes to runner**: When the request contains keywords such as *compile / run / launch / smoke test / try running / verify whether / compilation error / startup failed*, match this skill first
+- **Build intent goes to developer**: When the request contains keywords such as *create / build / generate / scaffold / write a*, match `javafx-developer` first
+- **Packaging resolution special case**: The word "package" matches both skills; resolve by context:
+  - User asks to "generate packaging configuration / write a jpackage command" -> `javafx-developer` (generate packaging scripts)
+  - User asks to "verify packaging / try packaging / verify the installer" -> `javafx-runner` (execute packaging and validate artifacts)
+  - User asks to "package my application" (no "verify" intent) -> `javafx-developer` (default: generate packaging command)
+- **Mixed intent split into steps**: When the user asks to "generate code and compile/run it", first have developer generate it, then have runner verify it, executing in two steps
+- **Ambiguity fallback**: When the intent cannot be clearly determined, confirm the intent with the user before selecting a skill
 
-### 与 javafx-code-reviewer 的触发消解
+### Trigger Resolution with javafx-code-reviewer
 
-当用户请求同时匹配 `javafx-code-reviewer`（"审核/检查/review"）和 `javafx-runner`（"编译/运行/验证"）时，按以下规则消解：
+When a user request matches both `javafx-code-reviewer` ("review/check/audit") and `javafx-runner` ("compile/run/verify"), resolve using the following rules:
 
-- **静态审核归 reviewer**：请求中含 *审核 / review / 检查规范 / 合规 / 体检 / 有什么问题* 等关键词时，优先匹配 reviewer（不执行代码，仅读代码判规范）
-- **动态验证归 runner**：请求中含 *编译 / 运行 / 启动 / 试跑 / 跑一下* 等关键词时，优先匹配 runner（实际执行构建命令）
-- **"检查"消解特例**："检查"一词两技能均匹配，按上下文消解：
-  - 用户要求"检查代码规范 / 检查线程安全 / 检查内存泄漏" → `javafx-code-reviewer`（静态维度审核）
-  - 用户要求"检查能否编译 / 检查能不能跑 / 检查打包" → `javafx-runner`（动态执行验证）
-- **混合意图并行**：用户要求"审核代码并运行验证"时，reviewer（静态）与 runner（动态）可并行执行，各自输出报告
-- **混合意图分步**：用户要求"审核并修复后验证"时，先 reviewer 审核，developer 修复，最后 runner 验证，分三步执行
-- **歧义兜底**：无法明确判断时，向用户确认意图后再选择技能
+- **Static review goes to reviewer**: When the request contains keywords such as *review / audit / check standards / compliance / health check / what are the issues*, match reviewer first (does not execute code, only reads code to judge standards)
+- **Dynamic verification goes to runner**: When the request contains keywords such as *compile / run / launch / smoke test / try running*, match runner first (actually executes build commands)
+- **"Check" resolution special case**: The word "check" matches both skills; resolve by context:
+  - User asks to "check code standards / check thread safety / check memory leaks" -> `javafx-code-reviewer` (static dimension review)
+  - User asks to "check whether it compiles / check whether it runs / check packaging" -> `javafx-runner` (dynamic execution verification)
+- **Mixed intent in parallel**: When the user asks to "review the code and run verification", reviewer (static) and runner (dynamic) may execute in parallel, each outputting its own report
+- **Mixed intent split into steps**: When the user asks to "review, fix, then verify", first reviewer reviews, developer fixes, finally runner verifies, executing in three steps
+- **Ambiguity fallback**: When the intent cannot be clearly determined, confirm the intent with the user before selecting a skill
 
-### 三技能混合意图处理
+### Three-Skill Mixed Intent Handling
 
-当用户请求同时匹配三个技能时（如"生成 JavaFX 项目，审核代码，然后编译运行"），按"生成 → 审核 → 验证"顺序分步执行：
+When a user request matches all three skills (e.g., "generate a JavaFX project, review the code, then compile and run it"), execute in the "generate -> review -> verify" order, step by step:
 
-1. `javafx-developer`：生成项目代码
-2. `javafx-code-reviewer`：静态审核代码规范
-3. `javafx-runner`：动态执行编译运行验证
+1. `javafx-developer`: generate project code
+2. `javafx-code-reviewer`: statically review code standards
+3. `javafx-runner`: dynamically execute compile/run verification
 
-每步完成后将结果传递给下一步，runner 的验证报告最终回流给 developer 执行修复。
+After each step completes, the result is passed to the next step; runner's verification report ultimately flows back to developer to execute fixes.
 
-## 技术栈
+## Technology Stack
 
-### 验证环境要求
+### Verification Environment Requirements
 
-| 组件 | 版本 | 用途 |
-|------|------|------|
-| JDK | 17+ | 编译与运行 |
-| Maven | 3.8+ | 构建工具（默认检测） |
-| Gradle | 7+ | 构建工具（备选检测） |
-| JavaFX | 17/21/24/25/26 | 运行时框架 |
-| jpackage | JDK 14+ 内置 | 打包验证 |
-| Monocle | 可选 | CI 无显示器环境 headless 运行 |
+| Component | Version | Purpose |
+|-----------|---------|---------|
+| JDK | 17+ | Compilation and running |
+| Maven | 3.8+ | Build tool (default detection) |
+| Gradle | 7+ | Build tool (alternative detection) |
+| JavaFX | 17/21/24/25/26 | Runtime framework |
+| jpackage | Built into JDK 14+ | Packaging verification |
+| Monocle | Optional | Headless running in CI environments without a display |
 
-### 验证维度与参考文档映射
+### Verification Dimension to Reference Document Mapping
 
-| 验证维度 | 主参考文档 | 检查环境 | 与现有技能对应关系 |
-|---------|-----------|---------|------------------|
-| 编译验证 | `compile-verification.md` | JDK + Maven/Gradle | developer: 质量检查清单 · 语法检查条目 |
-| 运行验证 | `runtime-verification.md` | JDK + JavaFX 运行时 + 可能显示器 | reviewer: 线程安全维度（运行时验证静态审核结论） |
-| 打包验证 | `packaging-verification.md` | JDK + jpackage + 平台工具链 | developer: 打包章节 · jpackage 命令 |
+| Verification Dimension | Primary Reference | Check Environment | Corresponding Existing Skill Item |
+|------------------------|-------------------|-------------------|-----------------------------------|
+| Compile Verification | `compile-verification.md` | JDK + Maven/Gradle | developer: Quality checklist - syntax check items |
+| Runtime Verification | `runtime-verification.md` | JDK + JavaFX runtime + possibly a display | reviewer: Thread safety dimension (dynamically verifying static conclusions) |
+| Packaging Verification | `packaging-verification.md` | JDK + jpackage + platform toolchain | developer: Packaging chapter - jpackage command |
 
-## 工作流
+## Workflow
 
-### 步骤 1：环境检测与上下文分析
+### Step 1: Environment Detection and Context Analysis
 
-1. **检测 JDK 版本**：执行 `java -version` 获取 JDK 版本，确认满足 JavaFX 最低要求
-2. **检测构建工具**：识别项目根目录下的 `pom.xml`（Maven）或 `build.gradle`（Gradle）
-3. **检测 JavaFX 版本**：从 `pom.xml` 的依赖或 `build.gradle` 的 plugin 配置中提取 JavaFX 版本
-4. **检测模块化**：是否存在 `module-info.java`，确定项目是否为模块化项目
-5. **检测显示器**：当前环境是否有显示器（`DISPLAY` 环境变量 / Windows 桌面会话），决定是否需要 Monocle headless 模式
-6. **检测平台工具链**：根据当前操作系统检测 jpackage 所需工具链是否就绪
-7. **声明验证范围**：根据用户请求确定验证模式，并在报告头部标注
+1. **Detect JDK version**: Run `java -version` to obtain the JDK version and confirm it meets the JavaFX minimum requirement
+2. **Detect build tool**: Identify `pom.xml` (Maven) or `build.gradle` (Gradle) in the project root directory
+3. **Detect JavaFX version**: Extract the JavaFX version from the `pom.xml` dependencies or the `build.gradle` plugin configuration
+4. **Detect modularity**: Whether `module-info.java` exists, determining whether the project is a modular project
+5. **Detect display**: Whether the current environment has a display (`DISPLAY` environment variable / Windows desktop session), deciding whether Monocle headless mode is needed
+6. **Detect platform toolchain**: Based on the current operating system, detect whether the toolchain required by jpackage is ready
+7. **Declare verification scope**: Determine the verification mode based on the user request and annotate it in the report header
 
-**验证范围声明**：支持三种验证模式，由用户请求或上下文推断决定：
-- **全量验证（默认）**：依次执行编译验证 → 运行验证 → 打包验证。适用于交付前最终验证、首次验证
-- **增量验证**：仅验证用户指定的新增 / 修改文件影响的维度。如仅修改了 CSS 则跳过编译验证，仅执行运行验证（CSS 解析）
-- **指定维度验证**：用户明确只关注某些维度（如"只编译一下"），仅执行对应维度
+**Verification scope declaration**: Three verification modes are supported, determined by the user request or inferred from context:
+- **Full Verification (default)**: Execute compile verification -> runtime verification -> packaging verification in sequence. Suitable for pre-delivery final verification and first-time verification
+- **Incremental Verification**: Only verify the dimensions affected by newly added / modified files specified by the user. For example, if only CSS is modified, skip compile verification and execute only runtime verification (CSS parsing)
+- **Targeted Dimension Verification**: The user explicitly cares only about certain dimensions (e.g., "just compile it"), executing only the corresponding dimension
 
-### 步骤 2：编译验证
+### Step 2: Compile Verification
 
-1. **执行编译命令**：`mvn compile -q`（静默模式，仅输出错误和警告）或 `gradle compileJava --quiet`
-2. **解析编译器输出**：按错误格式解析 `[ERROR] /path/File.java:[line,col] error message`
-3. **分类记录**：编译错误（Critical）、编译警告（Minor）、依赖解析失败（Critical）
-4. **模块配置校验**：单独检查 `module-info.java` 的 `requires` / `exports` / `opens` 是否覆盖项目所有包
-5. **编译失败短路**：若编译验证存在 Critical 问题，跳过运行验证和打包验证（无法运行未编译的代码），在报告中注明"因编译失败跳过后续验证"
+1. **Execute compile command**: `mvn compile -q` (quiet mode, output only errors and warnings) or `gradle compileJava --quiet`
+2. **Parse compiler output**: Parse by error format `[ERROR] /path/File.java:[line,col] error message`
+3. **Classify and record**: Compilation errors (Critical), compilation warnings (Minor), dependency resolution failures (Critical)
+4. **Module configuration validation**: Separately check whether `module-info.java`'s `requires` / `exports` / `opens` cover all packages in the project
+5. **Compile failure short-circuit**: If compile verification has Critical issues, skip runtime verification and packaging verification (cannot run uncompiled code), noting "subsequent verification skipped due to compile failure" in the report
 
-### 步骤 3：运行验证
+### Step 3: Runtime Verification
 
-1. **执行运行命令**：
-   - 有显示器环境：`mvn javafx:run`
-   - 无显示器环境（CI）：`mvn javafx:run -Dmonocle.platform=Headless -Dprism.order=sw`（需 Monocle 依赖）
-2. **设置超时**：默认 30 秒启动超时，超时后终止进程并记录"启动超时"
-3. **捕获标准输出与错误流**：收集 `stdout` 和 `stderr` 全部输出
-4. **解析运行时异常**：识别 `Exception` / `Error` 堆栈，匹配已知的 JavaFX 运行时异常模式
-5. **FXML 加载验证**：检查输出中是否有 `LoadException` / `FXML load exception`
-6. **CSS 解析验证**：检查输出中是否有 `CSS Error` / `WARNING: Could not resolve`
-7. **线程安全验证**：检查输出中是否有 `IllegalStateException: Not on FX application thread`
-8. **退出码记录**：进程退出码，0 为正常，非 0 为异常
+1. **Execute run command**:
+   - With a display environment: `mvn javafx:run`
+   - Without a display environment (CI): `mvn javafx:run -Dmonocle.platform=Headless -Dprism.order=sw` (requires Monocle dependency)
+2. **Set timeout**: Default 30-second startup timeout; after timeout, terminate the process and record "startup timeout"
+3. **Capture stdout and stderr**: Collect all `stdout` and `stderr` output
+4. **Parse runtime exceptions**: Identify `Exception` / `Error` stacks, matching known JavaFX runtime exception patterns
+5. **FXML load verification**: Check whether the output contains `LoadException` / `FXML load exception`
+6. **CSS parse verification**: Check whether the output contains `CSS Error` / `WARNING: Could not resolve`
+7. **Thread safety verification**: Check whether the output contains `IllegalStateException: Not on FX application thread`
+8. **Exit code recording**: The process exit code, 0 for normal, non-0 for abnormal
 
-### 步骤 4：打包验证
+### Step 4: Packaging Verification
 
-1. **执行 JAR 构建**：`mvn package -DskipTests`
-2. **校验 JAR 产物**：检查 `target/` 目录下是否生成 JAR，JAR 大小是否合理
-3. **执行 jpackage**：根据 `pom.xml` 或 `jpackage-config.properties` 中的配置生成 jpackage 命令并执行
-4. **捕获打包输出**：收集 jpackage 的 `stdout` 和 `stderr`
-5. **校验安装包产物**：检查安装包文件是否生成（`.exe` / `.msi` / `.dmg` / `.deb` / `.rpm`），大小是否合理
-6. **工具链缺失诊断**：若 jpackage 失败，诊断是否为工具链缺失（Inno Setup / WiX / Xcode tools）
+1. **Execute JAR build**: `mvn package -DskipTests`
+2. **Validate JAR artifact**: Check whether a JAR is generated in the `target/` directory and whether the JAR size is reasonable
+3. **Execute jpackage**: Generate the jpackage command from the configuration in `pom.xml` or `jpackage-config.properties` and execute it
+4. **Capture packaging output**: Collect jpackage's `stdout` and `stderr`
+5. **Validate installer artifact**: Check whether installer files are generated (`.exe` / `.msi` / `.dmg` / `.deb` / `.rpm`) and whether the size is reasonable
+6. **Toolchain missing diagnosis**: If jpackage fails, diagnose whether it is a toolchain missing issue (Inno Setup / WiX / Xcode tools)
 
-### 步骤 5：结果解析与严重性分级
+### Step 5: Result Parsing and Severity Classification
 
-1. 对每个验证失败项按严重性分级体系评定等级
-2. 去重：同一根因引发的编译错误和运行时异常合并为一个问题
-3. 排序：按严重性降序排列，同等级按验证维度排列（编译 → 运行 → 打包）
+1. Assign a level to each verification failure per the severity classification system
+2. Deduplicate: merge compilation errors and runtime exceptions caused by the same root cause into one issue
+3. Sort: arrange in descending severity order, within the same level sort by verification dimension (compile -> runtime -> packaging)
 
-### 步骤 6：生成验证报告
+### Step 6: Generate Verification Report
 
-1. 按报告模板（见 `report-templates/verification-report.md`）生成结构化验证报告
-2. 报告包含：验证摘要、问题清单（含位置 / 建议 / 修复交接）、验证结果总结
-3. 对每个问题提供可操作的修复建议，含修正后的命令或配置
-4. 修复交接字段格式与 `javafx-code-reviewer` 完全一致，供 `javafx-developer` 直接消费
+1. Generate a structured verification report following the report template (see `report-templates/verification-report.md`)
+2. The report includes: verification summary, issue list (with location / recommendation / fix handoff), verification result summary
+3. Provide actionable fix recommendations for each issue, including corrected commands or configuration
+4. The fix handoff field format is fully consistent with `javafx-code-reviewer`, for `javafx-developer` to directly consume
 
-## 验证维度
+## Verification Dimensions
 
-### 1. 编译验证
+### 1. Compile Verification
 
-执行 `mvn compile`（或 `gradle compileJava`），解析编译器输出，识别编译错误和警告。默认严重性基线：Critical。
+Execute `mvn compile` (or `gradle compileJava`), parse the compiler output, and identify compilation errors and warnings. Default severity baseline: Critical.
 
-**检查项**：
-- **语法编译**：所有 Java 源文件能否通过 `javac` 编译，无语法错误
-- **依赖解析**：Maven/Gradle 依赖能否全部解析，无 `ClassNotFoundException` 或 `NoClassDefFoundError` 编译期错误
-- **模块配置**：`module-info.java` 的 `requires` / `exports` / `opens` 声明是否与实际代码匹配
-- **FXML 编译关联**：Controller 类的全限定名能否被类加载器解析（FXML 中 `fx:controller` 指向的类是否存在）
-- **泛型与类型**：`TableView<User>` 等泛型使用是否类型安全，`cellValueFactory` 回调签名是否正确
-- **资源路径编译期检查**：`getClass().getResource("/fxml/xxx.fxml")` 引用的资源路径在编译产物中是否存在
-- **编译警告排查**：未使用导入、deprecation 警告、unchecked 警告是否影响运行
+**Check Items**:
+- **Syntax compilation**: Whether all Java source files can pass `javac` compilation with no syntax errors
+- **Dependency resolution**: Whether all Maven/Gradle dependencies can be resolved, with no `ClassNotFoundException` or `NoClassDefFoundError` compile-time errors
+- **Module configuration**: Whether `module-info.java`'s `requires` / `exports` / `opens` declarations match the actual code
+- **FXML compile association**: Whether the fully qualified name of the Controller class can be resolved by the class loader (whether the class pointed to by `fx:controller` in FXML exists)
+- **Generics and types**: Whether generic usages such as `TableView<User>` are type-safe, whether `cellValueFactory` callback signatures are correct
+- **Resource path compile-time check**: Whether the resource paths referenced by `getClass().getResource("/fxml/xxx.fxml")` exist in the compile output
+- **Compilation warning triage**: Whether unused imports, deprecation warnings, and unchecked warnings affect running
 
-> **典型失败示例**：`module-info.java` 缺少 `opens com.example.model to javafx.controls`，编译通过但运行时 `PropertyValueFactory` 反射失败——此问题在编译维度表现为"模块 opens 缺失"警告，在运行维度表现为 `LoadException`。
+> **Typical failure example**: `module-info.java` is missing `opens com.example.model to javafx.controls`; compilation passes but `PropertyValueFactory` reflection fails at runtime - this issue manifests as a "module opens missing" warning in the compile dimension and as a `LoadException` in the runtime dimension.
 
-### 2. 运行验证
+### 2. Runtime Verification
 
-执行 `mvn javafx:run`（或 `gradle run`），启动 JavaFX 应用，捕获启动过程和运行时异常。默认严重性基线：Critical。
+Execute `mvn javafx:run` (or `gradle run`), launch the JavaFX application, and capture startup process and runtime exceptions. Default severity baseline: Critical.
 
-**检查项**：
-- **应用启动**：`Application.launch()` 能否正常启动，`start()` 方法能否执行完毕，主窗口能否显示
-- **FXML 加载**：所有 `FXMLLoader.load()` 调用能否成功解析 FXML 文件，`fx:controller` 能否实例化，`fx:id` 注入能否完成
-- **CSS 解析**：所有 CSS 样式表能否被 JavaFX CSS 解析器无错误加载，无 `var()` 不支持语法、无未定义查找色
-- **资源加载**：图片、图标、国际化资源包等能否被正确加载，路径无 `NullPointerException`
-- **模块运行时**：`module-info.java` 在运行时是否满足所有反射需求（`PropertyValueFactory`、FXML 控制器注入、`FXMLLoader` 反射访问）
-- **线程安全运行时验证**：是否存在运行时抛出的 `IllegalStateException: Not on FX application thread`
-- **JavaFX 24+ 原生访问**：JavaFX 24+ 项目是否配置了 `--enable-native-access=javafx.graphics`，缺失时启动是否报 `IllegalAccessError`
-- **Headless 模式验证**：CI 环境（无显示器）下能否通过 Monocle 测试框架启动 JavaFX 应用
-- **启动超时检测**：应用是否在合理时间内完成启动（默认 30 秒超时）
-- **退出码检查**：应用正常退出时退出码为 0，非零退出码表示运行时错误
+**Check Items**:
+- **Application startup**: Whether `Application.launch()` can start normally, whether the `start()` method can complete, whether the main window can be displayed
+- **FXML load**: Whether all `FXMLLoader.load()` calls can successfully parse FXML files, whether `fx:controller` can be instantiated, whether `fx:id` injection can complete
+- **CSS parse**: Whether all CSS stylesheets can be loaded by the JavaFX CSS parser without errors, with no unsupported `var()` syntax and no undefined looked-up colors
+- **Resource load**: Whether images, icons, and internationalization resource bundles can be loaded correctly, with no `NullPointerException` on paths
+- **Module runtime**: Whether `module-info.java` satisfies all reflection requirements at runtime (`PropertyValueFactory`, FXML controller injection, `FXMLLoader` reflection access)
+- **Thread safety runtime verification**: Whether a runtime `IllegalStateException: Not on FX application thread` is thrown
+- **JavaFX 24+ native access**: Whether JavaFX 24+ projects configure `--enable-native-access=javafx.graphics`; whether startup reports `IllegalAccessError` when missing
+- **Headless mode verification**: Whether a JavaFX application can be launched via the Monocle test framework in a CI environment (without a display)
+- **Startup timeout detection**: Whether the application completes startup within a reasonable time (default 30-second timeout)
+- **Exit code check**: The exit code is 0 when the application exits normally; a non-zero exit code indicates a runtime error
 
-> **典型失败示例**：`module-info.java` 编译通过但缺少 `opens com.example.controller to javafx.fxml`，运行时 `FXMLLoader` 无法反射实例化控制器，抛出 `IllegalAccessException`。
+> **Typical failure example**: `module-info.java` compiles but is missing `opens com.example.controller to javafx.fxml`; at runtime `FXMLLoader` cannot reflectively instantiate the controller and throws `IllegalAccessException`.
 
-### 3. 打包验证
+### 3. Test Verification
 
-执行 `mvn package` 生成 JAR，再执行 `jpackage` 生成原生安装包，验证打包流程和产物完整性。默认严重性基线：Major。
+Execute `mvn test` (or `gradle test`), parse test results, and identify test failures and coverage gaps. Default severity baseline: Major.
 
-**检查项**：
-- **JAR 构建**：`mvn package` 能否成功生成可执行 JAR，JAR 内是否包含所有必要的 JavaFX 模块依赖
-- **模块路径完整性**：`jpackage` 的 `--module-path` 是否包含 JavaFX SDK 的 `lib` 目录，`--add-modules` 是否列出所有必需模块
-- **主类与主模块**：`--main-class` 和 `--main-module`（模块化项目）是否正确指向应用入口
-- **原生访问配置**：`--java-options "--enable-native-access=javafx.graphics"` 是否包含在打包配置中（JavaFX 24+）
-- **平台工具链**：Windows 是否安装 Inno Setup（exe）或 WiX Toolset 4.x（msi）；macOS 是否安装 Xcode command line tools；Linux 是否安装 `dpkg-deb` 或 `rpm-build`
-- **图标格式**：Windows 图标是否为 `.ico`（多尺寸内嵌），macOS 是否为 `.icns`，Linux 是否为 `.png`
-- **安装包生成**：`jpackage` 能否成功生成安装包文件，产物大小是否合理（非 0 字节）
-- **升级 UUID**：Windows 打包是否包含有效的 `--win-upgrade-uuid`（UUID v4 格式）
+**Check Items**:
+- **Test compilation**: Whether test source files in `src/test/java/` compile without errors
+- **Test execution**: Whether all tests pass with 0 failures and 0 errors
+- **Test coverage**: Whether critical paths are covered (warning if Controller/ViewModel has 0 tests)
+- **FXML load test**: Whether a TestFX test verifies FXML loading and controller injection
+- **UI interaction test**: Whether at least one TestFX test covers button click / form submit / table selection
 
-> **典型失败示例**：`jpackage` 命令缺少 `--add-modules javafx.controls,javafx.fxml`，生成的安装包运行时报 `Module javafx.controls not found`。
+> **Short-circuit**: If compile verification fails, skip test verification (cannot run tests on uncompilable code). If test verification fails, skip packaging verification (should not package untested code).
 
-## 严重性分级
+> **Typical failure example**: `Tests run: 5, Failures: 1, Errors: 0` — a test asserting `TableView` has initial data fails because the Controller's `initialize()` method doesn't load data.
 
-复用 `javafx-code-reviewer` 的四级严重性体系，确保整个技能集的分级标准一致。
+### 4. Packaging Verification
 
-| 等级 | 标识 | 定义 | 典型问题 | 处理建议 |
-|------|------|------|---------|---------|
-| 严重 | Critical | 项目无法编译或应用无法启动，必须立即修复 | 编译错误、FXML 加载失败、模块配置缺失致启动崩溃 | 阻断交付，优先修复 |
-| 重要 | Major | 打包失败或存在运行时风险，影响交付但不影响开发调试 | jpackage 失败、启动超时、JavaFX 24+ 缺少原生访问配置 | 本迭代内修复 |
-| 次要 | Minor | 编译警告或非阻塞性运行时警告 | 未使用导入、deprecation 警告、CSS 解析警告 | 建议修复 |
-| 建议 | Info | 优化建议，提升构建或运行效率但不影响功能 | 可使用增量编译加速、可配置 Monocle 优化 CI | 择机优化 |
+Execute `mvn package` to generate a JAR, then execute `jpackage` to generate a native installer, verifying the packaging flow and artifact integrity. Default severity baseline: Major.
 
-### 升降级条件表
+**Check Items**:
+- **JAR build**: Whether `mvn package` can successfully generate an executable JAR, whether the JAR contains all necessary JavaFX module dependencies
+- **Module path integrity**: Whether jpackage's `--module-path` includes the JavaFX SDK `lib` directory, whether `--add-modules` lists all required modules
+- **Main class and main module**: Whether `--main-class` and `--main-module` (for modular projects) correctly point to the application entry point
+- **Native access configuration**: Whether `--java-options "--enable-native-access=javafx.graphics"` is included in the packaging configuration (JavaFX 24+)
+- **Platform toolchain**: Whether Windows has Inno Setup (exe) or WiX Toolset 4.x (msi) installed; whether macOS has Xcode command line tools; whether Linux has `dpkg-deb` or `rpm-build`
+- **Icon format**: Whether the Windows icon is `.ico` (multi-size embedded), whether macOS is `.icns`, whether Linux is `.png`
+- **Installer generation**: Whether `jpackage` can successfully generate installer files, whether the artifact size is reasonable (not 0 bytes)
+- **Upgrade UUID**: Whether Windows packaging includes a valid `--win-upgrade-uuid` (UUID v4 format)
 
-| 检查项 | 默认基线 | 降级条件 | 升级条件 |
-|--------|---------|---------|---------|
-| 编译错误 | Critical | —（不可降级，编译失败则项目无法运行） | — |
-| 模块 opens 缺失 | Critical | 缺失的 opens 不影响当前功能（如未用 PropertyValueFactory）→ Major | — |
-| FXML 加载失败 | Critical | —（运行时必然抛 LoadException，不可降级） | — |
-| CSS 解析错误 | Major | 仅警告不影响渲染（如未定义查找色回退到默认值）→ Minor | 导致界面无法显示 → Critical |
-| 线程安全运行时异常 | Critical | —（运行时必然抛 IllegalStateException，不可降级） | — |
-| JavaFX 24+ 缺少原生访问 | Critical | —（运行时必然报 IllegalAccessError，不可降级） | — |
-| 启动超时 | Major | 超时因首次加载 JavaFX 模块（冷启动），二次启动正常 → Minor | 超时因 `start()` 中阻塞调用 → Critical |
-| jpackage 失败 | Major | 工具链未安装（环境问题非代码问题）→ Info | `module-path` 配置错误导致生成产物无法运行 → Critical |
-| JAR 产物缺失 | Critical | —（打包流程断裂） | — |
-| 编译警告 | Minor | — | 大量 unchecked 警告可能掩盖真实类型错误 → Major |
+> **Typical failure example**: The `jpackage` command is missing `--add-modules javafx.controls,javafx.fxml`; the generated installer reports `Module javafx.controls not found` at runtime.
 
-**分级约束**：
-- 每个问题最多浮动一级，禁止跨级跳变
-- 标注"不可降级"的检查项，即使影响轻微也必须保持默认基线
-- 升降级时须在报告"升降级说明"字段注明触发条件
+## Severity Classification
 
-## 验证报告格式
+Reuses the four-level severity system of `javafx-code-reviewer`, ensuring consistent classification standards across the entire skill set.
 
-验证完成后输出结构化报告，包含验证摘要、问题清单和验证结果总结三部分。报告格式与 `javafx-code-reviewer` 的评审报告保持同构，修复交接字段完全一致，确保 `javafx-developer` 可用同一套逻辑消费两种报告。
+| Level | Identifier | Definition | Typical Issues | Handling Recommendation |
+|-------|------------|------------|----------------|-------------------------|
+| Critical | Critical | Project cannot compile or application cannot start; must be fixed immediately | Compilation errors, FXML load failure, module configuration missing causing startup crash | Block delivery, fix first |
+| Major | Major | Packaging failed or runtime risk exists, affects delivery but not development debugging | jpackage failure, startup timeout, JavaFX 24+ missing native access configuration | Fix within this iteration |
+| Minor | Minor | Compilation warnings or non-blocking runtime warnings | Unused imports, deprecation warnings, CSS parse warnings | Recommend fixing |
+| Info | Info | Optimization suggestions that improve build or run efficiency but do not affect functionality | Can use incremental compilation to speed up, can configure Monocle to optimize CI | Optimize when convenient |
 
-### 报告结构
+### Escalation/De-escalation Conditions
+
+| Check Item | Default Baseline | De-escalation Condition | Escalation Condition |
+|------------|------------------|------------------------|----------------------|
+| Compilation error | Critical | - (cannot be de-escalated; if compilation fails the project cannot run) | - |
+| Module opens missing | Critical | Missing opens does not affect current functionality (e.g., PropertyValueFactory not used) -> Major | - |
+| FXML load failure | Critical | - (runtime will always throw LoadException, cannot be de-escalated) | - |
+| CSS parse error | Major | Only a warning that does not affect rendering (e.g., undefined looked-up color falls back to default) -> Minor | Causes the UI to fail to display -> Critical |
+| Thread safety runtime exception | Critical | - (runtime will always throw IllegalStateException, cannot be de-escalated) | - |
+| JavaFX 24+ missing native access | Critical | - (runtime will always report IllegalAccessError, cannot be de-escalated) | - |
+| Startup timeout | Major | Timeout due to first-time loading of JavaFX modules (cold start), second startup is normal -> Minor | Timeout due to blocking call in `start()` -> Critical |
+| jpackage failure | Major | Toolchain not installed (environment issue, not a code issue) -> Info | `module-path` misconfiguration causing the generated artifact to be unrunnable -> Critical |
+| JAR artifact missing | Critical | - (packaging flow broken) | - |
+| Compilation warning | Minor | - | Large number of unchecked warnings may mask real type errors -> Major |
+
+**Classification constraints**:
+- Each issue may move at most one level; cross-level jumps are prohibited
+- Check items marked "cannot be de-escalated" must retain their default baseline even if the impact is minor
+- When escalating or de-escalating, the triggering condition must be noted in the report's "Escalation/De-escalation Note" field
+
+## Verification Report Format
+
+After verification is complete, output a structured report containing three parts: verification summary, issue list, and verification result summary. The report format is isomorphic with `javafx-code-reviewer`'s review report, with the fix handoff field fully consistent, ensuring `javafx-developer` can consume both reports using the same logic.
+
+### Report Structure
 
 ```
-# JavaFX 验证报告
+# JavaFX Verification Report
 
-## 验证摘要
-- 验证模式：[全量 / 增量 / 指定维度]
-- 验证范围：[执行的验证维度清单]
-- 环境信息：JDK [版本] / Maven [版本] / JavaFX [版本] / OS [平台]
-- 模块化：[是 / 否]
-- 验证命令：[实际执行的命令清单]
-- 发现问题总数：X 个（Critical: a / Major: b / Minor: c / Info: d）
-- 验证结论：[通过 / 有条件通过 / 不通过]
+## Verification Summary
+- Verification Mode: [Full / Incremental / Targeted Dimension]
+- Verification Scope: [List of verification dimensions executed]
+- Environment: JDK [version] / Maven [version] / JavaFX [version] / OS [platform]
+- Modular: [Yes / No]
+- Verification Commands: [List of commands actually executed]
+- Total Issues Found: X (Critical: a / Major: b / Minor: c / Info: d)
+- Verification Conclusion: [Pass / Conditional Pass / Fail]
 
-## 问题清单
+## Issue List
 
-### [Critical] 问题标题
-- **问题描述**：具体说明验证失败的表现
-- **验证维度**：[编译验证 / 运行验证 / 打包验证]
-- **代码位置**：`文件路径:行号`（如适用）
-- **错误输出**：
+### [Critical] Issue Title
+- **Problem Description**: Specific description of the verification failure
+- **Verification Dimension**: [Compile Verification / Runtime Verification / Packaging Verification]
+- **Code Location**: `file path:line number` (if applicable)
+- **Error Output**:
   ```
-  实际的编译器/运行时/jpackage 输出片段
+  Actual compiler/runtime/jpackage output snippet
   ```
-- **根因分析**：说明为什么验证失败
-- **修复建议**：说明如何修复
-- **修正示例**：
+- **Root Cause Analysis**: Explain why verification failed
+- **Fix Recommendation**: Explain how to fix it
+- **Corrected Example**:
   ```java
-  // 修正后的代码或配置
+  // Corrected code or configuration
   ```
-- **规范依据**：`references/文档名 — 条目标题`
-- **升降级说明**：若严重性偏离默认基线，注明触发条件；未偏离则填"无"
-- **修复交接**：
-  - `target_file: 文件路径`
-  - `target_lines: 起始行-结束行`
+- **Rule Reference**: `references/document name -- Check Item title`
+- **Escalation/De-escalation Note**: If severity deviates from the default baseline, note the triggering condition; if not, fill "None"
+- **Fix Handoff**:
+  - `target_file: file path`
+  - `target_lines: start line-end line`
   - `fix_type: [replace / insert / delete]`
-  - `fix_priority: [1-N]`（修复优先级，1=最高）
+  - `fix_priority: [1-N]` (fix priority, 1=highest)
 
-### [Major] ...（同上结构）
+### [Major] ... (same structure)
 
-## 验证结果总结
-| 维度 | 检查项数 | 通过 | 不通过 | 跳过 | 通过率 |
-|------|---------|------|--------|------|--------|
-| 编译验证 | 7 | [N] | [N] | [N] | [N%] |
-| 运行验证 | 10 | [N] | [N] | [N] | [N%] |
-| 打包验证 | 8 | [N] | [N] | [N] | [N%] |
-| **总计** | **[N]** | **[N]** | **[N]** | **[N]** | **[N%]** |
+## Verification Result Summary
+| Dimension | Check Items | Passed | Failed | Skipped | Pass Rate |
+|-----------|-------------|--------|--------|---------|-----------|
+| Compile Verification | 7 | [N] | [N] | [N] | [N%] |
+| Runtime Verification | 10 | [N] | [N] | [N] | [N%] |
+| Packaging Verification | 8 | [N] | [N] | [N] | [N%] |
+| **Total** | **[N]** | **[N]** | **[N]** | **[N]** | **[N%]** |
 
-## 修复交接汇总
-| 优先级 | 严重性 | 维度 | 文件 | 行号 | 修复类型 | 问题摘要 |
-|--------|--------|------|------|------|---------|---------|
-| 1 | Critical | 编译验证 | `文件路径` | `起始-结束` | replace | [问题摘要] |
-| 2 | Critical | 运行验证 | `文件路径` | `起始-结束` | insert | [问题摘要] |
+## Fix Handoff Summary
+| Priority | Severity | Dimension | File | Lines | Fix Type | Issue Summary |
+|----------|----------|-----------|------|-------|----------|---------------|
+| 1 | Critical | Compile Verification | `file path` | `start-end` | replace | [issue summary] |
+| 2 | Critical | Runtime Verification | `file path` | `start-end` | insert | [issue summary] |
 | ... | ... | ... | ... | ... | ... | ... |
 ```
 
-### 报告语言策略
+### Report Language Strategy
 
-- **跟随技能版本**：中文版技能输出中文报告，英文版技能输出英文报告
-- **代码与标识符保持原样**：无论报告语言，代码片段、文件路径、类名、API 名称、命令行均保持英文原样不翻译
-- **错误输出保持原样**：编译器 / 运行时 / jpackage 的原始输出保持原文不翻译
+- **Follow skill version**: The Chinese skill outputs Chinese reports; the English skill outputs English reports
+- **Code and identifiers remain as-is**: Regardless of report language, code snippets, file paths, class names, API names, and command lines remain in English without translation
+- **Error output remains as-is**: The raw output of the compiler / runtime / jpackage is kept verbatim without translation
 
-### 修复交接字段说明
+### Fix Handoff Field Description
 
-修复交接字段与 `javafx-code-reviewer` 完全一致，是实现"生成 → 审核 → 验证 → 修复"闭环的关键：
+The fix handoff field is fully consistent with `javafx-code-reviewer` and is key to achieving the "generate -> review -> verify -> fix" closed loop:
 
-- `fix_type=replace`：用"修正示例"替换 `target_lines` 指定的代码段
-- `fix_type=insert`：在 `target_lines` 之后插入"修正示例"
-- `fix_type=delete`：删除 `target_lines` 指定的代码段（无修正示例）
-- `fix_priority`：按严重性 + 验证维度排序后的修复优先级，1 为最高，供批量修复时排序
+- `fix_type=replace`: Replace the code segment specified by `target_lines` with the "Corrected Example"
+- `fix_type=insert`: Insert the "Corrected Example" after `target_lines`
+- `fix_type=delete`: Delete the code segment specified by `target_lines` (no corrected example)
+- `fix_priority`: Fix priority sorted by severity + verification dimension, 1 is highest, for ordering during batch fixes
 
-`javafx-developer` 消费验证报告时，可直接按 `fix_priority` 顺序逐项执行修复，无需额外的格式转换。
+When `javafx-developer` consumes the verification report, it can directly execute fixes item by item in `fix_priority` order, with no additional format conversion required.
 
-## 约束
+## Constraints
 
-### 执行安全
+### Execution Safety
 
-1. **命令白名单**：仅执行 `mvn`、`gradle`、`jpackage`、`java -version`、`mvn -version` 等构建相关命令，不执行任意系统命令
-2. **超时保护**：所有命令设置超时（编译 5 分钟、运行 30 秒、打包 10 分钟），超时后终止进程
-3. **无副作用**：不修改用户项目文件（仅读取和执行），修复由 `javafx-developer` 执行
-4. **沙箱意识**：打包验证涉及系统安装时，提示用户确认或在沙箱环境执行
+1. **Command whitelist**: Only execute build-related commands such as `mvn`, `gradle`, `jpackage`, `java -version`, `mvn -version`; do not execute arbitrary system commands
+2. **Timeout protection**: All commands set timeouts (compile 5 minutes, run 30 seconds, packaging 10 minutes); terminate the process after timeout
+3. **No side effects**: Do not modify user project files (only read and execute); fixes are performed by `javafx-developer`
+4. **Sandbox awareness**: When packaging verification involves system installation, prompt the user to confirm or execute in a sandbox environment
 
-### 环境兼容
+### Environment Compatibility
 
-1. **构建工具检测**：自动检测 Maven 或 Gradle，选择对应的命令
-2. **跨平台**：支持 Windows / macOS / Linux，jpackage 验证根据平台选择输出类型
-3. **Headless 支持**：CI 环境无显示器时，使用 Monocle 框架进行 headless 运行验证
-4. **JavaFX 版本感知**：根据项目使用的 JavaFX 版本，动态调整验证项（如 JavaFX 24+ 检查 `--enable-native-access`）
+1. **Build tool detection**: Automatically detect Maven or Gradle and select the corresponding command
+2. **Cross-platform**: Supports Windows / macOS / Linux; jpackage verification selects the output type based on the platform
+3. **Headless support**: When a CI environment has no display, use the Monocle framework for headless run verification
+4. **JavaFX version awareness**: Dynamically adjust verification items based on the JavaFX version used by the project (e.g., JavaFX 24+ checks `--enable-native-access`)
 
-## 参考文档
+## Loop Orchestration Protocol
 
-如需深入判定依据，请参阅 `references/` 目录中的以下文档：
+This protocol is shared across `javafx-developer`, `javafx-code-reviewer`, and `javafx-runner`. It defines the automated closed-loop cycle: **generate → review → verify → fix → re-verify**, until the quality gate passes or termination conditions are met.
 
-- `references/compile-verification.md` — 编译验证规则与错误模式库 ← developer: 质量检查清单 · 语法检查
-- `references/runtime-verification.md` — 运行验证规则与异常模式库 ← reviewer: 线程安全维度（动态验证静态结论）
-- `references/packaging-verification.md` — 打包验证规则与平台工具链 ← developer: 打包章节 · jpackage 命令
-- `references/environment-setup.md` — 环境检测与 Monocle headless 配置
-- `EVALUATE.md` — 评估用例集，用于量化技能输出质量
+### Runner's Role in the Loop
 
-## 报告模板
+`javafx-runner` occupies the **verify** stage of the loop:
+- **Round 1**: Full verification — environment detection + compile + runtime + packaging
+- **Round 2+**: Targeted verification — compile always; runtime/packaging only if fixes touch related files (identified by `target_file` in the fix handoff)
+- **Short-circuit**: If compile verification fails, skip runtime and packaging verification (cannot run uncompiled code)
 
-`report-templates/` 目录中的可套用骨架模板：
+### Loop State Machine
 
-- `report-templates/verification-report.md` — 验证报告骨架模板（可套用）
+```
+[Start] → Generating → Reviewing → (reviewer Pass?) → Verifying → (runner Pass?) → [Delivered]
+                          ↓ No                          ↓ No
+                       Fixing ←────────────────────── Fixing
+                          ↓
+                     Re-Reviewing (incremental)
+```
+
+### Loop Rules
+
+| Rule | Definition | Termination |
+|------|-----------|-------------|
+| Max rounds | Fix → verify cycle loops at most 3 rounds | At 3 rounds without pass → pause, report to user |
+| Re-review strategy | Round 1: full re-review; Round 2+: incremental re-review (only dimensions touched by fixes) | Incremental re-review checks only fix-affected dimensions |
+| Re-verify strategy | Every round: compile verification mandatory; runtime/packaging based on fix scope | Compile failure short-circuits: skip runtime and packaging |
+| Convergence detection | Compare current round issue count with previous round | 2 consecutive non-converging rounds → pause, report to user |
+| User intervention points | Max rounds reached / non-converging / unfixable issues | Pause with current state report |
+
+### Quality Gate (Combined)
+
+The loop terminates as **Pass** only when BOTH reviewer and runner pass:
+
+| Reviewer Conclusion | Runner Conclusion | Overall | Action |
+|---------------------|-------------------|---------|--------|
+| Pass | Pass | **Pass** | Deliver, exit loop |
+| Pass | Conditional/Fail | **Fail** | Fix runner issues, continue loop |
+| Conditional/Fail | Pass | **Fail** | Fix reviewer issues, continue loop |
+| Conditional/Fail | Conditional/Fail | **Fail** | Fix both, continue loop |
+
+**Priority rule**: When reviewer is Fail, fix reviewer issues first (static issues are usually root causes; fixing them may resolve runtime issues too).
+
+### Individual Gate Criteria (Runner)
+
+- **Pass**: No Critical or Major issues, all check items pass (or skipped items are documented), pass rate >= 80%
+- **Conditional Pass**: Has Major but no Critical, all Major issues have clear fix plans; runtime verification passes but packaging verification has non-blocking issues
+- **Fail**: Has Critical issues (compilation errors, startup failures, etc.), must be fixed before delivery
+
+## Runtime Findings Feedback Protocol
+
+This protocol defines how `javafx-runner` feeds runtime-discovered issue patterns back to `javafx-code-reviewer`'s static rule library, enabling skill set self-evolution.
+
+### When to Generate Feedback
+
+During runtime/test verification, when runner discovers an issue pattern that:
+- Is NOT covered by any existing reviewer check item
+- Occurs repeatedly (>= 2 occurrences in the same project)
+- Has a clear, describable code pattern (not a one-off environment issue)
+
+### Feedback Fields
+
+Each finding in the report's **Runtime Findings Feedback** section contains:
+
+| Field | Description |
+|-------|-------------|
+| `pattern` | Description of the recurring runtime issue pattern |
+| `runner_check` | Which runner check item detected this |
+| `suggested_reviewer_rule.target_document` | Which reviewer references/ document should receive the new rule |
+| `suggested_reviewer_rule.suggested_check_item` | Proposed title for the new check item |
+| `suggested_reviewer_rule.description` | What the new check item should verify |
+| `suggested_reviewer_rule.suggested_severity` | Proposed severity baseline |
+| `evidence.occurrences` | How many times this pattern was found |
+| `evidence.sample_stack_trace` | Representative stack trace |
+| `evidence.affected_files` | List of files where the pattern was found |
+
+### Feedback Processing Flow
+
+1. **Capture**: Runner detects a runtime exception pattern, records exception type, stack trace, and trigger context
+2. **Attribution**: Runner analyzes the root cause and determines whether it is a "novel pattern not covered by reviewer rules"
+3. **Suggest**: Runner outputs `suggested_reviewer_rule` in the report with proposed check item description and severity
+4. **Review**: Maintainer (user or skill author) reviews the suggestion and decides whether to adopt it into reviewer's `references/` documents
+5. **Update**: If adopted, update the corresponding reviewer `references/` document with the new check item — next static review cycle will cover this pattern
+
+### Design Constraints
+
+- Feedback is **advisory, not automatic**: suggestions require maintainer review before adoption (prevents rule quality degradation from auto-generated false positives)
+- If all runtime issues were already covered by existing reviewer rules, state explicitly: "No novel runtime patterns found"
+- Feedback section is omitted entirely when no novel patterns exist (keep report concise)
+
+## Reference Documents
+
+For in-depth criteria, refer to the following documents in the `references/` directory:
+
+- `references/compile-verification.md` - Compile verification rules and error pattern library <- developer: Quality checklist - syntax check
+- `references/runtime-verification.md` - Runtime verification rules and exception pattern library <- reviewer: Thread safety dimension (dynamically verifying static conclusions)
+- `references/packaging-verification.md` - Packaging verification rules and platform toolchain <- developer: Packaging chapter - jpackage command
+- `references/test-verification.md` - Test verification rules and failure pattern library <- developer: Quality checklist - test coverage
+- `references/environment-setup.md` - Environment detection and Monocle headless configuration
+- `EVALUATE.md` - Evaluation test case set, for quantifying skill output quality
+
+## Report Template
+
+Reusable skeleton template in the `report-templates/` directory:
+
+- `report-templates/verification-report.md` - Verification report skeleton template (reusable)

@@ -13,9 +13,9 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 
 /**
- * 主窗口控制器。
+ * Main controller for the primary application window.
  * <p>
- * 负责装配菜单栏动作并管理中央内容区域。
+ * Wires up the menu bar actions and manages the central content area.
  * </p>
  */
 public class MainController extends BaseController {
@@ -46,8 +46,8 @@ public class MainController extends BaseController {
 
     @Override
     public void initialize(URL location, ResourceBundle resources) {
-        // 在此执行初始化逻辑。
-        // FXML 加载完成后会自动调用此方法。
+        // Perform any initialization logic here.
+        // This method is called automatically after the FXML has been loaded.
     }
 
     @Override
@@ -56,29 +56,29 @@ public class MainController extends BaseController {
     }
 
     /**
-     * 处理"新建"菜单动作。
+     * Handles the "New" menu action.
      *
-     * @param event 动作事件
+     * @param event the action event
      */
     @FXML
     private void handleNew(ActionEvent event) {
-        // TODO: 实现新建文档逻辑
+        // TODO: implement new document logic
     }
 
     /**
-     * 处理"打开..."菜单动作。
+     * Handles the "Open..." menu action.
      *
-     * @param event 动作事件
+     * @param event the action event
      */
     @FXML
     private void handleOpen(ActionEvent event) {
-        // TODO: 实现打开逻辑
+        // TODO: implement open logic
     }
 
     /**
-     * 处理"退出"菜单动作。
+     * Handles the "Exit" menu action.
      *
-     * @param event 动作事件
+     * @param event the action event
      */
     @FXML
     private void handleExit(ActionEvent event) {
@@ -86,12 +86,12 @@ public class MainController extends BaseController {
     }
 
     /**
-     * 处理"关于"菜单动作。
+     * Handles the "About" menu action.
      *
-     * @param event 动作事件
+     * @param event the action event
      */
     @FXML
     private void handleAbout(ActionEvent event) {
-        // TODO: 实现"关于"对话框逻辑
+        // TODO: implement about dialog logic
     }
 }

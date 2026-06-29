@@ -13,17 +13,17 @@
     <top>
         <MenuBar BorderPane.alignment="CENTER">
             <menus>
-                <Menu mnemonicParsing="false" text="文件">
+                <Menu mnemonicParsing="false" text="File">
                     <items>
-                        <MenuItem fx:id="newMenuItem" mnemonicParsing="false" text="新建" onAction="#handleNew"/>
-                        <MenuItem fx:id="openMenuItem" mnemonicParsing="false" text="打开..." onAction="#handleOpen"/>
+                        <MenuItem fx:id="newMenuItem" mnemonicParsing="false" text="New" onAction="#handleNew"/>
+                        <MenuItem fx:id="openMenuItem" mnemonicParsing="false" text="Open..." onAction="#handleOpen"/>
                         <SeparatorMenuItem mnemonicParsing="false"/>
-                        <MenuItem fx:id="exitMenuItem" mnemonicParsing="false" text="退出" onAction="#handleExit"/>
+                        <MenuItem fx:id="exitMenuItem" mnemonicParsing="false" text="Exit" onAction="#handleExit"/>
                     </items>
                 </Menu>
-                <Menu mnemonicParsing="false" text="帮助">
+                <Menu mnemonicParsing="false" text="Help">
                     <items>
-                        <MenuItem fx:id="aboutMenuItem" mnemonicParsing="false" text="关于" onAction="#handleAbout"/>
+                        <MenuItem fx:id="aboutMenuItem" mnemonicParsing="false" text="About" onAction="#handleAbout"/>
                     </items>
                 </Menu>
             </menus>
@@ -32,14 +32,14 @@
     <center>
         <VBox fx:id="contentArea" spacing="10.0" styleClass="content-area">
             <children>
-                <Label styleClass="content-title" text="内容区域"/>
+                <Label styleClass="content-title" text="Content Area"/>
             </children>
         </VBox>
     </center>
     <bottom>
         <HBox fx:id="statusBar" alignment="CENTER_LEFT" styleClass="status-bar">
             <children>
-                <Label fx:id="statusLabel" text="就绪"/>
+                <Label fx:id="statusLabel" text="Ready"/>
             </children>
         </HBox>
     </bottom>

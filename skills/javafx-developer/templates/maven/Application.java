@@ -11,46 +11,49 @@ import javafx.scene.Scene;
 import javafx.stage.Stage;
 
 /**
- * JavaFX 应用程序入口。
+ * JavaFX application entry point.
  * <p>
- * 继承 {@link Application}，在 {@link #start(Stage)} 方法中加载主视图 FXML，
- * 构建 {@link Scene} 并绑定 CSS 样式表，最终显示主舞台。
+ * Extends {@link Application} and, within {@link #start(Stage)}, loads the
+ * main view FXML, builds a {@link Scene} with an attached CSS stylesheet,
+ * and finally shows the primary stage.
  * </p>
  * <p>
- * 默认加载 {@code /fxml/main-view.fxml} 作为主视图，
- * 应用 {@code /css/light-theme.css} 作为基础样式表。资源文件位于 {@code src/main/resources}。
+ * By default loads {@code /fxml/main-view.fxml} as the main view and applies
+ * {@code /css/light-theme.css} as the base stylesheet. Resource files reside
+ * under {@code src/main/resources}.
  * </p>
  */
 public class MainApp extends Application {
 
-    /** 主视图 FXML 资源路径。 */
+    /** Path to the main view FXML resource. */
     private static final String FXML_PATH = "/fxml/main-view.fxml";
 
-    /** 基础样式表资源路径。 */
+    /** Path to the base CSS stylesheet. */
     private static final String CSS_PATH = "/css/light-theme.css";
 
-    /** 默认舞台标题。 */
+    /** Default stage title. */
     private static final String DEFAULT_TITLE = "{{artifactId}}";
 
     /**
-     * 应用程序入口，由 JavaFX 运行时在 JavaFX Application Thread 上调用。
+     * Application entry point, invoked by the JavaFX runtime on the
+     * JavaFX Application Thread.
      * <p>
-     * 加载主视图 FXML，创建 {@link Scene} 并应用 CSS 样式表，
-     * 随后将场景设置到主舞台并显示。
+     * Loads the main view FXML, creates a {@link Scene} and applies the CSS
+     * stylesheet, then sets the scene on the primary stage and shows it.
      * </p>
      *
-     * @param stage 由 JavaFX 运行时提供的主舞台
-     * @throws IOException 若主视图 FXML 资源无法加载
+     * @param stage the primary stage provided by the JavaFX runtime
+     * @throws IOException if the main view FXML resource cannot be loaded
      */
     @Override
     public void start(Stage stage) throws IOException {
         FXMLLoader loader = new FXMLLoader(Objects.requireNonNull(
                 MainApp.class.getResource(FXML_PATH),
-                "未找到 FXML 资源: " + FXML_PATH));
+                "FXML resource not found: " + FXML_PATH));
         Parent root = loader.load();
 
         Scene scene = new Scene(root);
-        // 应用基础样式表；样式表缺失时忽略以保证界面仍可正常显示
+        // Apply the base stylesheet; ignore when missing so the UI can still render
         URL cssUrl = MainApp.class.getResource(CSS_PATH);
         if (cssUrl != null) {
             scene.getStylesheets().add(cssUrl.toExternalForm());
@@ -62,13 +65,14 @@ public class MainApp extends Application {
     }
 
     /**
-     * 程序主入口方法。
+     * Main entry point method.
      * <p>
-     * 委托给 {@link Application#launch(String...)} 启动 JavaFX 应用程序。
-     * 在支持 JavaFX 启动器的环境中亦可省略此方法。
+     * Delegates to {@link Application#launch(String...)} to start the JavaFX
+     * application. This method may be omitted in environments that support
+     * the JavaFX launcher.
      * </p>
      *
-     * @param args 命令行参数
+     * @param args the command-line arguments
      */
     public static void main(String[] args) {
         launch(args);

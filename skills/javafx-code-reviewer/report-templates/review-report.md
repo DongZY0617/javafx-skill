@@ -1,150 +1,186 @@
-# JavaFX 代码评审报告
+# JavaFX Code Review Report
 
-<!--
-  本文件是评审报告的空白可套用模板。
-  使用时复制本文件内容，填入实际评审结果。
-  报告格式规范见 SKILL.md "评审报告格式"章节。
-  代码片段、文件路径、类名、API 名称保持英文原样不翻译。
--->
-
-## 评审摘要
-
-- **评审模式**：[全量 / 增量 / 指定维度]
-- **评审范围**：[涉及的文件清单或维度清单]
-- **评审文件数**：[N] 个 Java / [M] 个 FXML / [K] 个 CSS
-- **发现问题总数**：[X] 个（Critical: [a] / Major: [b] / Minor: [c] / Info: [d]）
-- **评审结论**：[通过 / 有条件通过 / 不通过]
+> **Usage**: This template is a reusable skeleton for review reports. When generating an actual report, replace all `[placeholder]` content, remove unnecessary sections, and fill in actual review data. The report must contain three parts: Review Summary, Issue List, and Compliance Summary.
 
 ---
 
-## 问题清单
+## Review Summary
 
-<!--
-  按严重性降序排列：Critical → Major → Minor → Info。
-  同等级按代码位置排列。
-  同一根因引发的多个表现合并为一个问题。
-  每个问题须含：问题描述、代码位置、问题代码、优化建议、修正示例、规范依据、修复交接。
--->
-
-### [Critical] 问题标题
-
-- **问题描述**：[具体说明问题是什么]
-- **代码位置**：`文件路径:行号`
-- **问题代码**：
-  ```java
-  // 有问题的代码片段
-  ```
-- **优化建议**：[说明如何修复]
-- **修正示例**：
-  ```java
-  // 修正后的代码
-  ```
-- **规范依据**：`references/文档名 — 条目标题`
-- **升降级说明**：[若严重性偏离默认基线，注明触发条件；未偏离则填"无"]
-- **修复交接**：
-  - `target_file: 文件路径`
-  - `target_lines: 起始行-结束行`
-  - `fix_type: [replace / insert / delete]`
-  - `fix_priority: [1-N]`（修复优先级，1=最高）
-
-### [Major] 问题标题
-
-- **问题描述**：[具体说明问题是什么]
-- **代码位置**：`文件路径:行号`
-- **问题代码**：
-  ```java
-  // 有问题的代码片段
-  ```
-- **优化建议**：[说明如何修复]
-- **修正示例**：
-  ```java
-  // 修正后的代码
-  ```
-- **规范依据**：`references/文档名 — 条目标题`
-- **升降级说明**：[若严重性偏离默认基线，注明触发条件；未偏离则填"无"]
-- **修复交接**：
-  - `target_file: 文件路径`
-  - `target_lines: 起始行-结束行`
-  - `fix_type: [replace / insert / delete]`
-  - `fix_priority: [1-N]`
-
-### [Minor] 问题标题
-
-- **问题描述**：[具体说明问题是什么]
-- **代码位置**：`文件路径:行号`
-- **问题代码**：
-  ```java
-  // 有问题的代码片段
-  ```
-- **优化建议**：[说明如何修复]
-- **修正示例**：
-  ```java
-  // 修正后的代码
-  ```
-- **规范依据**：`references/文档名 — 条目标题`
-- **升降级说明**：[若严重性偏离默认基线，注明触发条件；未偏离则填"无"]
-- **修复交接**：
-  - `target_file: 文件路径`
-  - `target_lines: 起始行-结束行`
-  - `fix_type: [replace / insert / delete]`
-  - `fix_priority: [1-N]`
-
-### [Info] 问题标题
-
-- **问题描述**：[具体说明优化建议]
-- **代码位置**：`文件路径:行号`
-- **问题代码**：
-  ```java
-  // 可优化的代码片段
-  ```
-- **优化建议**：[说明如何优化]
-- **修正示例**：
-  ```java
-  // 优化后的代码
-  ```
-- **规范依据**：`references/文档名 — 条目标题`
-- **修复交接**：
-  - `target_file: 文件路径`
-  - `target_lines: 起始行-结束行`
-  - `fix_type: [replace / insert / delete]`
-  - `fix_priority: [1-N]`
+- **Review Mode**: [Full Review / Incremental Review / Targeted Dimension Review]
+- **Review Scope**: [List of files or dimensions involved]
+- **Project Context**: JavaFX [version] / JDK [version] / [Build tool] / [Whether Spring Boot or third-party libraries are integrated]
+- **Files Reviewed**: [N] Java / [M] FXML / [K] CSS / [Other]
+- **Review Date**: [YYYY-MM-DD]
+- **Total Issues Found**: [X] (Critical: [a] / Major: [b] / Minor: [c] / Info: [d])
+- **Review Conclusion**: [Pass / Conditional Pass / Fail]
 
 ---
 
-## 合规性总结
+## Issue List
 
-<!--
-  列出每个维度的检查项数、通过数、不通过数、通过率。
-  检查项数对应各维度 references 文档的检查项数量。
-  通过率 = 通过数 / 检查项数 × 100%。
--->
+> Issues are sorted in descending severity order (Critical -> Major -> Minor -> Info); within the same level, sorted by code location. Multiple manifestations of the same root cause are merged into one issue.
 
-| 维度 | 检查项数 | 通过 | 不通过 | 通过率 |
-|------|---------|------|--------|--------|
-| 代码结构 | 5 | [N] | [N] | [N%] |
-| 线程安全 | 6 | [N] | [N] | [N%] |
-| FXML 规范 | 8 | [N] | [N] | [N%] |
-| 内存泄漏 | 7 | [N] | [N] | [N%] |
-| 性能表现 | 9 | [N] | [N] | [N%] |
-| 深度合规 | [N] | [N] | [N] | [N%] |
-| **总计** | **[N]** | **[N]** | **[N]** | **[N%]** |
+### [Critical] Issue 1: [Issue Title]
 
-<!--
-  深度合规维度的检查项数 = compliance-rules.md(5) + security-checklist.md(4) + css-compliance.md(3) + binding-compliance.md(Properties null 安全)(1) = 13
-  亦可按实际扫描到的检查项统计。
--->
+- **Dimension**: [Code Structure / UI Thread Safety / FXML Standards / Memory Leak Risks / Performance / Deep Compliance Audit]
+- **Problem Description**: [Specific description of the issue, explaining why it is a problem]
+- **Code Location**: `[file path]:[line number range]`
+- **Problematic Code**:
+  ```java
+  // [Problematic code snippet]
+  ```
+- **Impact Analysis**: [Actual runtime impact: crash / performance degradation / memory growth / style-only issue, etc.]
+- **Optimization Recommendation**: [How to fix it, explaining the fix idea]
+- **Corrected Example**:
+  ```java
+  // [Corrected code]
+  ```
+- **Rule Reference**: [Reference to rule item in references/, format: `document name -- Check Item title`]
+- **Escalation/De-escalation Note**: [If severity deviates from the default baseline, note the triggering condition; if at default baseline, fill "Default baseline"]
+- **Fix Handoff**:
+  - `target_file: [file path]`
+  - `target_lines: [start line]-[end line]`
+  - `fix_type: [replace / insert / delete]`
+  - `fix_priority: 1`
 
 ---
 
-## 修复交接汇总
+### [Critical] Issue 2: [Issue Title]
 
-<!--
-  汇总所有问题的修复交接字段，按 fix_priority 排序，供 javafx-developer 或自动化工具批量执行修复。
--->
+- **Dimension**: [Dimension name]
+- **Problem Description**: [Description]
+- **Code Location**: `[file path]:[line number range]`
+- **Problematic Code**:
+  ```java
+  // [Problematic code snippet]
+  ```
+- **Impact Analysis**: [Impact]
+- **Optimization Recommendation**: [Recommendation]
+- **Corrected Example**:
+  ```java
+  // [Corrected code]
+  ```
+- **Rule Reference**: [`document name -- Check Item title`]
+- **Escalation/De-escalation Note**: [Note]
+- **Fix Handoff**:
+  - `target_file: [file path]`
+  - `target_lines: [start line]-[end line]`
+  - `fix_type: [replace / insert / delete]`
+  - `fix_priority: 2`
 
-| 优先级 | 严重性 | 文件 | 行号 | 修复类型 | 问题摘要 |
-|--------|--------|------|------|---------|---------|
-| 1 | Critical | `文件路径` | `起始-结束` | replace | [问题摘要] |
-| 2 | Critical | `文件路径` | `起始-结束` | insert | [问题摘要] |
-| 3 | Major | `文件路径` | `起始-结束` | replace | [问题摘要] |
-| ... | ... | ... | ... | ... | ... |
+---
+
+### [Major] Issue 3: [Issue Title]
+
+- **Dimension**: [Dimension name]
+- **Problem Description**: [Description]
+- **Code Location**: `[file path]:[line number range]`
+- **Problematic Code**:
+  ```java
+  // [Problematic code snippet]
+  ```
+- **Impact Analysis**: [Impact]
+- **Optimization Recommendation**: [Recommendation]
+- **Corrected Example**:
+  ```java
+  // [Corrected code]
+  ```
+- **Rule Reference**: [`document name -- Check Item title`]
+- **Escalation/De-escalation Note**: [Note]
+- **Fix Handoff**:
+  - `target_file: [file path]`
+  - `target_lines: [start line]-[end line]`
+  - `fix_type: [replace / insert / delete]`
+  - `fix_priority: 3`
+
+---
+
+### [Minor] Issue 4: [Issue Title]
+
+- **Dimension**: [Dimension name]
+- **Problem Description**: [Description]
+- **Code Location**: `[file path]:[line number range]`
+- **Problematic Code**:
+  ```java
+  // [Problematic code snippet]
+  ```
+- **Impact Analysis**: [Impact]
+- **Optimization Recommendation**: [Recommendation]
+- **Corrected Example**:
+  ```java
+  // [Corrected code]
+  ```
+- **Rule Reference**: [`document name -- Check Item title`]
+- **Escalation/De-escalation Note**: [Note]
+- **Fix Handoff**:
+  - `target_file: [file path]`
+  - `target_lines: [start line]-[end line]`
+  - `fix_type: [replace / insert / delete]`
+  - `fix_priority: 4`
+
+---
+
+### [Info] Issue 5: [Issue Title]
+
+- **Dimension**: [Dimension name]
+- **Problem Description**: [Description]
+- **Code Location**: `[file path]:[line number range]`
+- **Problematic Code**:
+  ```java
+  // [Problematic code snippet]
+  ```
+- **Impact Analysis**: [Impact]
+- **Optimization Recommendation**: [Recommendation]
+- **Corrected Example**:
+  ```java
+  // [Corrected code]
+  ```
+- **Rule Reference**: [`document name -- Check Item title`]
+- **Escalation/De-escalation Note**: [Note]
+- **Fix Handoff**:
+  - `target_file: [file path]`
+  - `target_lines: [start line]-[end line]`
+  - `fix_type: [replace / insert / delete]`
+  - `fix_priority: 5`
+
+---
+
+## Compliance Summary
+
+> Lists the check item count, pass count, fail count, and pass rate for each dimension.
+
+| Dimension | Check Items | Passed | Failed | Pass Rate |
+|-----------|-------------|--------|--------|-----------|
+| Code Structure | 5 | [N] | [N] | [N%] |
+| UI Thread Safety | 6 | [N] | [N] | [N%] |
+| FXML Standards | 8 | [N] | [N] | [N%] |
+| Memory Leak Risks | 7 | [N] | [N] | [N%] |
+| Performance | 9 | [N] | [N] | [N%] |
+| Deep Compliance Audit | [N] | [N] | [N] | [N%] |
+| **Total** | **[N]** | **[N]** | **[N]** | **[N%]** |
+
+---
+
+## Review Conclusion
+
+[Based on the issue statistics and severity distribution, give the overall review conclusion:]
+
+- **Pass**: No Critical or Major issues, pass rate >= 80%
+- **Conditional Pass**: Has Major issues but no Critical issues, all Major issues have clear fix plans
+- **Fail**: Has Critical issues, must be fixed before release
+
+**Conclusion**: [Pass / Conditional Pass / Fail]
+
+**Recommendations**:
+1. [Recommendation 1: e.g., Fix all Critical issues first]
+2. [Recommendation 2: e.g., Plan Major issue fixes within this iteration]
+3. [Recommendation 3: e.g., Minor issues can be batch fixed in the next iteration]
+
+---
+
+> **Report Notes**:
+> - Code snippets, file paths, class names, and API names in this report remain in English without translation
+> - Rule references uniformly cite `references/` document items, in the format `document name -- Check Item title`
+> - Fix Handoff fields can be directly consumed by `javafx-developer` or automation tools to execute fixes
+> - `fix_priority` is sorted by severity + code location, 1 is the highest priority, for ordering during batch fixes
+> - **Closed-Loop**: This report can trigger the automated closed-loop cycle. `javafx-developer` consumes fix handoff entries via its **Fix Consumption Protocol** (Step 5.5), then incremental re-review and re-verify are triggered automatically. See **Loop Orchestration Protocol** in each skill's SKILL.md for loop rules, termination conditions, and the combined quality gate.

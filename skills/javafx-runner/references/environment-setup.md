@@ -1,429 +1,198 @@
-# 环境检测与 Monocle Headless 配置
+# Environment Detection and Monocle Headless Configuration
 
-本文档是 `javafx-runner` 环境检测与 headless 运行配置的操作指南，对应工作流步骤 1（环境检测与上下文分析）。提供 JDK / Maven / Gradle / JavaFX 版本检测方法、模块化与显示器检测、Monocle 依赖配置、headless 运行命令及 CI 环境适配方案。本文件不定义检查项的通过/不通过标准，而是为前三个验证维度（编译 / 运行 / 打包）提供环境前置条件。
-
-> **核心原则**：环境检测是所有验证维度的前置步骤。JavaFX 版本决定是否执行 JavaFX 24+ 原生访问检查；显示器有无决定是否启用 Monocle headless 模式；构建工具（Maven/Gradle）决定执行的命令；平台决定 jpackage 工具链检测项。检测失败时应在报告中标注环境缺失，而非直接判定代码问题。
+This document describes the environment detection logic performed in Step 1 of the runner workflow, and how to configure the Monocle headless framework for runtime verification in CI environments without a display. All verification dimensions depend on accurate environment detection to select the correct commands and verification items.
 
 ---
 
-## 1. JDK 版本检测
+## 1. JDK Version Detection
 
-**用途**：确认 JDK 满足 JavaFX 最低要求（17+），决定可用的 JavaFX 版本范围与 `jpackage` 可用性（JDK 14+ 内置）。
+**Detection Command**: `java -version`
 
-**检测命令**：
-```bash
-java -version
-```
-输出示例：
+**Detection Logic**:
+- Run `java -version` and parse the version string from stderr (JDK 17+ writes version info to stderr by default)
+- Extract the major version number (e.g., `17`, `21`, `24`)
+- Confirm the major version meets the JavaFX minimum requirement (JavaFX 17 requires JDK 17+)
+
+**Pass Criteria**:
+- `java -version` executes successfully and outputs a recognizable version string
+- The major version is >= 17
+
+**Fail Handling**:
+- If `java` is not on the PATH, record "JDK not found" and abort verification (cannot compile or run without a JDK)
+- If the version is below 17, record "JDK version too low, requires 17+" and abort
+
+**Example Output**:
 ```
 openjdk version "21.0.2" 2024-01-16
-OpenJDK Runtime Environment (build 21.0.2+13)
-OpenJDK Runtime Environment Temurin-21.0.2+13 (build 21.0.2+13)
-```
-
-**版本提取与判定**：
-- 解析输出第一行的 `version "xx.x.x"` 提取主版本号
-- JDK 17+：满足 JavaFX 17/21 运行要求
-- JDK 21+：满足 JavaFX 21/24/25/26 运行要求
-- JDK 24+：满足 JavaFX 24/25/26 运行要求与原生访问特性
-- JDK < 17：不满足，报告中标注"JDK 版本过低，需升级至 17+"
-
-**`JAVA_HOME` 检测**：
-```powershell
-# Windows PowerShell
-$env:JAVA_HOME
-java -version
-```
-```bash
-# Linux / macOS
-echo $JAVA_HOME
-java -version
+OpenJDK Runtime Environment (build 21.0.2+13-58)
+OpenJDK 64-Bit Server VM (build 21.0.2+13-58, mixed mode, sharing)
 ```
 
 ---
 
-## 2. Maven / Gradle 检测
+## 2. Build Tool Detection
 
-**用途**：识别项目构建工具，决定后续执行的编译 / 运行 / 打包命令。
+**Detection Logic**:
+- Check for the existence of `pom.xml` in the project root directory -> Maven project
+- Check for the existence of `build.gradle` (or `build.gradle.kts`) in the project root directory -> Gradle project
+- If both exist, prefer Maven (or confirm with the user)
+- If neither exists, record "build tool not found, cannot verify" and abort
 
-### 2.1 构建工具识别
+**Command Selection**:
 
-**检测方法**：检查项目根目录下的构建文件。
-- 存在 `pom.xml` → Maven 项目
-- 存在 `build.gradle` 或 `build.gradle.kts` → Gradle 项目
-- 两者均存在 → 优先 Maven（或向用户确认）
-
-### 2.2 Maven 检测
-
-**检测命令**：
-```bash
-mvn -version
-```
-输出示例：
-```
-Apache Maven 3.9.6
-Maven home: C:\apache-maven-3.9.6
-Java version: 21.0.2, vendor: Eclipse Adoptium
-```
-
-**版本要求**：Maven 3.8+。低于 3.8 时部分 JavaFX 插件可能不兼容。
-
-### 2.3 Gradle 检测
-
-**检测命令**：
-```bash
-# 使用项目自带的 gradlew（推荐）
-./gradlew --version        # Linux / macOS
-.\gradlew.bat --version    # Windows PowerShell
-```
-输出示例：
-```
-Gradle 8.5
-Kotlin:       1.9.20
-Groovy:       3.0.19
-```
-
-**版本要求**：Gradle 7+。低于 7 时 `javafx-gradle-plugin` 可能不兼容。
+| Build Tool | Compile Command | Run Command | Package Command |
+|------------|-----------------|-------------|-----------------|
+| Maven | `mvn compile -q` | `mvn javafx:run` | `mvn package -DskipTests` |
+| Gradle | `gradle compileJava --quiet` | `gradle run` | `gradle build -x test` |
 
 ---
 
-## 3. JavaFX 版本提取
+## 3. JavaFX Version Detection
 
-**用途**：确定项目使用的 JavaFX 版本，动态调整验证项（如 JavaFX 24+ 检查 `--enable-native-access`）。
+**Detection Logic**:
+- **Maven**: Parse the `<dependency>` entries in `pom.xml`, look for `org.openjfx:javafx-controls` / `javafx-fxml`, extract the `<version>` tag
+- **Gradle**: Parse the `build.gradle` `javafx` plugin block or `implementation` dependencies, extract the JavaFX version
+- If no JavaFX dependency is declared, record "JavaFX dependency not found, not a JavaFX project" and abort
 
-### 3.1 Maven 项目提取
+**Version-Specific Verification Adjustments**:
 
-**检测方法**：解析 `pom.xml` 中 JavaFX 依赖的版本。
+| JavaFX Version | Minimum JDK | Additional Verification |
+|----------------|-------------|--------------------------|
+| 17 (LTS) | 17 | None |
+| 21 (LTS) | 17 | None |
+| 24 | 21 | Check `--enable-native-access=javafx.graphics` |
+| 25 | 21 | Check `--enable-native-access=javafx.graphics` |
+| 26 | 21 | Check `--enable-native-access=javafx.graphics` |
 
-```bash
-# 提取 javafx-controls 依赖版本
-grep -A 1 "javafx-controls" pom.xml | grep -oP '(?<=<version>)[^<]+'
-```
+> **Key Rule**: For JavaFX 24+ projects, the runtime and packaging verification must check whether `--enable-native-access=javafx.graphics` is configured; for JavaFX 17/21, this check is skipped.
 
-`pom.xml` 示例：
+---
+
+## 4. Modularity Detection
+
+**Detection Logic**:
+- Check for the existence of `src/main/java/module-info.java`
+- If present, the project is a modular project; if absent, it is a non-modular project
+
+**Impact on Verification**:
+
+| Project Type | Compile | Run | Package |
+|--------------|---------|-----|---------|
+| Modular | Check `requires` / `exports` / `opens` completeness | Check runtime reflection access | jpackage uses `--module` and `--main-module` |
+| Non-modular | Skip module config check | Check classpath dependencies | jpackage uses `--main-class` and `--main-jar` |
+
+---
+
+## 5. Display Detection
+
+**Detection Logic**:
+- **Linux**: Check the `DISPLAY` environment variable; if set (e.g., `:0`), a display is available; if unset, headless mode is required
+- **Windows**: Check for an interactive desktop session (`SESSIONNAME` environment variable or the existence of an explorer.exe process); Windows CI runners without a desktop session require headless mode
+- **macOS**: Check for a WindowServer session; CI runners (e.g., GitHub Actions macOS) typically have a display, but verify
+
+**Decision Matrix**:
+
+| Environment | Display Available | Run Command |
+|-------------|-------------------|-------------|
+| Local desktop (Windows/macOS/Linux) | Yes | `mvn javafx:run` |
+| Linux CI (no `DISPLAY`) | No | `mvn javafx:run -Dmonocle.platform=Headless -Dprism.order=sw` |
+| Windows CI (no desktop session) | No | `mvn javafx:run -Dmonocle.platform=Headless -Dprism.order=sw` |
+
+---
+
+## 6. Platform Toolchain Detection
+
+**Detection Logic**:
+Based on the current operating system (`os.name` system property), detect whether the jpackage toolchain is ready:
+
+**Windows**:
+- Detect Inno Setup: check whether `ISCC.exe` is on the PATH or at the default install location (`C:\Program Files (x86)\Inno Setup 6\ISCC.exe`)
+- Detect WiX Toolset 4.x: check whether `candle.exe` / `light.exe` are on the PATH
+- Required for `.exe` (Inno Setup) and `.msi` (WiX) installer generation
+
+**macOS**:
+- Detect Xcode command line tools: run `xcode-select -p`; if it returns a path, the tools are installed
+- Required for `.dmg` and `.pkg` generation
+
+**Linux**:
+- Detect `dpkg-deb`: run `dpkg-deb --version`; if it succeeds, Debian packaging is available
+- Detect `rpmbuild`: run `rpmbuild --version`; if it succeeds, RPM packaging is available
+- Required for `.deb` and `.rpm` generation
+
+**Toolchain Missing Handling**:
+- If the toolchain is missing, record "toolchain not installed" and skip the corresponding installer type in packaging verification, marking the jpackage failure severity as Info (environment issue, not a code issue)
+- Provide the installation command in the fix recommendation
+
+---
+
+## 7. Monocle Headless Configuration
+
+Monocle is a headless implementation of the JavaFX Glass windowing toolkit, allowing JavaFX applications to run in environments without a display (e.g., CI servers). It is the standard approach for headless runtime verification.
+
+### 7.1 Adding the Monocle Dependency
+
+**Maven** (`pom.xml`):
 ```xml
 <dependency>
-    <groupId>org.openjfx</groupId>
-    <artifactId>javafx-controls</artifactId>
-    <version>21.0.2</version>
+    <groupId>org.testfx</groupId>
+    <artifactId>openjfx-monocle</artifactId>
+    <version>jdk-21+26</version>
+    <scope>test</scope>
 </dependency>
 ```
-提取结果：`21.0.2` → 主版本 21。
 
-### 3.2 Gradle 项目提取
-
-**检测方法**：解析 `build.gradle` 中 JavaFX 插件配置。
-
+**Gradle** (`build.gradle`):
 ```groovy
-// build.gradle
-javafx {
-    version = "21.0.2"
-    modules = ['javafx.controls', 'javafx.fxml']
-}
+testImplementation 'org.testfx:openjfx-monocle:jdk-21+26'
 ```
 
-```bash
-grep "version" build.gradle | grep -i javafx
-```
+> **Version Note**: The Monocle version must match the JavaFX version family. For JavaFX 21, use `jdk-21+26`; for JavaFX 17, use `jdk-17+26`. Using a mismatched version may cause `ClassNotFoundException` at startup.
 
-### 3.3 版本判定与验证项映射
-
-| JavaFX 主版本 | 原生访问检查 | 兼容 JDK |
-|--------------|-------------|---------|
-| 17 | 不执行 | 17+ |
-| 21 | 不执行 | 17+ |
-| 24 | 执行（检查项 7：JavaFX 24+ 原生访问） | 21+（建议 24+） |
-| 25 / 26 | 执行 | 24+ |
-
----
-
-## 4. 模块化检测
-
-**用途**：确定项目是否为模块化项目，决定运行命令与 jpackage 参数（`--module` vs `--main-jar`）。
-
-**检测方法**：检查 `src/main/java/module-info.java` 是否存在。
-```bash
-# 检测 module-info.java
-test -f src/main/java/module-info.java && echo "模块化项目" || echo "非模块化项目"
-```
-
-**判定与命令映射**：
-- **模块化项目**（存在 `module-info.java`）：
-  - 运行：`mvn javafx:run`（插件自动识别模块）
-  - 打包：`jpackage --module com.example.app/com.example.App --module-path ...`
-- **非模块化项目**（无 `module-info.java`）：
-  - 运行：`mvn javafx:run`（插件以 classpath 模式运行）
-  - 打包：`jpackage --main-jar app.jar --main-class com.example.App --input target`
-
----
-
-## 5. 显示器检测
-
-**用途**：判断当前环境是否有显示器，决定是否启用 Monocle headless 模式。
-
-### 5.1 各平台检测方法
-
-**Linux**：
-```bash
-# 检测 DISPLAY 环境变量
-echo $DISPLAY
-# 有值（如 :0）→ 有显示器；空值 → 无显示器（需 headless）
-```
-
-**Windows**：
-```powershell
-# 检测是否有交互式桌面会话
-[Environment]::UserInteractive
-# 检测 SessionName
-$env:SESSIONNAME
-# CI 环境（如 GitHub Actions）通常无桌面会话
-```
-
-**macOS**：
-```bash
-# 检测 WindowServer 是否运行
-pgrep -x WindowServer > /dev/null && echo "有显示器" || echo "无显示器"
-```
-
-### 5.2 CI 环境判定
-
-CI 环境（GitHub Actions、GitLab CI、Jenkins 无显示器节点）通常无显示器，必须启用 Monocle headless 模式：
-```bash
-# GitHub Actions / GitLab CI 等容器环境
-# DISPLAY 为空或 SessionName 为空 → 判定无显示器
-# 自动启用 -Dmonocle.platform=Headless -Dprism.order=sw
-```
-
----
-
-## 6. Monocle 依赖配置
-
-**用途**：在无显示器环境（CI、Docker）中运行 JavaFX 应用，替代 Glass 窗口工具包。
-
-> **版本匹配关键**：Monocle 版本必须与 JavaFX 版本严格匹配。Monocle 依赖 JavaFX 内部 API，版本不匹配会因内部 API 变更报 `NoClassDefFoundError`。下表对应关系须严格遵守。
-
-### 6.1 Monocle 版本对应表
-
-| JavaFX 版本 | Monocle 依赖 | 备注 |
-|------------|-------------|------|
-| 17 | `org.testfx:testfx-monocle:17.0.2` 或 `org.openjfx:javafx-monocle:17` | testfx-monocle 封装 openjfx monocle |
-| 21 | `org.testfx:testfx-monocle:21.0.2` | 与 JavaFX 21 严格匹配 |
-| 24 / 25 / 26 | `org.testfx:testfx-monocle:24.0.0+` | 需匹配主版本 |
-
-### 6.2 Maven 配置
-
-在 `pom.xml` 中添加 Monocle 依赖（scope 为 `test` 或按需调整）：
-```xml
-<dependencies>
-    <!-- JavaFX 主依赖 -->
-    <dependency>
-        <groupId>org.openjfx</groupId>
-        <artifactId>javafx-controls</artifactId>
-        <version>21.0.2</version>
-    </dependency>
-    <dependency>
-        <groupId>org.openjfx</groupId>
-        <artifactId>javafx-fxml</artifactId>
-        <version>21.0.2</version>
-    </dependency>
-
-    <!-- Monocle headless 支持（版本与 JavaFX 严格匹配） -->
-    <dependency>
-        <groupId>org.testfx</groupId>
-        <artifactId>testfx-monocle</artifactId>
-        <version>21.0.2</version>
-        <scope>test</scope>
-    </dependency>
-</dependencies>
-```
-
-### 6.3 Gradle 配置
-
-在 `build.gradle` 中添加 Monocle 依赖：
-```groovy
-dependencies {
-    implementation 'org.openjfx:javafx-controls:21.0.2'
-    implementation 'org.openjfx:javafx-fxml:21.0.2'
-
-    // Monocle headless 支持（版本与 JavaFX 严格匹配）
-    testImplementation 'org.testfx:testfx-monocle:21.0.2'
-}
-```
-
-`build.gradle.kts`（Kotlin DSL）：
-```kotlin
-dependencies {
-    implementation("org.openjfx:javafx-controls:21.0.2")
-    implementation("org.openjfx:javafx-fxml:21.0.2")
-
-    testImplementation("org.testfx:testfx-monocle:21.0.2")
-}
-```
-
----
-
-## 7. Headless 运行命令
-
-**用途**：在无显示器环境通过 Monocle 启动 JavaFX 应用，执行运行验证。
-
-### 7.1 Maven headless 运行
+### 7.2 Headless Run Command
 
 ```bash
 mvn javafx:run -Dmonocle.platform=Headless -Dprism.order=sw
 ```
 
-**参数说明**：
-- `-Dmonocle.platform=Headless`：启用 Monocle headless 平台，替代 Glass 窗口工具包
-- `-Dprism.order=sw`：强制使用软件渲染管线（不依赖 GPU）
+**Parameter Explanation**:
+- `-Dmonocle.platform=Headless`: Uses the Monocle headless platform instead of the native windowing system
+- `-Dprism.order=sw`: Forces software rendering (no GPU required), suitable for CI environments
 
-**通过 `pom.xml` 的 `javafx-maven-plugin` 配置**：
-```xml
-<plugin>
-    <groupId>org.openjfx</groupId>
-    <artifactId>javafx-maven-plugin</artifactId>
-    <version>0.0.8</version>
-    <configuration>
-        <mainClass>com.example.App</mainClass>
-        <options>
-            <option>-Dmonocle.platform=Headless</option>
-            <option>-Dprism.order=sw</option>
-            <!-- JavaFX 24+ 额外配置 -->
-            <option>--enable-native-access=javafx.graphics</option>
-        </options>
-    </configuration>
-</plugin>
-```
+### 7.3 Headless Verification Pass Criteria
 
-### 7.2 Gradle headless 运行
+**Pass Criteria**:
+- The application process starts in headless mode without display-related errors (`X11Display`, `Cannot open display`, etc.)
+- `start()` executes to completion, no `NullPointerException` caused by missing display
+- The process exits with code 0 (for smoke tests) or as expected
 
-```bash
-./gradlew run -Pmonocle.platform=Headless -Pprism.order=sw
-# 或通过 JVM args 配置
-./gradlew run -Djavafx.options="-Dmonocle.platform=Headless -Dprism.order=sw"
-```
+**Fail Criteria**:
+- Output contains `X11Display: Can't open display` or `Cannot open display` (Monocle not configured)
+- `ClassNotFoundException: com.sun.glass.ui.monocle.MonoclePlatform` (Monocle dependency missing)
+- `-Dprism.order=sw` not set, hardware pipeline fails: `Prism - not using native acceleration`
 
-`build.gradle` 配置：
-```groovy
-run {
-    if (project.hasProperty('headless')) {
-        jvmArgs = ['-Dmonocle.platform=Headless', '-Dprism.order=sw']
-    }
-}
-```
+### 7.4 Monocle Troubleshooting
 
-### 7.3 直接 java 命令 headless 运行
-
-```bash
-# 模块化项目
-java -Dmonocle.platform=Headless -Dprism.order=sw \
-     --module-path "target/modules;C:\javafx-sdk-21\lib" \
-     --add-modules javafx.controls,javafx.fxml,javafx.graphics \
-     --module com.example.app/com.example.App
-
-# JavaFX 24+ 追加原生访问
-java -Dmonocle.platform=Headless -Dprism.order=sw \
-     --enable-native-access=javafx.graphics \
-     --module-path "target/modules" \
-     --module com.example.app/com.example.App
-```
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| `X11Display: Can't open display` | Monocle platform not activated | Add `-Dmonocle.platform=Headless` |
+| `ClassNotFoundException: ...MonoclePlatform` | Monocle dependency missing | Add `org.testfx:openjfx-monocle` dependency |
+| `Prism - not using native acceleration` warning | Software rendering not forced | Add `-Dprism.order=sw` |
+| `Exception in Application start method` | Application code issue (not env) | Inspect the stack trace for the root cause |
+| Headless runs locally but fails in CI | CI lacks the Monocle dependency in the build | Ensure the dependency is in the build config committed to VCS |
 
 ---
 
-## 8. CI 环境适配
+## 8. Verification Scope Declaration
 
-**用途**：在 CI 流水线（无显示器）中执行 JavaFX 运行验证，确保代码在合并前通过动态验证。
+After environment detection, declare the verification scope based on the user request and detection results, recorded in the report header:
 
-### 8.1 GitHub Actions 示例
+- **Full Verification (default)**: Execute compile -> runtime -> packaging in sequence
+- **Incremental Verification**: Only verify dimensions affected by changed files
+- **Targeted Dimension Verification**: Only execute user-specified dimensions
 
-`.github/workflows/javafx-verify.yml`：
-```yaml
-name: JavaFX Verify
-
-on: [push, pull_request]
-
-jobs:
-  verify:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-        java: [21]
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup JDK
-        uses: actions/setup-java@v4
-        with:
-          java-version: ${{ matrix.java }}
-          distribution: 'temurin'
-
-      - name: Setup Maven
-        uses: stCarolas/setup-maven@v4.5
-        with:
-          maven-version: 3.9.6
-
-      # Linux 安装 headless 依赖（Xvfb 虚拟帧缓冲，Monocle 替代方案）
-      - name: Install headless deps (Linux)
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y xvfb
-
-      # 编译验证（全平台通用）
-      - name: Compile verification
-        run: mvn compile -q
-
-      # 运行验证 - Linux 使用 Xvfb 虚拟显示器
-      - name: Runtime verification (Linux)
-        if: runner.os == 'Linux'
-        run: xvfb-run mvn javafx:run -Dmonocle.platform=Headless -Dprism.order=sw
-        timeout-minutes: 1
-
-      # 运行验证 - Windows / macOS（CI 桌面会话）
-      - name: Runtime verification (Windows/macOS)
-        if: runner.os != 'Linux'
-        run: mvn javafx:run -Dmonocle.platform=Headless -Dprism.order=sw
-        timeout-minutes: 1
-
-      # 打包验证（按平台安装工具链）
-      - name: Install Inno Setup (Windows)
-        if: runner.os == 'Windows'
-        run: choco install innosetup -y
-
-      - name: Install Xcode tools (macOS)
-        if: runner.os == 'macOS'
-        run: xcode-select --install || true
-
-      - name: Install dpkg-deb (Linux)
-        if: runner.os == 'Linux'
-        run: sudo apt-get install -y dpkg-dev
-
-      - name: Packaging verification
-        run: mvn package -DskipTests
-        timeout-minutes: 10
-```
-
-### 8.2 CI 环境注意事项
-
-- **超时保护**：运行验证设置 `timeout-minutes: 1`（运行命令内部 30 秒超时 + 缓冲），打包验证设置 `timeout-minutes: 10`，避免卡死流水线
-- **Linux Xvfb**：除 Monocle 外，Linux CI 可用 `xvfb-run` 提供虚拟帧缓冲，二者择一
-- **工具链缓存**：Windows Inno Setup 安装较慢，建议使用 `actions/cache` 缓存 Chocolatey 包
-- **JavaFX SDK 路径**：CI 中 JavaFX SDK 路径需与 `--module-path` 一致，建议通过环境变量注入
-- **退出码传递**：CI 默认以非零退出码标记失败，runner 的退出码检查与 CI 状态联动
-
-### 8.3 GitLab CI 示例
-
-`.gitlab-ci.yml`：
-```yaml
-javafx-verify:
-  image: maven:3.9-eclipse-temurin-21
-  script:
-    - apt-get update && apt-get install -y xvfb
-    - mvn compile -q
-    - xvfb-run mvn javafx:run -Dmonocle.platform=Headless -Dprism.order=sw
-    - mvn package -DskipTests
-  timeout: 15 minutes
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-```
+**Scope Annotation Examples**:
+- `Verification Mode: Full Verification`
+- `Verification Scope: Compile Verification, Runtime Verification, Packaging Verification`
+- `Environment: JDK 21 / Maven 3.9 / JavaFX 21 / OS Windows 11`
+- `Modular: Yes`
+- `Display: Available (local desktop) / Unavailable (CI, using Monocle headless)`

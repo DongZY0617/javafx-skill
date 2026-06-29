@@ -1,52 +1,52 @@
-# 安全合规清单
+# Security Compliance Checklist
 
-本文档是"深度合规审核"维度中安全规则的判定依据，管辖 4 个检查项：SQL 注入防护、路径遍历防护、硬编码密钥排查、WebView 安全。默认严重性基线：Major（安全漏洞）。与 `javafx-developer` 的安全规则同源。
+This document is the criteria for security rules within the "Deep Compliance Audit" dimension, governing 4 check items: SQL injection prevention, path traversal prevention, hardcoded secrets detection, and WebView security. Default severity baseline: Major (security vulnerabilities). Shares the same origin as `javafx-developer`'s security rules.
 
-> **安全第一原则**：安全类问题一律不得降级为 Minor。SQL 注入和路径遍历可能导致数据泄露或系统破坏，硬编码密钥可能导致凭据泄露，WebView 不安全配置可能导致任意代码执行。
+> **Security First Principle**: Security issues must never be de-escalated to Minor. SQL injection and path traversal can lead to data breaches or system damage, hardcoded secrets can lead to credential leaks, and insecure WebView configuration can lead to arbitrary code execution.
 
 ---
 
-## 检查项 1：SQL 注入防护
+## Check Item 1: SQL Injection Prevention
 
-**关注点**：SQL 是否使用预编译（PreparedStatement）防注入，不拼接 SQL 字符串。
+**Focus**: Whether SQL uses prepared statements (PreparedStatement) to prevent injection, without concatenating SQL strings.
 
-**通过判定标准**：
-- 所有 SQL 查询使用 `PreparedStatement` + 参数化查询（`?` 占位符）
-- 使用 MyBatis 时使用 `#{param}` 而非 `${param}`（后者是字符串拼接，有注入风险）
-- 使用 JPA / Hibernate 时使用命名参数或位置参数，不拼接 JPQL / HQL
-- 用户输入不直接拼接到 SQL 语句中
+**Pass Criteria**:
+- All SQL queries use `PreparedStatement` + parameterized queries (`?` placeholders)
+- When using MyBatis, use `#{param}` instead of `${param}` (the latter is string concatenation, with injection risk)
+- When using JPA / Hibernate, use named parameters or positional parameters, without concatenating JPQL / HQL
+- User input is not directly concatenated into SQL statements
 
-**不通过判定标准**（任一即不通过）：
-- 使用 `Statement` + 字符串拼接 SQL（如 `"SELECT * FROM users WHERE name = '" + input + "'"`）
-- MyBatis XML 中使用 `${param}` 接收用户输入（字符串拼接，SQL 注入）
-- JPA 中使用字符串拼接 JPQL（`"FROM User WHERE name = '" + input + "'"`）
-- 排序字段、表名等动态 SQL 未做白名单校验
+**Fail Criteria** (any one constitutes failure):
+- Using `Statement` + string concatenation for SQL (e.g., `"SELECT * FROM users WHERE name = '" + input + "'"`)
+- MyBatis XML using `${param}` to receive user input (string concatenation, SQL injection)
+- JPA using string concatenation for JPQL (`"FROM User WHERE name = '" + input + "'"`)
+- Dynamic SQL for sort fields, table names, etc. without whitelist validation
 
-**严重性基线**：Critical（SQL 注入导致数据泄露 / 篡改 / 删除）
+**Severity Baseline**: Critical (SQL injection leads to data breach / tampering / deletion)
 
-**反例**：
+**Bad Example**:
 ```java
-// ❌ Statement + 字符串拼接，SQL 注入
+// Statement + string concatenation, SQL injection
 Statement stmt = conn.createStatement();
 String sql = "SELECT * FROM users WHERE name = '" + userName + "'";
-ResultSet rs = stmt.executeQuery(sql);  // 若 userName = "'; DROP TABLE users; --" 则灾难
+ResultSet rs = stmt.executeQuery(sql);  // If userName = "'; DROP TABLE users; --" then disaster
 ```
 ```xml
-<!-- ❌ MyBatis 使用 ${} 接收用户输入，SQL 注入 -->
+<!-- MyBatis using ${} to receive user input, SQL injection -->
 <select id="findByName" resultType="User">
     SELECT * FROM users WHERE name = '${name}'
 </select>
 ```
 
-**正例**：
+**Good Example**:
 ```java
-// ✅ PreparedStatement 参数化查询
+// PreparedStatement parameterized query
 PreparedStatement ps = conn.prepareStatement("SELECT * FROM users WHERE name = ?");
-ps.setString(1, userName);  // 参数化，自动转义
+ps.setString(1, userName);  // Parameterized, automatic escaping
 ResultSet rs = ps.executeQuery();
 ```
 ```xml
-<!-- ✅ MyBatis 使用 #{} 参数化 -->
+<!-- MyBatis using #{} parameterization -->
 <select id="findByName" resultType="User">
     SELECT * FROM users WHERE name = #{name}
 </select>
@@ -54,147 +54,147 @@ ResultSet rs = ps.executeQuery();
 
 ---
 
-## 检查项 2：路径遍历防护
+## Check Item 2: Path Traversal Prevention
 
-**关注点**：文件路径是否 `normalize()` 防遍历，不直接拼接用户输入的路径。
+**Focus**: Whether file paths use `normalize()` to prevent traversal, without directly concatenating user-input paths.
 
-**通过判定标准**：
-- 文件操作使用 `Paths.get()` + `Path.normalize()` 处理路径
-- 对用户输入的文件名 / 路径进行校验，拒绝包含 `../` 或 `..\` 的路径
-- 使用 `Path.toAbsolutePath()` 后校验是否在允许的根目录内
-- 文件下载 / 上传场景对文件名做白名单校验或随机重命名
+**Pass Criteria**:
+- File operations use `Paths.get()` + `Path.normalize()` to handle paths
+- User-input file names / paths are validated, rejecting paths containing `../` or `..\`
+- After using `Path.toAbsolutePath()`, verify that the path is within the allowed root directory
+- File download / upload scenarios perform whitelist validation or random renaming of file names
 
-**不通过判定标准**（任一即不通过）：
-- 直接拼接用户输入的路径到文件系统路径（如 `new File("uploads/" + fileName)`）
-- 未对 `../` 路径遍历做校验
-- 未 `normalize()` 规范化路径
-- 允许绝对路径输入（如用户输入 `/etc/passwd`）
+**Fail Criteria** (any one constitutes failure):
+- Directly concatenating user-input paths to filesystem paths (e.g., `new File("uploads/" + fileName)`)
+- No validation for `../` path traversal
+- No `normalize()` to canonicalize paths
+- Allowing absolute path input (e.g., user inputs `/etc/passwd`)
 
-**严重性基线**：Critical（路径遍历导致任意文件读取 / 写入）
+**Severity Baseline**: Critical (path traversal leads to arbitrary file read / write)
 
-**反例**：
+**Bad Example**:
 ```java
-// ❌ 直接拼接用户输入的文件名，路径遍历
+// Directly concatenating user-input file name, path traversal
 String fileName = request.getParameter("file");
-File file = new File("uploads/" + fileName);  // fileName = "../../etc/passwd" → 路径遍历
+File file = new File("uploads/" + fileName);  // fileName = "../../etc/passwd" -> path traversal
 FileInputStream fis = new FileInputStream(file);
 ```
 
-**正例**：
+**Good Example**:
 ```java
-// ✅ normalize() + 路径校验
+// normalize() + path validation
 String fileName = request.getParameter("file");
 Path basePath = Paths.get("uploads/").toAbsolutePath().normalize();
 Path targetPath = basePath.resolve(fileName).normalize();
 
-// 校验解析后的路径仍在允许的根目录内
+// Verify that the resolved path is still within the allowed root directory
 if (!targetPath.startsWith(basePath)) {
-    throw new SecurityException("非法路径访问");
+    throw new SecurityException("Illegal path access");
 }
 FileInputStream fis = new FileInputStream(targetPath.toFile());
 ```
 
 ---
 
-## 检查项 3：硬编码密钥排查
+## Check Item 3: Hardcoded Secrets Detection
 
-**关注点**：是否无硬编码密钥（数据库密码、API Key、加密密钥等），使用配置文件或环境变量。
+**Focus**: Whether there are no hardcoded secrets (database passwords, API keys, encryption keys, etc.), using config files or environment variables.
 
-**通过判定标准**：
-- 数据库密码、API Key、加密密钥、JWT Secret 等敏感信息不硬编码在源码中
-- 敏感信息通过配置文件（`application.yml` / `application.properties`）或环境变量注入
-- 配置文件中的敏感信息使用占位符（如 `${DB_PASSWORD}`）引用环境变量
-- 密钥管理使用专业方案（如 Spring Cloud Config、Vault）
+**Pass Criteria**:
+- Sensitive information such as database passwords, API keys, encryption keys, JWT secrets is not hardcoded in source code
+- Sensitive information is injected via config files (`application.yml` / `application.properties`) or environment variables
+- Sensitive information in config files uses placeholders (e.g., `${DB_PASSWORD}`) to reference environment variables
+- Key management uses professional solutions (e.g., Spring Cloud Config, Vault)
 
-**不通过判定标准**（任一即不通过）：
-- 源码中硬编码数据库密码（如 `DriverManager.getConnection("jdbc:...", "admin", "password123")`）
-- 源码中硬编码 API Key / Secret
-- 源码中硬编码加密密钥（如 `AES` 密钥直接写在代码中）
-- 配置文件中明文存储密码且未使用占位符
+**Fail Criteria** (any one constitutes failure):
+- Hardcoded database password in source code (e.g., `DriverManager.getConnection("jdbc:...", "admin", "password123")`)
+- Hardcoded API key / secret in source code
+- Hardcoded encryption key in source code (e.g., `AES` key directly written in code)
+- Plaintext password stored in config file without using placeholders
 
-**严重性基线**：Critical（密钥泄露导致系统被入侵）
+**Severity Baseline**: Critical (secret leak leads to system compromise)
 
-**反例**：
+**Bad Example**:
 ```java
-// ❌ 硬编码数据库密码
+// Hardcoded database password
 Connection conn = DriverManager.getConnection(
     "jdbc:mysql://localhost:3306/mydb",
     "admin",
-    "P@ssw0rd123"  // 硬编码密码
+    "P@ssw0rd123"  // Hardcoded password
 );
 
-// ❌ 硬编码 API Key
-private static final String API_KEY = "sk-1234567890abcdef";  // 硬编码
+// Hardcoded API key
+private static final String API_KEY = "sk-1234567890abcdef";  // Hardcoded
 ```
 
-**正例**：
+**Good Example**:
 ```java
-// ✅ 从环境变量 / 配置读取
+// Read from environment variables / config
 @Value("${spring.datasource.password}")
 private String dbPassword;
 
 Connection conn = DriverManager.getConnection(dbUrl, dbUser, dbPassword);
 ```
 ```yaml
-# ✅ application.yml 使用环境变量占位符
+# application.yml using environment variable placeholders
 spring:
   datasource:
     url: ${DB_URL:jdbc:mysql://localhost:3306/mydb}
     username: ${DB_USER:admin}
-    password: ${DB_PASSWORD}  # 从环境变量读取，不提供默认值
+    password: ${DB_PASSWORD}  # Read from environment variable, no default value provided
 ```
 
 ---
 
-## 检查项 4：WebView 安全
+## Check Item 4: WebView Security
 
-**关注点**：WebView 是否限制 JavaScript、是否限制内容来源、是否禁用不必要的功能。
+**Focus**: Whether WebView restricts JavaScript, whether content sources are restricted, whether unnecessary features are disabled.
 
-**通过判定标准**：
-- `WebView` 的 `WebEngine` 在加载不可信内容时禁用 JavaScript（`setJavaScriptEnabled(false)`）
-- 或仅加载可信 HTTPS 内容，限制为已知域名
-- 禁用 `WebEngine` 的本地文件访问（`setAllowFileAccess(false)`，JavaFX 24+）
-- 不通过 `WebEngine.loadContent()` 加载用户输入的 HTML（XSS 风险）
-- `WebView` 弹窗通过 `setCreatePopupHandler` 控制或禁用
+**Pass Criteria**:
+- `WebView`'s `WebEngine` disables JavaScript when loading untrusted content (`setJavaScriptEnabled(false)`)
+- Or only loads trusted HTTPS content, restricted to known domains
+- Disables `WebEngine` local file access (`setAllowFileAccess(false)`, JavaFX 24+)
+- Does not load user-input HTML via `WebEngine.loadContent()` (XSS risk)
+- `WebView` popups are controlled or disabled via `setCreatePopupHandler`
 
-**不通过判定标准**（任一即不通过）：
-- `WebView` 加载用户输入或不可信 URL 且未禁用 JavaScript
-- 通过 `loadContent()` 加载用户输入的 HTML 字符串（XSS）
-- 未限制 `WebView` 可访问的内容来源
-- `WebView` 允许访问本地文件系统且未做校验
+**Fail Criteria** (any one constitutes failure):
+- `WebView` loads user-input or untrusted URLs without disabling JavaScript
+- Loading user-input HTML strings via `loadContent()` (XSS)
+- `WebView` accessible content sources are not restricted
+- `WebView` allows access to the local filesystem without validation
 
-**严重性基线**：Major（不安全 WebView 配置可能导致 XSS 或任意代码执行）
-- 升级条件：加载完全不可信的外部内容且启用 JavaScript → Critical
+**Severity Baseline**: Major (insecure WebView configuration may lead to XSS or arbitrary code execution)
+- Escalation condition: Loading completely untrusted external content with JavaScript enabled → Critical
 
-**反例**：
+**Bad Example**:
 ```java
-// ❌ WebView 加载用户输入 URL 且启用 JavaScript
+// WebView loading user-input URL with JavaScript enabled
 WebView webView = new WebView();
 WebEngine engine = webView.getEngine();
-engine.setJavaScriptEnabled(true);  // 启用 JS
+engine.setJavaScriptEnabled(true);  // JS enabled
 String userInput = urlField.getText();
-engine.load(userInput);  // 加载用户输入的 URL，可能访问恶意页面
+engine.load(userInput);  // Loading user-input URL, may access malicious pages
 
-// ❌ loadContent 加载用户输入 HTML（XSS）
-String html = userInput;  // 用户输入的 HTML
-engine.loadContent(html);  // 可能执行恶意 JS
+// loadContent loading user-input HTML (XSS)
+String html = userInput;  // User-input HTML
+engine.loadContent(html);  // May execute malicious JS
 ```
 
-**正例**：
+**Good Example**:
 ```java
-// ✅ 限制 JavaScript + 仅加载可信 HTTPS
+// Restrict JavaScript + only load trusted HTTPS
 WebView webView = new WebView();
 WebEngine engine = webView.getEngine();
-engine.setJavaScriptEnabled(false);  // 禁用 JS（不可信内容时）
+engine.setJavaScriptEnabled(false);  // Disable JS (for untrusted content)
 
-// 仅允许加载可信域名
+// Only allow loading trusted domains
 String url = urlField.getText().trim();
-if (isTrustedDomain(url)) {  // 白名单校验
+if (isTrustedDomain(url)) {  // Whitelist validation
     engine.load(url);
 } else {
-    showError("不允许访问该地址");
+    showError("Access to this address is not allowed");
 }
 
-// ✅ 安全加载内容（仅可信 HTML）
-engine.loadContent(sanitizedHtml);  // 经转义处理后的 HTML
+// Safe content loading (trusted HTML only)
+engine.loadContent(sanitizedHtml);  // HTML after escaping
 ```

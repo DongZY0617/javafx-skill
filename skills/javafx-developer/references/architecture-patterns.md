@@ -1,22 +1,22 @@
-# JavaFX 架构模式指南
+# JavaFX Architecture Patterns Guide
 
-本指南详细介绍 JavaFX 应用中常用的架构模式，包括 MVC、MVVM 的完整实现示例、模式对比、常见反模式、服务层设计、依赖注入方案以及事件总线模式。
+This guide details common architecture patterns used in JavaFX applications, including complete implementation examples of MVC and MVVM, pattern comparisons, common anti-patterns, service layer design, dependency injection solutions, and the event bus pattern.
 
 ---
 
-## 一、MVC 模式（Model-View-Controller）
+## 1. MVC Pattern (Model-View-Controller)
 
-MVC 是最经典的 UI 架构模式。在 JavaFX 中，Model 使用 JavaFX Properties 暴露数据，View 使用 FXML 描述，Controller 通过 `@FXML` 注解处理用户交互并更新 Model。
+MVC is the most classic UI architecture pattern. In JavaFX, the Model exposes data using JavaFX Properties, the View is described with FXML, and the Controller handles user interaction and updates the Model through the `@FXML` annotation.
 
-### 1.1 职责划分
+### 1.1 Responsibility Division
 
-| 组件        | 职责                                                                 |
-|-------------|----------------------------------------------------------------------|
-| Model       | 数据模型与业务状态，使用 JavaFX Property 实现可观察性。              |
-| View        | 纯 UI 声明（FXML），不包含业务逻辑，通过绑定展示 Model 数据。        |
-| Controller  | 接收用户事件，调用 Service/Model 方法，协调 View 与 Model 交互。      |
+| Component   | Responsibility                                                        |
+|-------------|-----------------------------------------------------------------------|
+| Model       | Data model and business state, using JavaFX Property for observability. |
+| View        | Pure UI declaration (FXML), contains no business logic, displays Model data through binding. |
+| Controller  | Receives user events, calls Service/Model methods, coordinates interaction between View and Model. |
 
-### 1.2 完整代码示例
+### 1.2 Complete Code Example
 
 **Model — `Task.java`**
 
@@ -54,11 +54,11 @@ public class Task {
       xmlns:fx="http://javafx.com/fxml/1"
       fx:controller="com.example.mvc.controller.TaskController">
     <HBox spacing="10">
-        <TextField fx:id="titleField" promptText="输入任务标题" HBox.hgrow="ALWAYS"/>
-        <Button text="添加" onAction="#handleAddTask"/>
+        <TextField fx:id="titleField" promptText="Enter task title" HBox.hgrow="ALWAYS"/>
+        <Button text="Add" onAction="#handleAddTask"/>
     </HBox>
     <ListView fx:id="taskListView" VBox.vgrow="ALWAYS"/>
-    <Label fx:id="statusLabel" text="共 0 个任务"/>
+    <Label fx:id="statusLabel" text="Total 0 tasks"/>
 </VBox>
 ```
 
@@ -87,18 +87,18 @@ public class TaskController implements Initializable {
     @FXML private Label statusLabel;
 
     private final ObservableList<Task> tasks = FXCollections.observableArrayList();
-    private final TaskService taskService = new TaskService(); // Service 层
+    private final TaskService taskService = new TaskService(); // Service layer
 
     @Override
     public void initialize(URL location, ResourceBundle resources) {
         taskListView.setItems(tasks);
         taskListView.setCellFactory(lv -> new TaskListCell());
 
-        // 绑定状态标签到任务数量
+        // Bind the status label to the task count
         statusLabel.textProperty().bind(
-            Bindings.size(tasks).asString("共 %d 个任务"));
+            Bindings.size(tasks).asString("Total %d tasks"));
 
-        // 加载初始数据
+        // Load initial data
         tasks.addAll(taskService.loadTasks());
     }
 
@@ -107,7 +107,7 @@ public class TaskController implements Initializable {
         String title = titleField.getText().trim();
         if (!title.isEmpty()) {
             Task task = new Task(title);
-            taskService.saveTask(task);  // 调用 Service
+            taskService.saveTask(task);  // Call Service
             tasks.add(task);
             titleField.clear();
         }
@@ -116,8 +116,8 @@ public class TaskController implements Initializable {
 ```
 
 ```java
-// 在 TaskController 中添加（需 import javafx.scene.control.ListCell;）
-// 自定义列表单元格
+// Add inside TaskController (requires import javafx.scene.control.ListCell;)
+// Custom list cell
 public static class TaskListCell extends ListCell<Task> {
     @Override
     protected void updateItem(Task task, boolean empty) {
@@ -133,29 +133,30 @@ public static class TaskListCell extends ListCell<Task> {
 }
 ```
 
-### 1.3 MVC 数据流
+### 1.3 MVC Data Flow
 
 ```
-用户交互 → Controller.handleXxx() → Service/Model 更新
-                                        ↓
-View ← (绑定/手动刷新) ← Model 状态变化
+User interaction -> Controller.handleXxx() -> Service/Model update
+                                        |
+                                        v
+View <- (binding/manual refresh) <- Model state change
 ```
 
 ---
 
-## 二、MVVM 模式（Model-View-ViewModel）
+## 2. MVVM Pattern (Model-View-ViewModel)
 
-MVVM 通过 ViewModel 作为 View 和 Model 之间的中介，利用 JavaFX 强大的数据绑定机制实现 View 与逻辑的彻底解耦。ViewModel 不持有 View 的引用，仅暴露可绑定的 Property。
+MVVM uses a ViewModel as an intermediary between View and Model, leveraging JavaFX's powerful data binding mechanism to completely decouple the View from logic. The ViewModel does not hold a reference to the View; it only exposes bindable Properties.
 
-### 2.1 职责划分
+### 2.1 Responsibility Division
 
-| 组件         | 职责                                                                 |
-|--------------|----------------------------------------------------------------------|
-| Model        | 纯数据模型与业务实体。                                               |
-| ViewModel    | 暴露 View 所需的 Property 和 Command，封装业务逻辑，无 UI 依赖。     |
-| View         | FXML + Controller（瘦 Controller），仅负责将 UI 控件绑定到 ViewModel。|
+| Component  | Responsibility                                                          |
+|------------|-------------------------------------------------------------------------|
+| Model      | Pure data model and business entities.                                  |
+| ViewModel  | Exposes Properties and Commands needed by the View, encapsulates business logic, has no UI dependencies. |
+| View       | FXML + Controller (thin Controller), only responsible for binding UI controls to the ViewModel. |
 
-### 2.2 完整代码示例
+### 2.2 Complete Code Example
 
 **Model — `User.java`**
 
@@ -198,32 +199,32 @@ public class UserViewModel {
 
     private final UserService userService = new UserService();
 
-    // 表单输入绑定
+    // Form input bindings
     private final StringProperty inputName = new SimpleStringProperty();
     private final IntegerProperty inputAge = new SimpleIntegerProperty();
 
-    // 列表数据
+    // List data
     private final ObservableList<User> users = FXCollections.observableArrayList();
 
-    // 选中项
+    // Selected item
     private final ObjectProperty<User> selectedUser = new SimpleObjectProperty<>();
 
-    // 计算属性：表单是否有效
+    // Computed property: whether the form is valid
     private final BooleanProperty formValid = new SimpleBooleanProperty(false);
 
     public UserViewModel() {
-        // 表单校验：姓名非空且年龄在 0-150 之间
+        // Form validation: name is non-empty and age is between 0-150
         formValid.bind(Bindings.createBooleanBinding(() -> {
             String name = getInputName();
             int age = getInputAge();
             return name != null && !name.trim().isEmpty() && age >= 0 && age <= 150;
         }, inputName, inputAge));
 
-        // 加载初始数据
+        // Load initial data
         users.addAll(userService.loadAllUsers());
     }
 
-    /** 添加用户命令 */
+    /** Add user command */
     public void addUser() {
         if (!formValid.get()) return;
         User user = new User(getInputName().trim(), getInputAge());
@@ -233,7 +234,7 @@ public class UserViewModel {
         inputAge.set(0);
     }
 
-    /** 删除选中用户命令 */
+    /** Remove selected user command */
     public void removeSelectedUser() {
         User selected = getSelectedUser();
         if (selected != null) {
@@ -242,7 +243,7 @@ public class UserViewModel {
         }
     }
 
-    // === Property 访问器 ===
+    // === Property accessors ===
     public StringProperty inputNameProperty() { return inputName; }
     public String getInputName() { return inputName.get(); }
 
@@ -259,7 +260,7 @@ public class UserViewModel {
 }
 ```
 
-**View Controller（瘦 Controller）— `UserViewController.java`**
+**View Controller (thin Controller) — `UserViewController.java`**
 
 ```java
 package com.example.mvvm.view;
@@ -285,89 +286,91 @@ public class UserViewController implements Initializable {
 
     @Override
     public void initialize(URL location, ResourceBundle resources) {
-        // 双向绑定：UI 控件 ↔ ViewModel Property
+        // Bidirectional binding: UI controls <-> ViewModel Property
         nameField.textProperty().bindBidirectional(viewModel.inputNameProperty());
         ageField.textProperty().bindBidirectional(
             viewModel.inputAgeProperty(), new NumberStringConverter());
 
-        // 表格数据绑定
+        // Table data binding
         userTable.setItems(viewModel.getUsers());
         nameCol.setCellValueFactory(c -> c.getValue().nameProperty());
         ageCol.setCellValueFactory(c -> c.getValue().ageProperty());
 
-        // 选中项绑定
+        // Selected item binding
         viewModel.selectedUserProperty()
             .bind(userTable.getSelectionModel().selectedItemProperty());
 
-        // 按钮禁用状态绑定到计算属性
+        // Button disabled state bound to computed property
         addButton.disableProperty().bind(viewModel.formValidProperty().not());
         removeButton.disableProperty()
             .bind(viewModel.selectedUserProperty().isNull());
 
-        // 按钮事件委托给 ViewModel 命令
+        // Button events delegated to ViewModel commands
         addButton.setOnAction(e -> viewModel.addUser());
         removeButton.setOnAction(e -> viewModel.removeSelectedUser());
     }
 }
 ```
 
-### 2.3 MVVM 数据流
+### 2.3 MVVM Data Flow
 
 ```
-View (FXML + 瘦Controller) ←双向绑定→ ViewModel (Property/Command)
-                                            ↓ 调用
+View (FXML + thin Controller) <-bidirectional binding-> ViewModel (Property/Command)
+                                            | calls
+                                            v
                                         Service / Model
 ```
 
 ---
 
-## 三、MVC 与 MVVM 对比
+## 3. MVC vs MVVM Comparison
 
-| 对比维度       | MVC                                  | MVVM                                       |
-|----------------|--------------------------------------|--------------------------------------------|
-| 复杂度         | 较低，结构简单直接                   | 较高，需额外 ViewModel 层                  |
-| 可测试性       | 中等，Controller 依赖 JavaFX 控件    | 高，ViewModel 无 UI 依赖，可纯单元测试     |
-| 耦合度         | Controller 直接操作 View 控件，耦合较高 | View 与逻辑通过绑定解耦，耦合度低        |
-| 数据同步方式   | 手动刷新或单向绑定                   | 双向绑定自动同步                           |
-| 代码量         | 较少                                 | 较多（需写 ViewModel 和绑定代码）          |
-| 适用场景       | 简单表单、小型工具、快速原型         | 中大型应用、复杂表单、需高可测试性         |
-| 学习曲线       | 平缓                                 | 较陡，需理解绑定机制                       |
-| 团队协作       | View 与逻辑易混杂                    | 前端/逻辑可并行开发                        |
+| Comparison Dimension      | MVC                                  | MVVM                                       |
+|---------------------------|--------------------------------------|--------------------------------------------|
+| Complexity                | Lower, simple and direct structure   | Higher, requires additional ViewModel layer |
+| Testability               | Medium, Controller depends on JavaFX controls | High, ViewModel has no UI dependencies, can be purely unit tested |
+| Coupling                  | Controller directly manipulates View controls, higher coupling | View and logic decoupled through binding, lower coupling |
+| Data synchronization      | Manual refresh or one-way binding    | Bidirectional binding auto-sync            |
+| Code volume               | Less                                 | More (need to write ViewModel and binding code) |
+| Applicable scenarios      | Simple forms, small tools, rapid prototypes | Medium to large applications, complex forms, high testability required |
+| Learning curve            | Gentle                               | Steeper, need to understand binding mechanism |
+| Team collaboration        | View and logic easily mixed          | Frontend/logic can be developed in parallel |
 
-### 3.1 MVC 与 MVVM 的选择建议
+### 3.1 Selection Advice
 
-- **小型应用 / 工具类**：使用 MVC，快速直接。
-- **中大型应用 / 需要单元测试**：使用 MVVM，ViewModel 可独立测试。
-- **混合使用**：简单页面用 MVC，复杂页面用 MVVM，两者可在同一项目中共存。
+- **Small applications / utility tools**: Use MVC, fast and direct.
+- **Medium to large applications / requiring unit tests**: Use MVVM, ViewModel can be tested independently.
+- **Mixed usage**: Use MVC for simple pages, MVVM for complex pages; both can coexist in the same project.
 
 ---
 
-## 四、MVP 模式（Model-View-Presenter）
+## 4. MVP Pattern (Model-View-Presenter)
 
-MVP（Model-View-Presenter）是介于 MVC 与 MVVM 之间的架构模式。它将 UI 逻辑完全从 View 中抽离到 Presenter，但不像 MVVM 那样依赖数据绑定，View 与 Presenter 之间通过接口显式交互。
+MVP (Model-View-Presenter) is an architecture pattern that sits between MVC and MVVM. It pulls all UI logic out of the View and into the Presenter, but unlike MVVM it does not rely on data binding; the View and Presenter interact explicitly through an interface.
 
-**两种变体**
+**Two Variants**
 
-- **Passive View（被动视图）**：View 完全被动，所有 UI 状态更新都由 Presenter 通过 View 接口的方法调用完成。View 不包含任何逻辑，甚至连简单的格式化也交给 Presenter。可测试性最高，但 Presenter 代码量较大。
-- **Supervising Controller（监督控制器）**：Presenter 负责主要 UI 逻辑，但允许 View 通过简单绑定（如直接属性绑定）处理部分显示逻辑，Presenter 仅干预复杂交互。代码量较少，是实践中更常用的变体。
+- **Passive View**: The View is completely passive; all UI state updates are performed by the Presenter through method calls on the View interface. The View contains no logic at all — even simple formatting is delegated to the Presenter. This offers the highest testability, but the Presenter carries more code.
+- **Supervising Controller**: The Presenter handles the main UI logic, but the View is allowed to handle some display logic through simple binding (e.g., direct property binding), with the Presenter intervening only for complex interactions. This carries less code and is the more commonly used variant in practice.
 
-**何时选择 MVP**
+**When to Choose MVP**
 
-- 需要 MVC 与 MVVM 之间的折中：既想要完整的 UI 逻辑分离（提升可测试性），又不想引入 MVVM 的数据绑定机制（避免绑定链带来的复杂度与内存管理负担）。
-- View 逻辑复杂但难以用声明式绑定表达（如依赖大量条件分支、动画协调）。
-- 团队对 Presenter 接口风格更熟悉，或需要在不同 UI 框架间复用 Presenter。
+- You want a compromise between MVC and MVVM: full separation of UI logic (improving testability) without introducing MVVM's data-binding mechanism (avoiding the complexity and memory-management burden of binding chains).
+- The View logic is complex but hard to express with declarative binding (e.g., it depends on many conditional branches or animation coordination).
+- The team is more familiar with the Presenter interface style, or you need to reuse the Presenter across different UI frameworks.
 
-**Presenter 示例**
+**Presenter Example**
 
 ```java
-// View 接口：抽象出 View 暴露给 Presenter 的能力
+// View interface: abstracts the capabilities the View exposes to the Presenter
 public interface TaskView {
     String getInputText();
     void setTaskList(List<Task> tasks);
     void showEmptyInputError();
 }
 
-// Presenter：持有 View 接口引用，不依赖任何 JavaFX 控件，可独立单元测试
+// Presenter: holds a reference to the View interface, depends on no JavaFX controls,
+// and can be independently unit tested
 public class TaskPresenter {
     private final TaskView view;
     private final TaskService service;
@@ -385,11 +388,12 @@ public class TaskPresenter {
         }
         Task task = new Task(title);
         service.saveTask(task);
-        view.setTaskList(service.loadTasks());  // 通过接口更新 View
+        view.setTaskList(service.loadTasks());  // update the View through the interface
     }
 }
 
-// Controller 实现 View 接口，仅做 UI 操作，逻辑全部委托 Presenter
+// Controller implements the View interface, only does UI operations,
+// and delegates all logic to the Presenter
 public class TaskController implements TaskView {
     private final TaskPresenter presenter;
 
@@ -403,25 +407,25 @@ public class TaskController implements TaskView {
     @Override public void setTaskList(List<Task> tasks) {
         taskListView.setItems(FXCollections.observableArrayList(tasks));
     }
-    @Override public void showEmptyInputError() { statusLabel.setText("标题不能为空"); }
+    @Override public void showEmptyInputError() { statusLabel.setText("Title cannot be empty"); }
 }
 ```
 
 ---
 
-## 五、需避免的反模式（Anti-patterns）
+## 5. Anti-patterns to Avoid
 
-### 5.1 胖控制器（Fat Controller）
+### 5.1 Fat Controller
 
-**问题**：Controller 中堆积大量业务逻辑、数据访问、校验代码，导致难以维护和测试。
+**Problem**: The Controller accumulates large amounts of business logic, data access, and validation code, making it difficult to maintain and test.
 
 ```java
-// ❌ 反模式：Controller 直接操作数据库
+// Anti-pattern: Controller directly operates the database
 @FXML
 private void handleLogin() {
     String username = usernameField.getText();
     String password = passwordField.getText();
-    // 业务逻辑、校验、数据库访问全部塞在 Controller 中
+    // Business logic, validation, database access all stuffed in the Controller
     if (username.length() < 3) { /* ... */ }
     try (Connection conn = DriverManager.getConnection("jdbc:...")) {
         PreparedStatement ps = conn.prepareStatement("SELECT ...");
@@ -431,23 +435,23 @@ private void handleLogin() {
 ```
 
 ```java
-// ✅ 正确做法：Controller 仅委托给 Service
+// Correct approach: Controller only delegates to Service
 @FXML
 private void handleLogin() {
     boolean success = authService.login(
         usernameField.getText(), passwordField.getText());
     if (success) { showMainView(); }
-    else { showError("登录失败"); }
+    else { showError("Login failed"); }
 }
 ```
 
-### 5.2 FXML 中嵌入业务逻辑
+### 5.2 Embedding Business Logic in FXML
 
-**问题**：在 FXML 的 `onAction` 中通过脚本（如 JavaScript）编写逻辑，或在 FXML Controller 中通过复杂内联表达式处理业务。
+**Problem**: Writing logic through scripts (such as JavaScript) in FXML's `onAction`, or handling business through complex inline expressions in the FXML Controller.
 
 ```xml
-<!-- ❌ 反模式：FXML 中嵌入脚本逻辑 -->
-<Button text="计算" onAction="#calculate">
+<!-- Anti-pattern: Embedding script logic in FXML -->
+<Button text="Calculate" onAction="#calculate">
     <fx:script>
         var result = parseInt(a) + parseInt(b);
         label.setText(result);
@@ -455,22 +459,22 @@ private void handleLogin() {
 </Button>
 ```
 
-FXML 应保持纯声明式，所有逻辑放到 Controller 或 ViewModel 中。
+FXML should remain purely declarative; all logic should go into the Controller or ViewModel.
 
-### 5.3 紧耦合（Tight Coupling）
+### 5.3 Tight Coupling
 
-**问题**：Controller 直接 `new` 具体依赖类，导致无法替换和测试。
+**Problem**: The Controller directly `new`s concrete dependency classes, making them impossible to replace and test.
 
 ```java
-// ❌ 反模式：硬编码依赖
+// Anti-pattern: Hardcoded dependencies
 public class OrderController {
-    private MySQLDatabase db = new MySQLDatabase();  // 紧耦合
+    private MySQLDatabase db = new MySQLDatabase();  // Tight coupling
     private EmailService email = new SmtpEmailService();
 }
 ```
 
 ```java
-// ✅ 正确做法：通过接口 + 构造注入
+// Correct approach: Interface + constructor injection
 public class OrderController {
     private final Database db;
     private final EmailService email;
@@ -482,29 +486,29 @@ public class OrderController {
 }
 ```
 
-### 5.4 其他常见反模式
+### 5.4 Other Common Anti-patterns
 
-| 反模式                     | 说明与改进                                                         |
-|----------------------------|--------------------------------------------------------------------|
-| God Controller             | 单个 Controller 管理所有功能，应拆分为多个 Controller。            |
-| 在 UI 线程执行耗时操作     | 阻塞 JavaFX Application Thread 导致界面卡死，应使用 `Task` + 后台线程。|
-| 直接暴露内部集合           | 应返回不可修改视图或使用 Property 封装。                           |
-| 忽略资源释放               | 未移除监听器导致内存泄漏，参见数据绑定指南。                       |
+| Anti-pattern                          | Description and Improvement                                          |
+|---------------------------------------|----------------------------------------------------------------------|
+| God Controller                        | A single Controller manages all functionality; should be split into multiple Controllers. |
+| Executing time-consuming operations on the UI thread | Blocks the JavaFX Application Thread causing UI freeze; should use `Task` + background thread. |
+| Directly exposing internal collections | Should return unmodifiable views or wrap with Property.              |
+| Ignoring resource release             | Not removing listeners causes memory leaks; see data binding guide.  |
 
 ---
 
-## 六、服务层设计（Service Layer）
+## 6. Service Layer Design
 
-服务层封装业务逻辑与数据访问，作为 Controller/ViewModel 与数据层之间的中间层，保持 UI 层的简洁与可测试性。
+The service layer encapsulates business logic and data access, acting as an intermediate layer between the Controller/ViewModel and the data layer, keeping the UI layer clean and testable.
 
-### 6.1 服务层职责
+### 6.1 Service Layer Responsibilities
 
-- 封装业务规则与事务边界。
-- 协调多个 Repository / DAO。
-- 提供 UI 无关的 API，返回领域对象。
-- 处理异常并转换为业务语义。
+- Encapsulate business rules and transaction boundaries.
+- Coordinate multiple Repositories / DAOs.
+- Provide UI-agnostic APIs that return domain objects.
+- Handle exceptions and convert them to business semantics.
 
-### 6.2 服务层实现示例
+### 6.2 Service Layer Implementation Example
 
 ```java
 package com.example.service;
@@ -518,40 +522,40 @@ public class TaskService {
 
     private final TaskRepository repository;
 
-    // 通过构造注入 Repository（接口）
+    // Constructor injection of Repository (interface)
     public TaskService(TaskRepository repository) {
         this.repository = repository;
     }
 
-    /** 加载所有任务 */
+    /** Load all tasks */
     public List<Task> loadTasks() {
         return repository.findAll();
     }
 
-    /** 保存任务（含业务校验） */
+    /** Save task (with business validation) */
     public void saveTask(Task task) {
         if (task.getTitle() == null || task.getTitle().isBlank()) {
-            throw new IllegalArgumentException("任务标题不能为空");
+            throw new IllegalArgumentException("Task title cannot be empty");
         }
         repository.save(task);
     }
 
-    /** 切换任务完成状态 */
+    /** Toggle task completion status */
     public void toggleComplete(Task task) {
         task.setCompleted(!task.isCompleted());
         repository.update(task);
     }
 
-    /** 删除任务 */
+    /** Delete task */
     public void deleteTask(Task task) {
         repository.delete(task);
     }
 }
 ```
 
-### 6.3 异步服务调用
+### 6.3 Asynchronous Service Calls
 
-耗时服务调用应在后台线程执行，避免阻塞 UI 线程：
+Time-consuming service calls should be executed on a background thread to avoid blocking the UI thread:
 
 ```java
 @FXML
@@ -559,15 +563,15 @@ private void handleLoadTasks() {
     Task<List<Task>> loadTask = new Task<>() {
         @Override
         protected List<Task> call() {
-            return taskService.loadTasks();  // 后台执行
+            return taskService.loadTasks();  // Execute in background
         }
     };
     loadTask.setOnSucceeded(e -> {
-        tasks.setAll(loadTask.getValue());  // 回到 UI 线程更新
-        statusLabel.setText("加载完成");
+        tasks.setAll(loadTask.getValue());  // Return to UI thread to update
+        statusLabel.setText("Loading complete");
     });
     loadTask.setOnFailed(e -> {
-        statusLabel.setText("加载失败: " + loadTask.getException().getMessage());
+        statusLabel.setText("Loading failed: " + loadTask.getException().getMessage());
     });
     new Thread(loadTask).start();
 }
@@ -575,13 +579,13 @@ private void handleLoadTasks() {
 
 ---
 
-## 七、依赖注入（Dependency Injection）
+## 7. Dependency Injection
 
-依赖注入用于解耦组件之间的依赖关系，便于测试和替换实现。JavaFX 中有三种常见方案。
+Dependency injection is used to decouple dependencies between components, making testing and implementation replacement easier. There are three common approaches in JavaFX.
 
-### 7.1 手动依赖注入
+### 7.1 Manual Dependency Injection
 
-适用于小型项目，通过工厂或构造方法手动传递依赖。
+Suitable for small projects, passing dependencies manually through factories or constructors.
 
 ```java
 public class AppFactory {
@@ -593,17 +597,17 @@ public class AppFactory {
     }
 }
 
-// 在 Application.start() 中
+// In Application.start()
 FXMLLoader loader = new FXMLLoader(url);
 loader.setControllerFactory(c -> AppFactory.createMainController());
 Parent root = loader.load();
 ```
 
-### 7.2 Guice 依赖注入
+### 7.2 Guice Dependency Injection
 
-Google Guice 是轻量级 DI 框架，适合中小型 JavaFX 项目。
+Google Guice is a lightweight DI framework, suitable for small to medium JavaFX projects.
 
-**Maven 依赖：**
+**Maven dependency:**
 
 ```xml
 <dependency>
@@ -613,7 +617,7 @@ Google Guice 是轻量级 DI 框架，适合中小型 JavaFX 项目。
 </dependency>
 ```
 
-**配置与使用：**
+**Configuration and usage:**
 
 ```java
 public class AppModule extends AbstractModule {
@@ -624,7 +628,7 @@ public class AppModule extends AbstractModule {
     }
 }
 
-// 自定义 ControllerFactory，让 FXMLLoader 使用 Guice 创建 Controller
+// Custom ControllerFactory to let FXMLLoader use Guice to create Controllers
 public class GuiceControllerFactory implements Callback<Class<?>, Object> {
     private final Injector injector;
 
@@ -638,7 +642,7 @@ public class GuiceControllerFactory implements Callback<Class<?>, Object> {
     }
 }
 
-// Application 启动
+// Application launch
 public class MainApp extends Application {
     @Override
     public void start(Stage stage) throws IOException {
@@ -652,13 +656,13 @@ public class MainApp extends Application {
 }
 ```
 
-**Controller 中使用注入：**
+**Using injection in Controller:**
 
 ```java
 public class MainController implements Initializable {
     private final TaskService taskService;
 
-    @Inject  // Guice 构造注入
+    @Inject  // Guice constructor injection
     public MainController(TaskService taskService) {
         this.taskService = taskService;
     }
@@ -666,21 +670,21 @@ public class MainController implements Initializable {
 }
 ```
 
-> 注意：使用 Guice 时，`module-info.java` 需 `opens` Controller 包给 Guice 模块以支持反射。
+> Note: When using Guice, `module-info.java` needs to `opens` the Controller package to the Guice module to support reflection.
 
-### 7.3 Spring Framework 依赖注入
+### 7.3 Spring Framework Dependency Injection
 
-Spring Boot 可与 JavaFX 结合，适合已有 Spring 生态的项目。
+Spring Boot can be integrated with JavaFX, suitable for projects already in the Spring ecosystem.
 
-> **⚠️ 关键陷阱：主类不能直接继承 Application**
+> **Critical pitfall: The main class cannot directly extend Application**
 >
-> 当主类（包含 `main` 方法的类）直接 `extends Application` 时，JVM 会尝试使用 JavaFX 专用的启动器运行。在 classpath 模式下（无 `module-info.java`，通过 `mvn spring-boot:run` 或 `java -jar` 运行），JavaFX 启动器找不到 `javafx.graphics` 模块，会报错：
+> When the main class (the class containing the `main` method) directly `extends Application`, the JVM will attempt to run using the JavaFX-specific launcher. In classpath mode (no `module-info.java`, running via `mvn spring-boot:run` or `java -jar`), the JavaFX launcher cannot find the `javafx.graphics` module and will throw an error:
 > ```
 > Error: JavaFX runtime components are missing, and are required to run this application
 > ```
-> **解决方案**：将启动类拆分为两个类 —— Spring Boot 启动类（不继承 Application）+ JavaFX 入口类（继承 Application）。详见 `references/spring-boot-integration.md`。
+> **Solution**: Split the launch class into two classes - a Spring Boot launch class (not extending Application) + a JavaFX entry class (extending Application). See `references/spring-boot-integration.md` for details.
 
-**Maven 依赖：**
+**Maven dependency:**
 
 ```xml
 <dependency>
@@ -690,32 +694,32 @@ Spring Boot 可与 JavaFX 结合，适合已有 Spring 生态的项目。
 </dependency>
 ```
 
-**Spring Boot + JavaFX 集成（正确写法：拆分两个类）：**
+**Spring Boot + JavaFX integration (correct approach: split into two classes):**
 
 ```java
-// 1. Spring Boot 启动类：不继承 Application，走普通 JVM 启动流程
+// 1. Spring Boot launch class: does not extend Application, runs through normal JVM launch flow
 @SpringBootApplication
 public class MyApp {
 
     static ConfigurableApplicationContext springContext;
 
     public static void main(String[] args) {
-        // 先启动 Spring 容器
+        // Start the Spring container first
         springContext = SpringApplication.run(MyApp.class, args);
-        // 再启动 JavaFX（委托给 JavaFX 入口类）
+        // Then start JavaFX (delegate to JavaFX entry class)
         Application.launch(JavaFXApp.class, args);
     }
 }
 ```
 
 ```java
-// 2. JavaFX 入口类：继承 Application，负责 UI 加载
+// 2. JavaFX entry class: extends Application, responsible for UI loading
 public class JavaFXApp extends Application {
 
     @Override
     public void start(Stage stage) throws IOException {
         FXMLLoader loader = new FXMLLoader(getClass().getResource("/fxml/main.fxml"));
-        // 通过 controllerFactory 从 Spring 容器获取 Controller Bean
+        // Get Controller Bean from Spring container via controllerFactory
         loader.setControllerFactory(MyApp.springContext::getBean);
         Scene scene = new Scene(loader.load());
         stage.setScene(scene);
@@ -729,14 +733,14 @@ public class JavaFXApp extends Application {
 }
 ```
 
-**Spring 管理的 Controller：**
+**Spring-managed Controller:**
 
 ```java
 @Component
 public class MainController implements Initializable {
     private final TaskService taskService;
 
-    // Spring 构造注入（无需 @Autowired 注解，Spring 4.3+ 单构造方法自动注入）
+    // Spring constructor injection (no @Autowired annotation needed, Spring 4.3+ auto-injects single constructor)
     public MainController(TaskService taskService) {
         this.taskService = taskService;
     }
@@ -744,21 +748,21 @@ public class MainController implements Initializable {
 }
 ```
 
-### 7.4 三种 DI 方案对比
+### 7.4 Comparison of Three DI Approaches
 
-| 方案   | 复杂度 | 适用场景                       | 优点                     | 缺点                     |
-|--------|--------|--------------------------------|--------------------------|--------------------------|
-| 手动   | 低     | 小型项目、原型                 | 无额外依赖、简单直接     | 手动维护依赖关系、易出错 |
-| Guice  | 中     | 中型项目、需轻量 DI            | 轻量、API 简洁、启动快   | 生态不如 Spring 丰富     |
-| Spring | 高     | 大型企业应用、已有 Spring 生态| 功能全面、生态强大       | 较重、启动较慢           |
+| Approach | Complexity | Applicable Scenarios            | Pros                    | Cons                    |
+|----------|------------|---------------------------------|-------------------------|--------------------------|
+| Manual   | Low        | Small projects, prototypes      | No extra dependencies, simple and direct | Manual dependency maintenance, error-prone |
+| Guice    | Medium     | Medium projects, need lightweight DI | Lightweight, clean API, fast startup | Ecosystem not as rich as Spring |
+| Spring   | High       | Large enterprise applications, existing Spring ecosystem | Comprehensive features, powerful ecosystem | Heavier, slower startup |
 
 ---
 
-## 八、事件总线模式（Event Bus）
+## 8. Event Bus Pattern
 
-事件总线用于实现组件间的松耦合通信，特别适合多个不直接关联的模块需要响应同一事件的场景（如：用户登录后刷新多个视图）。
+The event bus is used to implement loosely coupled communication between components, especially suitable for scenarios where multiple unrelated modules need to respond to the same event (e.g., refreshing multiple views after a user logs in).
 
-### 8.1 简单事件总线实现
+### 8.1 Simple Event Bus Implementation
 
 ```java
 package com.example.eventbus;
@@ -768,8 +772,8 @@ import java.util.*;
 import java.util.concurrent.*;
 
 /**
- * 轻量级事件总线，支持注册/注销监听器并发布事件。
- * 事件分发在 JavaFX Application Thread 上执行。
+ * Lightweight event bus, supports registering/unregistering listeners and publishing events.
+ * Event dispatch is executed on the JavaFX Application Thread.
  */
 public class EventBus {
 
@@ -779,13 +783,13 @@ public class EventBus {
     private final Map<Class<?>, List<EventListener<?>>> listeners =
         new ConcurrentHashMap<>();
 
-    /** 注册监听器 */
+    /** Register a listener */
     public <T> void subscribe(Class<T> eventType, EventListener<T> listener) {
         listeners.computeIfAbsent(eventType, k -> new CopyOnWriteArrayList<>())
                  .add(listener);
     }
 
-    /** 注销监听器 */
+    /** Unregister a listener */
     public <T> void unsubscribe(Class<T> eventType, EventListener<T> listener) {
         List<EventListener<?>> list = listeners.get(eventType);
         if (list != null) {
@@ -793,7 +797,7 @@ public class EventBus {
         }
     }
 
-    /** 发布事件（在 JavaFX Application Thread 上通知） */
+    /** Publish an event (notifies on the JavaFX Application Thread) */
     @SuppressWarnings("unchecked")
     public <T> void publish(T event) {
         List<EventListener<?>> list = listeners.get(event.getClass());
@@ -811,22 +815,22 @@ public class EventBus {
 }
 ```
 
-### 8.2 定义事件
+### 8.2 Defining Events
 
 ```java
 package com.example.event;
 
-// 用户登录事件
+// User logged in event
 public record UserLoggedInEvent(String username, long timestamp) {}
 
-// 任务完成事件
+// Task completed event
 public record TaskCompletedEvent(Long taskId) {}
 
-// 数据刷新事件
+// Data refresh event
 public record DataRefreshEvent(String source) {}
 ```
 
-### 8.3 使用示例
+### 8.3 Usage Example
 
 ```java
 public class HeaderController implements Initializable {
@@ -834,17 +838,17 @@ public class HeaderController implements Initializable {
 
     @Override
     public void initialize(URL location, ResourceBundle resources) {
-        // 订阅事件
+        // Subscribe to event
         eventBus.subscribe(UserLoggedInEvent.class, this::onUserLoggedIn);
     }
 
     private void onUserLoggedIn(UserLoggedInEvent event) {
-        welcomeLabel.setText("欢迎, " + event.username());
+        welcomeLabel.setText("Welcome, " + event.username());
     }
 
     @FXML
     private void handleLogin() {
-        // ... 登录逻辑 ...
+        // ... login logic ...
         eventBus.publish(new UserLoggedInEvent(username, System.currentTimeMillis()));
     }
 }
@@ -854,7 +858,7 @@ public class SidebarController implements Initializable {
 
     @Override
     public void initialize(URL location, ResourceBundle resources) {
-        // 另一个控制器独立订阅同一事件
+        // Another controller independently subscribes to the same event
         eventBus.subscribe(UserLoggedInEvent.class, e -> {
             loadUserMenus(e.username());
         });
@@ -862,14 +866,14 @@ public class SidebarController implements Initializable {
 }
 ```
 
-### 8.4 事件总线使用注意事项
+### 8.4 Event Bus Usage Considerations
 
-1. **及时注销监听器**：Controller 销毁时调用 `unsubscribe`，防止内存泄漏。
-2. **线程安全**：上述实现使用 `CopyOnWriteArrayList` 保证并发安全；若事件处理涉及 UI 更新，应使用 `Platform.runLater()` 切换到 UI 线程。
-3. **避免循环事件**：事件处理中发布新事件可能导致无限循环，需谨慎设计。
-4. **成熟方案**：生产环境可考虑使用 Google Guava 的 `EventBus` 或 Apache DeltaSpike 的事件机制。
+1. **Unregister listeners promptly**: Call `unsubscribe` when a Controller is destroyed to prevent memory leaks.
+2. **Thread safety**: The above implementation uses `CopyOnWriteArrayList` to ensure concurrency safety; if event handling involves UI updates, use `Platform.runLater()` to switch to the UI thread.
+3. **Avoid circular events**: Publishing new events within event handling may cause infinite loops; design carefully.
+4. **Mature solutions**: For production environments, consider using Google Guava's `EventBus` or Apache DeltaSpike's event mechanism.
 
-### 8.5 Guava EventBus 集成示例
+### 8.5 Guava EventBus Integration Example
 
 ```xml
 <dependency>
@@ -880,10 +884,10 @@ public class SidebarController implements Initializable {
 ```
 
 ```java
-// 创建事件总线（可配置为异步）
+// Create an event bus (can be configured as asynchronous)
 EventBus eventBus = new EventBus("javafx-app");
 
-// 订阅：使用 @Subscribe 注解
+// Subscribe: use the @Subscribe annotation
 public class DashboardController {
     @Subscribe
     public void onUserLoggedIn(UserLoggedInEvent event) {
@@ -891,32 +895,32 @@ public class DashboardController {
     }
 }
 
-// 注册与注销
+// Register and unregister
 eventBus.register(dashboardController);
-// eventBus.unregister(dashboardController); // 销毁时注销
+// eventBus.unregister(dashboardController); // Unregister on destroy
 
-// 发布事件
+// Publish event
 eventBus.post(new UserLoggedInEvent("admin", System.currentTimeMillis()));
 ```
 
 ---
 
-## 九、架构模式选择决策树
+## 9. Architecture Pattern Selection Decision Tree
 
 ```
-应用规模？
-├── 小型（< 10 个页面，简单逻辑）
-│   └── MVC + 手动依赖注入
-├── 中型（10-50 个页面，中等复杂度）
-│   └── MVVM + Guice + 事件总线
-└── 大型（> 50 个页面，复杂业务）
-    └── MVVM + Spring + 事件总线 + 服务层
+Application scale?
+|-- Small (< 10 pages, simple logic)
+|   |-- MVC + manual dependency injection
+|-- Medium (10-50 pages, medium complexity)
+|   |-- MVVM + Guice + event bus
+|-- Large (> 50 pages, complex business)
+    |-- MVVM + Spring + event bus + service layer
 ```
 
-### 通用架构原则
+### General Architecture Principles
 
-1. **单一职责**：每个类只做一件事（Controller 管交互，Service 管业务，Repository 管数据）。
-2. **依赖倒置**：依赖接口而非具体实现，通过 DI 注入。
-3. **UI 线程纯净**：耗时操作放后台线程，UI 更新回到 Application Thread。
-4. **可测试性**：业务逻辑与 UI 解耦，使 ViewModel/Service 可独立单元测试。
-5. **渐进式架构**：从简单模式起步，随复杂度增长逐步引入更高级模式。
+1. **Single responsibility**: Each class does only one thing (Controller manages interaction, Service manages business, Repository manages data).
+2. **Dependency inversion**: Depend on interfaces rather than concrete implementations, inject through DI.
+3. **UI thread purity**: Time-consuming operations go to background threads, UI updates return to the Application Thread.
+4. **Testability**: Decouple business logic from UI so that ViewModel/Service can be independently unit tested.
+5. **Progressive architecture**: Start with simple patterns, gradually introduce more advanced patterns as complexity grows.

@@ -1,45 +1,45 @@
-# UI 线程安全规则
+# UI Thread Safety Rules
 
-本文档是"UI 线程安全性"维度的判定依据，管辖 6 个检查项（对应设计书 3.2 节）。审查所有 UI 操作是否在 JavaFX Application Thread 上执行，后台任务是否正确处理。此维度违规默认为 Critical。与 `javafx-developer` 的架构规则·线程安全条目同源。
+This document is the criteria for the "UI Thread Safety" dimension, governing 6 check items (corresponding to design spec section 3.2). It reviews whether all UI operations execute on the JavaFX Application Thread and whether background tasks are handled correctly. Violations in this dimension default to Critical. Shares the same origin as `javafx-developer`'s architecture rules · thread safety items.
 
-> **核心原则**：JavaFX 中所有 UI 组件的创建和修改必须在 JavaFX Application Thread（FX 线程）上执行。后台线程不得直接操作 UI，必须通过 `Platform.runLater()` 或 `Task` 回调切换到 FX 线程。
+> **Core Principle**: In JavaFX, all creation and modification of UI components must execute on the JavaFX Application Thread (FX thread). Background threads must not directly manipulate UI; they must switch to the FX thread via `Platform.runLater()` or `Task` callbacks.
 
 ---
 
-## 检查项 1：FX 线程更新
+## Check Item 1: FX Thread Updates
 
-**关注点**：所有 UI 组件更新是否在 JavaFX Application Thread 执行。
+**Focus**: Whether all UI component updates execute on the JavaFX Application Thread.
 
-**通过判定标准**：
-- 所有 `setText`、`setItems`、`setVisible`、`setDisable`、`setStyle` 等 UI 组件操作均在 FX 线程执行
-- 事件处理器（`onAction`、`setOnMouseClicked` 等）中的代码默认在 FX 线程，无需额外处理
-- `initialize()` 方法中的 UI 初始化代码在 FX 线程执行
+**Pass Criteria**:
+- All UI component operations such as `setText`, `setItems`, `setVisible`, `setDisable`, `setStyle` execute on the FX thread
+- Code in event handlers (`onAction`, `setOnMouseClicked`, etc.) executes on the FX thread by default, requiring no additional handling
+- UI initialization code in `initialize()` executes on the FX thread
 
-**不通过判定标准**（任一即不通过）：
-- 在 `Thread`、`Runnable`、`Task.call()`、`ExecutorService` 提交的线程中直接调用 UI 组件方法
-- 在 `ScheduledService.call()` 中直接更新 UI
-- 在 `ChangeListener` 监听非 FX 线程属性时直接更新 UI
+**Fail Criteria** (any one constitutes failure):
+- Calling UI component methods directly in `Thread`, `Runnable`, `Task.call()`, or threads submitted by `ExecutorService`
+- Directly updating UI in `ScheduledService.call()`
+- Directly updating UI in a `ChangeListener` listening to a non-FX thread property
 
-**严重性基线**：Critical（不可降级，运行时必然抛 `IllegalStateException: Not on FX application thread`）
+**Severity Baseline**: Critical (cannot be de-escalated; runtime will always throw `IllegalStateException: Not on FX application thread`)
 
-**反例**：
+**Bad Example**:
 ```java
-// ❌ 后台线程直接更新 UI，将抛 IllegalStateException
+// Background thread directly updating UI, will throw IllegalStateException
 new Thread(() -> {
     Thread.sleep(2000);
-    statusLabel.setText("完成");  // 非 FX 线程更新 UI
+    statusLabel.setText("Done");  // Non-FX thread updating UI
 }).start();
 ```
 
-**正例**：
+**Good Example**:
 ```java
-// ✅ 方式一：Platform.runLater 切回 FX 线程
+// Option 1: Platform.runLater to switch back to FX thread
 new Thread(() -> {
     Thread.sleep(2000);
-    Platform.runLater(() -> statusLabel.setText("完成"));
+    Platform.runLater(() -> statusLabel.setText("Done"));
 }).start();
 
-// ✅ 方式二：使用 Task，在 succeeded 回调中更新（自动在 FX 线程）
+// Option 2: Use Task, update in succeeded callback (automatically on FX thread)
 Task<Void> task = new Task<>() {
     @Override
     protected Void call() throws Exception {
@@ -47,78 +47,78 @@ Task<Void> task = new Task<>() {
         return null;
     }
 };
-task.setOnSucceeded(e -> statusLabel.setText("完成"));
+task.setOnSucceeded(e -> statusLabel.setText("Done"));
 new Thread(task).start();
 ```
 
 ---
 
-## 检查项 2：后台任务封装
+## Check Item 2: Background Task Encapsulation
 
-**关注点**：耗时操作是否使用 `Task<T>` 或 `Service` 封装，而非直接在事件处理器中阻塞。
+**Focus**: Whether time-consuming operations use `Task<T>` or `Service` encapsulation, rather than blocking directly in event handlers.
 
-**通过判定标准**：
-- 耗时操作（数据库查询、文件 I/O、网络请求、大量计算）使用 `Task<T>` 或 `Service` 封装到后台线程
-- 事件处理器中不包含阻塞操作，仅触发后台任务并更新 UI 状态
-- `Task` 的 `call()` 方法在后台线程执行，`setOnSucceeded` / `setOnFailed` 回调在 FX 线程执行
+**Pass Criteria**:
+- Time-consuming operations (database queries, file I/O, network requests, heavy computation) use `Task<T>` or `Service` to encapsulate into background threads
+- Event handlers contain no blocking operations, only triggering background tasks and updating UI state
+- The `Task` `call()` method executes on a background thread, `setOnSucceeded` / `setOnFailed` callbacks execute on the FX thread
 
-**不通过判定标准**（任一即不通过）：
-- 在事件处理器中直接执行耗时操作（同步阻塞 FX 线程）
-- 使用 `new Thread(() -> { ... }).start()` 而非 `Task` / `Service`，无法获取结果和异常
-- 后台线程中直接更新 UI（参见检查项 1）
+**Fail Criteria** (any one constitutes failure):
+- Executing time-consuming operations directly in event handlers (synchronously blocking the FX thread)
+- Using `new Thread(() -> { ... }).start()` instead of `Task` / `Service`, unable to obtain results and exceptions
+- Directly updating UI from a background thread (see Check Item 1)
 
-**严重性基线**：Critical（阻塞 FX 线程导致界面卡死）
+**Severity Baseline**: Critical (blocking the FX thread causes UI freeze)
 
-**反例**：
+**Bad Example**:
 ```java
-// ❌ 事件处理器中直接执行耗时数据库查询，阻塞 FX 线程
+// Executing time-consuming database query directly in event handler, blocking FX thread
 @FXML
 private void handleLoad() {
-    List<User> users = userService.loadAll();  // 阻塞 FX 线程
+    List<User> users = userService.loadAll();  // Blocks FX thread
     userTable.setItems(FXCollections.observableArrayList(users));
 }
 ```
 
-**正例**：
+**Good Example**:
 ```java
-// ✅ 使用 Task 封装，后台执行 + FX 线程更新
+// Use Task encapsulation, background execution + FX thread update
 @FXML
 private void handleLoad() {
     Task<List<User>> loadTask = new Task<>() {
         @Override
         protected List<User> call() {
-            return userService.loadAll();  // 后台线程
+            return userService.loadAll();  // Background thread
         }
     };
     loadTask.setOnSucceeded(e ->
         userTable.setItems(FXCollections.observableArrayList(loadTask.getValue())));
     loadTask.setOnFailed(e ->
-        showError("加载失败: " + loadTask.getException().getMessage()));
+        showError("Load failed: " + loadTask.getException().getMessage()));
     new Thread(loadTask).start();
 }
 ```
 
 ---
 
-## 检查项 3：Platform.runLater 正确性
+## Check Item 3: Platform.runLater Correctness
 
-**关注点**：后台线程回 UI 线程是否使用 `Platform.runLater()`，是否存在过度调用导致性能问题。
+**Focus**: Whether background threads returning to the UI thread use `Platform.runLater()`, whether excessive calls cause performance issues.
 
-**通过判定标准**：
-- 后台线程更新 UI 时使用 `Platform.runLater()` 切换到 FX 线程
-- 高频更新场景使用节流（如合并多次 `runLater` 为一次，或使用 `AnimationTimer`）
-- `Task` 的 `updateMessage` / `updateProgress` / `updateValue` 方法内部已处理线程切换，无需额外 `runLater`
+**Pass Criteria**:
+- Background threads use `Platform.runLater()` to switch to the FX thread when updating UI
+- High-frequency update scenarios use throttling (e.g., merging multiple `runLater` calls into one, or using `AnimationTimer`)
+- The `Task` `updateMessage` / `updateProgress` / `updateValue` methods handle thread switching internally, requiring no additional `runLater`
 
-**不通过判定标准**（任一即不通过）：
-- 后台线程直接更新 UI 而未使用 `Platform.runLater()`（属于检查项 1 违规）
-- 在紧密循环中频繁调用 `Platform.runLater()`，导致 FX 线程事件队列积压、界面卡顿
-- 在 `Task.call()` 中用 `Platform.runLater()` 更新进度，而非使用 `updateProgress()`（效率更低）
+**Fail Criteria** (any one constitutes failure):
+- Background thread directly updates UI without using `Platform.runLater()` (constitutes a Check Item 1 violation)
+- Frequently calling `Platform.runLater()` in a tight loop, causing the FX thread event queue to back up and UI to stutter
+- Using `Platform.runLater()` to update progress in `Task.call()` instead of using `updateProgress()` (less efficient)
 
-**严重性基线**：Major（过度调用导致性能问题）
+**Severity Baseline**: Major (excessive calls causing performance issues)
 
-**反例**：
+**Bad Example**:
 ```java
-// ❌ 在紧密循环中频繁 runLater，FX 线程事件队列积压
+// Frequent runLater in tight loop, FX thread event queue backs up
 Task<Void> task = new Task<>() {
     @Override
     protected Void call() {
@@ -131,14 +131,14 @@ Task<Void> task = new Task<>() {
 };
 ```
 
-**正例**：
+**Good Example**:
 ```java
-// ✅ 使用 Task 内置的 updateMessage/updateProgress，自动节流
+// Use Task's built-in updateMessage/updateProgress, automatic throttling
 Task<Void> task = new Task<>() {
     @Override
     protected Void call() {
         for (int i = 0; i < 100000; i++) {
-            updateProgress(i, 100000);  // 内部自动合并到 FX 线程
+            updateProgress(i, 100000);  // Internally merged to FX thread
             updateMessage(String.valueOf(i));
         }
         return null;
@@ -150,46 +150,46 @@ progressLabel.textProperty().bind(task.messageProperty());
 
 ---
 
-## 检查项 4：阻塞调用排查
+## Check Item 4: Blocking Call Detection
 
-**关注点**：FX 线程上是否存在 `Thread.sleep`、同步 I/O、网络请求等阻塞操作。
+**Focus**: Whether `Thread.sleep`, synchronous I/O, network requests, or other blocking operations exist on the FX thread.
 
-**通过判定标准**：
-- FX 线程上无 `Thread.sleep()` 调用
-- FX 线程上无同步文件 I/O（`Files.readAllBytes`、`InputStream.read` 阻塞等）
-- FX 线程上无网络请求（`HttpURLConnection`、`Socket` 等）
-- FX 线程上无锁等待（`Object.wait()`、`Future.get()` 无超时等）
+**Pass Criteria**:
+- No `Thread.sleep()` calls on the FX thread
+- No synchronous file I/O on the FX thread (`Files.readAllBytes`, `InputStream.read` blocking, etc.)
+- No network requests on the FX thread (`HttpURLConnection`, `Socket`, etc.)
+- No lock waits on the FX thread (`Object.wait()`, `Future.get()` without timeout, etc.)
 
-**不通过判定标准**（任一即不通过）：
-- 事件处理器或 `initialize()` 中调用 `Thread.sleep()`
-- FX 线程上执行同步文件读取 / 写入
-- FX 线程上发起网络请求
-- FX 线程上调用 `Future.get()` 无超时参数（可能永久阻塞）
+**Fail Criteria** (any one constitutes failure):
+- Calling `Thread.sleep()` in event handlers or `initialize()`
+- Performing synchronous file read / write on the FX thread
+- Making network requests on the FX thread
+- Calling `Future.get()` without a timeout parameter on the FX thread (may block indefinitely)
 
-**严重性基线**：Critical
-- 降级条件：阻塞时间极短（< 16ms，如本地小文件读取）→ Major
-- 升级条件：阻塞时间 > 1s 或涉及网络 I/O → 保持 Critical
+**Severity Baseline**: Critical
+- De-escalation condition: Blocking time very short (< 16ms, e.g., small local file read) → Major
+- Escalation condition: Blocking time > 1s or involves network I/O → remain Critical
 
-**反例**：
+**Bad Example**:
 ```java
-// ❌ FX 线程上 Thread.sleep + 同步网络请求
+// Thread.sleep + synchronous network request on FX thread
 @FXML
 private void handleRefresh() {
-    Thread.sleep(3000);  // 阻塞 FX 线程 3 秒，界面卡死
-    String data = fetchDataFromNetwork();  // 同步网络请求
+    Thread.sleep(3000);  // Blocks FX thread for 3 seconds, UI freezes
+    String data = fetchDataFromNetwork();  // Synchronous network request
     label.setText(data);
 }
 ```
 
-**正例**：
+**Good Example**:
 ```java
-// ✅ 阻塞操作移至后台 Task
+// Move blocking operations to background Task
 @FXML
 private void handleRefresh() {
     Task<String> refreshTask = new Task<>() {
         @Override
         protected String call() throws Exception {
-            Thread.sleep(3000);  // 后台线程休眠
+            Thread.sleep(3000);  // Background thread sleep
             return fetchDataFromNetwork();
         }
     };
@@ -198,84 +198,90 @@ private void handleRefresh() {
 }
 ```
 
+> **Runtime Verification Required**
+> - Static analysis can only provide heuristic judgment on blocking duration
+> - Runner check: `runtime-verification.md` #6 (Thread Safety) — dynamically catches `IllegalStateException: Not on FX application thread`
+> - If static result is uncertain (blocking time unclear), trigger runner to confirm
+> - Runner finding supersedes static heuristic when conflicting
+
 ---
 
-## 检查项 5：并发数据访问
+## Check Item 5: Concurrent Data Access
 
-**关注点**：跨线程共享数据是否使用 `synchronized` 或并发集合；`ObservableList` 的修改是否始终在 FX 线程执行。
+**Focus**: Whether cross-thread shared data uses `synchronized` or concurrent collections; whether `ObservableList` modifications always execute on the FX thread.
 
-**通过判定标准**：
-- 跨线程共享的可变数据使用 `synchronized` 块、`ConcurrentHashMap` 等并发集合或 `AtomicXxx` 类
-- `ObservableList` 的修改（`add`、`remove`、`setAll` 等）始终在 FX 线程执行
-- 后台线程通过 `Platform.runLater()` 或 `Task` 回调修改 `ObservableList`
-- 共享状态访问使用适当的同步机制
+**Pass Criteria**:
+- Cross-thread shared mutable data uses `synchronized` blocks, `ConcurrentHashMap` and other concurrent collections, or `AtomicXxx` classes
+- `ObservableList` modifications (`add`, `remove`, `setAll`, etc.) always execute on the FX thread
+- Background threads modify `ObservableList` via `Platform.runLater()` or `Task` callbacks
+- Shared state access uses appropriate synchronization mechanisms
 
-**不通过判定标准**（任一即不通过）：
-- 后台线程直接修改 `ObservableList`（非线程安全，跨线程修改可能抛异常或导致数据不一致）
-- 跨线程共享可变数据无同步机制，存在竞态条件
-- 使用非线程安全的集合（`ArrayList`、`HashMap`）在多线程间共享且无外部同步
+**Fail Criteria** (any one constitutes failure):
+- Background thread directly modifies `ObservableList` (not thread-safe; cross-thread modification may throw exceptions or cause data inconsistency)
+- Cross-thread shared mutable data has no synchronization mechanism, with race conditions
+- Using non-thread-safe collections (`ArrayList`, `HashMap`) shared across multiple threads without external synchronization
 
-**严重性基线**：Critical（ObservableList 非线程安全，跨线程修改可能导致 UI 状态不一致或异常）
+**Severity Baseline**: Critical (ObservableList is not thread-safe; cross-thread modification may cause UI state inconsistency or exceptions)
 
-> **关键事实**：`ObservableList` 实现不是线程安全的。即使后台线程只是 `add` 一个元素，也可能在 FX 线程正在渲染时触发 `ListChangeListener`，导致并发修改异常。
+> **Key Fact**: `ObservableList` implementations are not thread-safe. Even if a background thread only `add`s one element, it may trigger `ListChangeListener` while the FX thread is rendering, causing concurrent modification exceptions.
 
-**反例**：
+**Bad Example**:
 ```java
-// ❌ 后台线程直接修改 ObservableList
+// Background thread directly modifying ObservableList
 ObservableList<User> users = FXCollections.observableArrayList();
 new Thread(() -> {
     List<User> loaded = service.loadAll();
-    users.addAll(loaded);  // 非 FX 线程修改 ObservableList
+    users.addAll(loaded);  // Non-FX thread modifying ObservableList
 }).start();
 ```
 
-**正例**：
+**Good Example**:
 ```java
-// ✅ 后台线程通过 Platform.runLater 或 Task 回调修改
+// Background thread modifies via Platform.runLater or Task callback
 ObservableList<User> users = FXCollections.observableArrayList();
 Task<List<User>> task = new Task<>() {
     @Override
     protected List<User> call() {
-        return service.loadAll();  // 后台线程仅读取
+        return service.loadAll();  // Background thread only reads
     }
 };
-task.setOnSucceeded(e -> users.addAll(task.getValue()));  // FX 线程修改
+task.setOnSucceeded(e -> users.addAll(task.getValue()));  // FX thread modifies
 new Thread(task).start();
 ```
 
 ---
 
-## 检查项 6：ScheduledService 使用
+## Check Item 6: ScheduledService Usage
 
-**关注点**：定时任务是否使用 `ScheduledService` 而非 `java.util.Timer`。
+**Focus**: Whether scheduled tasks use `ScheduledService` rather than `java.util.Timer`.
 
-**通过判定标准**：
-- 定时 / 周期性任务使用 `javafx.concurrent.ScheduledService` 封装
-- `ScheduledService` 的 `call()` 在后台线程执行，回调自动在 FX 线程
-- 如使用 `java.util.Timer`，其任务中更新 UI 时通过 `Platform.runLater()` 切换
+**Pass Criteria**:
+- Scheduled / periodic tasks use `javafx.concurrent.ScheduledService` encapsulation
+- `ScheduledService` `call()` executes on a background thread, callbacks are automatically on the FX thread
+- If using `java.util.Timer`, its tasks switch to the FX thread via `Platform.runLater()` when updating UI
 
-**不通过判定标准**（任一即不通过）：
-- 使用 `java.util.Timer` / `TimerTask` 且直接在 `run()` 中更新 UI（非 FX 线程）
-- 使用 `ScheduledExecutorService` 且直接更新 UI
-- 定时任务中直接操作 UI 组件而未切换到 FX 线程
+**Fail Criteria** (any one constitutes failure):
+- Using `java.util.Timer` / `TimerTask` and directly updating UI in `run()` (non-FX thread)
+- Using `ScheduledExecutorService` and directly updating UI
+- Scheduled task directly manipulating UI components without switching to the FX thread
 
-**严重性基线**：Major
+**Severity Baseline**: Major
 
-**反例**：
+**Bad Example**:
 ```java
-// ❌ 使用 java.util.Timer 且直接更新 UI
+// Using java.util.Timer and directly updating UI
 Timer timer = new Timer();
 timer.scheduleAtFixedRate(new TimerTask() {
     @Override
     public void run() {
-        clockLabel.setText(LocalTime.now().toString());  // 非 FX 线程
+        clockLabel.setText(LocalTime.now().toString());  // Non-FX thread
     }
 }, 0, 1000);
 ```
 
-**正例**：
+**Good Example**:
 ```java
-// ✅ 方式一：使用 ScheduledService（推荐）
+// Option 1: Use ScheduledService (recommended)
 ScheduledService<Void> clockService = new ScheduledService<>() {
     @Override
     protected Task<Void> createTask() {
@@ -292,7 +298,7 @@ clockService.setPeriod(Duration.seconds(1));
 clockService.setOnSucceeded(e -> clockLabel.setText(clockService.getLastValue().toString()));
 clockService.start();
 
-// ✅ 方式二：Timer + Platform.runLater
+// Option 2: Timer + Platform.runLater
 timer.scheduleAtFixedRate(new TimerTask() {
     @Override
     public void run() {

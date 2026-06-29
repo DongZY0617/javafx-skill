@@ -1,4 +1,4 @@
-// 构建脚本：应用 application 插件与 JavaFX 插件
+// Build script: apply the application and JavaFX plugins
 plugins {
     id 'application'
     id 'org.openjfx.javafxplugin' version '0.1.0'
@@ -11,20 +11,20 @@ repositories {
     mavenCentral()
 }
 
-// JavaFX 依赖与模块配置
+// JavaFX dependencies and module configuration
 javafx {
-    // 使用单引号避免 Groovy 字符串插值，占位符由代码生成阶段替换
+    // Use single quotes to avoid Groovy string interpolation; placeholders are replaced at code generation time
     version = '{{javafxVersion}}'
     modules = ['javafx.controls', 'javafx.fxml']
 }
 
 application {
     mainClass = '{{mainClass}}'
-    // 启用对本机访问的支持（JavaFX 21 无害，JavaFX 24+ 必需）
+    // Enable native access support (harmless on JavaFX 21, required on JavaFX 24+)
     applicationDefaultJvmArgs = ['--enable-native-access=javafx.graphics']
 }
 
-// 使用工具链统一 JDK 版本，避免本地 JDK 与目标版本不一致
+// Use a toolchain to unify the JDK version, avoiding mismatch between local and target JDK
 java {
     toolchain {
         languageVersion = JavaLanguageVersion.of({{jdkVersion}})
@@ -35,7 +35,7 @@ tasks.withType(JavaCompile) {
     options.encoding = 'UTF-8'
 }
 
-// run 任务同样显式启用本机访问
+// The run task also explicitly enables native access
 run {
     jvmArgs = ['--enable-native-access=javafx.graphics']
 }

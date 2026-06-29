@@ -5,42 +5,44 @@ import java.util.List;
 import {{packageName}}.model.{{entityName}};
 
 /**
- * View 接口模板（MVP 模式）。
+ * View interface template (MVP pattern).
  * <p>
- * 抽象 View 暴露给 Presenter 的能力，不含任何 JavaFX 依赖。
- * Controller 实现此接口，将 UI 操作封装为接口方法，
- * Presenter 通过接口控制 View，实现 UI 与逻辑的完全解耦。
+ * Abstracts the capabilities the View exposes to the Presenter, with no
+ * JavaFX dependencies. The Controller implements this interface and wraps
+ * UI operations into interface methods; the Presenter controls the View
+ * through this interface, achieving complete decoupling of UI and logic.
  * </p>
  * <p>
- * 设计原则：接口方法应尽量细粒度，只暴露 Presenter 需要的操作，
- * 避免将整个 Stage 或 Scene 传入 Presenter。
+ * Design principle: interface methods should be fine-grained, exposing only
+ * the operations the Presenter needs. Avoid passing the entire Stage or
+ * Scene into the Presenter.
  * </p>
  */
 public interface {{entityName}}View {
 
     /**
-     * 获取用户输入的数据。
+     * Retrieves the user-entered data.
      *
-     * @return 包含输入数据的实体对象；若输入无效返回 null
+     * @return the entity object containing the input data, or null if input is invalid
      */
     {{entityName}} getInputData();
 
     /**
-     * 刷新数据列表显示。
+     * Refreshes the data list display.
      *
-     * @param list 待显示的数据列表
+     * @param list the data list to display
      */
     void setDataList(List<{{entityName}}> list);
 
     /**
-     * 清空输入区域。
+     * Clears the input area.
      */
     void clearInput();
 
     /**
-     * 显示校验错误提示。
+     * Displays a validation error message.
      *
-     * @param message 错误描述
+     * @param message the error description
      */
     void showValidationError(String message);
 }
