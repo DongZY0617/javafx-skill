@@ -1,15 +1,16 @@
 # JavaFX Skills
 
-> A JavaFX skill collection for AI agents — covering project development (`javafx-developer`) and professional code review (`javafx-code-reviewer`), from project scaffolding to quality assurance.
+> A JavaFX skill collection for AI agents — covering project development (`javafx-developer`), professional code review (`javafx-code-reviewer`), and runtime verification (`javafx-runner`), from project scaffolding to quality assurance.
 
 ## What is this?
 
-This is an [Agent Skill](https://agentskills.io) collection that teaches AI agents how to build and review JavaFX desktop applications. It provides two complementary skills covering the full development lifecycle:
+This is an [Agent Skill](https://agentskills.io) collection that teaches AI agents how to build, review, and verify JavaFX desktop applications. It provides three complementary skills covering the full development lifecycle:
 
 - **javafx-developer** — Build JavaFX applications, from project scaffolding to cross-platform packaging.
 - **javafx-code-reviewer** — Review JavaFX code against official specifications and best practices.
+- **javafx-runner** — Verify JavaFX projects by executing compile, run, and package commands dynamically.
 
-Together they form a closed loop: **generate → review → fix**, ensuring continuous code quality.
+Together they form a closed loop: **generate → review → verify → fix**, ensuring continuous code quality from static analysis to runtime validation.
 
 ## Skills
 
@@ -37,6 +38,17 @@ Review JavaFX code against official specifications and best practices.
 - **Performance Analysis**: Virtualization, batch updates, throttling, CSS efficiency, lazy loading
 - **Deep Compliance Audit**: Naming conventions, security rules, Spring Boot pitfalls, version compatibility
 - **Structured Report**: Categorized findings with severity levels, code locations, and optimization suggestions
+
+### javafx-runner
+
+Verify JavaFX projects by executing compile, run, and package commands dynamically.
+
+- **Compile Verification**: Syntax compilation, dependency resolution, module configuration, FXML controller resolution
+- **Runtime Verification**: Application startup, FXML load, CSS parse, module runtime reflection, thread safety runtime validation
+- **Packaging Verification**: JAR build, module path integrity, jpackage toolchain, installer generation, upgrade UUID
+- **Headless Support**: CI environment verification via Monocle framework without a display
+- **Compile Failure Short-Circuit**: Skips runtime and packaging verification when compilation fails
+- **Structured Report**: Verification findings with fix handoff fields compatible with javafx-code-reviewer
 
 ## Skill Structure
 
@@ -93,6 +105,22 @@ javafx-skill/
         ├── references/                       # Independent reference docs
         └── report-templates/                 # Independent report templates
             └── review-report.md              # Report template
+    ├── javafx-runner/                       # Runtime verification skill (Chinese)
+    │   ├── SKILL.md                          # Skill entry point (Chinese)
+    │   ├── EVALUATE.md                       # Evaluation test cases
+    │   ├── references/                       # Verification dimension docs
+    │   │   ├── compile-verification.md       # Compile verification rules
+    │   │   ├── runtime-verification.md       # Runtime verification rules
+    │   │   ├── packaging-verification.md     # Packaging verification rules
+    │   │   └── environment-setup.md          # Environment detection & Monocle
+    │   └── report-templates/                 # Verification report templates
+    │       └── verification-report.md        # Report template
+    └── javafx-runner-en/                  # Runtime verification skill (English)
+        ├── SKILL.md                          # Skill entry point (English)
+        ├── EVALUATE.md                       # Evaluation test cases
+        ├── references/                       # Independent reference docs
+        └── report-templates/                 # Independent report templates
+            └── verification-report.md        # Report template
 ```
 
 ## Installation
@@ -115,6 +143,16 @@ npx skills add https://github.com/DongZY0617/javafx-skill --skill javafx-code-re
 ### javafx-code-reviewer (English)
 ```bash
 npx skills add https://github.com/DongZY0617/javafx-skill --skill javafx-code-reviewer-en
+```
+
+### javafx-runner (Chinese)
+```bash
+npx skills add https://github.com/DongZY0617/javafx-skill --skill javafx-runner
+```
+
+### javafx-runner (English)
+```bash
+npx skills add https://github.com/DongZY0617/javafx-skill --skill javafx-runner-en
 ```
 
 ## Technology Stack
@@ -140,6 +178,10 @@ The javafx-developer skill includes production-ready templates for common JavaFX
 ### Specification-Sourced Code Review
 
 The javafx-code-reviewer skill shares the same constraint system as javafx-developer, ensuring **"generate compliant, review consistent"** — review standards are sourced from the same specification baseline, avoiding contradictions between code generation and code review. It covers six review dimensions (structure, thread safety, FXML standards, memory leaks, performance, compliance) with a four-level severity system (Critical / Major / Minor / Info).
+
+### Static-to-Dynamic Verification
+
+The javafx-runner skill complements javafx-code-reviewer by moving from static code analysis to dynamic runtime verification. It executes `mvn compile`, `mvn javafx:run`, and `jpackage` to catch issues that pass static review but fail at runtime — such as missing `module-info.java` `opens` declarations that compile cleanly but crash on FXML reflection. Verification reports share the same fix handoff field format as review reports, so javafx-developer can consume both with identical logic.
 
 ## License
 
