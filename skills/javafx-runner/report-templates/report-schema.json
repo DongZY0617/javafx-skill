@@ -24,7 +24,7 @@
     },
     "report_version": {
       "type": "string",
-      "const": "1.0",
+      "const": "1.1",
       "description": "Schema version"
     },
     "generated_at": {
@@ -38,8 +38,8 @@
     },
     "verification_mode": {
       "type": "string",
-      "enum": ["full", "targeted"],
-      "description": "Verification mode: full (Round 1) or targeted (Round 2+, compile always + selective dimensions)"
+      "enum": ["full", "incremental", "targeted"],
+      "description": "Verification mode: full (Round 1), incremental (only dimensions affected by modified files), or targeted (Round 2+, compile always + selective dimensions)"
     },
     "round": {
       "type": "integer",
@@ -322,7 +322,7 @@
         },
         "passed": {
           "type": "boolean",
-          "description": "true if overall_line_coverage >= threshold"
+          "description": "true if critical path coverage (controller_line_coverage and viewmodel_line_coverage) >= threshold"
         },
         "uncovered_methods": {
           "type": "array",
@@ -383,7 +383,8 @@
         },
         "next_action": {
           "type": "string",
-          "enum": ["fixing", "incremental_review_and_verify", "passed", "paused"]
+          "enum": ["fixing", "incremental_review_and_verify", "passed", "paused"],
+          "description": "Loop state next action. Shared enum with javafx-code-reviewer. Note: differs from javafx-developer's summary.next_action which uses a developer-centric vocabulary"
         }
       }
     }

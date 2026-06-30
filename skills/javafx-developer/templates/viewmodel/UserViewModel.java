@@ -34,6 +34,32 @@ public class UserViewModel {
     // Save button disabled state (read-only)
     public BooleanProperty saveDisabledProperty() { return saveDisabled; }
 
+    /**
+     * Computed form validity.
+     * <p>
+     * The form is considered valid only when both the name and description
+     * fields are non-empty. This mirrors the binding contract expected by
+     * {@code ViewModelTest}: {@code formValid = !name.isEmpty() && !description.isEmpty()}.
+     * </p>
+     *
+     * @return {@code true} if both name and description are non-empty
+     */
+    public boolean isFormValid() {
+        return !name.get().isEmpty() && !description.get().isEmpty();
+    }
+
+    /**
+     * Resets all editable properties to their default (empty) state.
+     * <p>
+     * Clears the name and description fields, leaving the ViewModel ready
+     * for fresh input. Expected by {@code ViewModelTest#resetClearsAllProperties_FR_003}.
+     * </p>
+     */
+    public void reset() {
+        name.set("");
+        description.set("");
+    }
+
     /** Save action (delegated to the Service layer) */
     public void save() {
         // TODO: delegate to UserService.save(this.toModel()) for persistence

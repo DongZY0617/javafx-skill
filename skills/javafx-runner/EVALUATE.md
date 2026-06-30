@@ -30,6 +30,9 @@ This file defines the acceptance test cases for the `javafx-runner` skill, used 
 | 16 | Static Analysis — Checkstyle method length | Positive | Static Analysis Verification | 1 Minor (MethodLengthCheck) |
 | 17 | Static Analysis skipped (no plugins) | Boundary | Static Analysis Verification | 0 (skipped) |
 | 18 | Static Analysis skipped (compile fail) | Short-circuit | Static Analysis Verification | 0 (short-circuited) |
+| 19 | Test Verification — all pass | Negative | Test Verification | 0 (tests pass, coverage >= 60%) |
+| 20 | Low coverage triggers Major | Positive | Test Verification | 1 Major (JaCoCo coverage < 60%) |
+| 21 | Test failure triggers Critical | Positive | Test Verification | 1 Critical (test failure) |
 
 ---
 
@@ -270,7 +273,7 @@ This file defines the acceptance test cases for the `javafx-runner` skill, used 
   <dependency>
       <groupId>org.testfx</groupId>
       <artifactId>openjfx-monocle</artifactId>
-      <version>jdk-21+26</version>
+      <version>jdk-17+21</version>
       <scope>test</scope>
   </dependency>
   ```
@@ -341,6 +344,9 @@ This file defines the acceptance test cases for the `javafx-runner` skill, used 
   - [ ] Each issue includes `target_lines` (start and end line numbers)
   - [ ] Each issue includes `fix_type` (replace / insert / delete)
   - [ ] Each issue includes `fix_priority` (priority sorted by severity + dimension, 1 is highest)
+  - [ ] Each issue includes `code_fingerprint` (64-character hex string, content hash for fingerprint matching)
+  - [ ] Each issue includes `anchor_pattern` (contextual anchor pattern for line-drift recovery)
+  - [ ] Each issue includes `ast_node_signature` (fully qualified AST signature; null for non-Java files like module-info.java)
   - [ ] The Fix Handoff Summary table lists all issues sorted by fix_priority
   - [ ] Fix handoff fields can be directly consumed by `javafx-developer` to execute fixes with no format conversion
   - [ ] `fix_type=replace` and `fix_type=insert` issues include a "Corrected Example" code snippet
@@ -407,3 +413,81 @@ This file defines the acceptance test cases for the `javafx-runner` skill, used 
   - [ ] Static analysis is skipped (SpotBugs needs compiled bytecode)
   - [ ] No `target/static-analysis-findings.json` is generated
   - [ ] Verification report notes: "Static analysis skipped — compile verification failed"
+
+---
+
+## Case 19: Test Verification Pass
+
+- **Input**: A JavaFX project with a healthy test suite. `mvn test` passes with 0 failures and 0 errors; JaCoCo reports critical-path (Controller/ViewModel) line coverage >= 60%.
+  ```java
+  // UserControllerTest.java
+  @Test
+  void shouldLoadUsersOnInitialize() {
+      // TestFX test verifying FXML load + controller injection + initial data
+      interact(() -> assertThat(lookup("#userTable").queryTableView().getItems()).isNotEmpty());
+  }
+  ```
+  ```xml
+  <!-- pom.xml has jacoco-maven-plugin configured; target/site/jacoco/jacoco.xml generated -->
+  <!-- Controller line coverage: 0.78, ViewModel line coverage: 0.82 -->
+  ```
+- **Type**: Negative sample
+- **Covered Dimension**: Test Verification
+- **Expected Finding**: 0 issues — all tests pass and JaCoCo coverage meets the 60% threshold
+- **Verification Standards**:
+  - [ ] Runner executes `mvn test` (or `mvn test jacoco:report`) and captures `BUILD SUCCESS` with `Tests run: N, Failures: 0, Errors: 0, Skipped: 0`
+  - [ ] Runner parses `target/site/jacoco/jacoco.xml` and extracts Controller/ViewModel line coverage
+  - [ ] Controller and ViewModel line coverage are both >= 0.60 (60%)
+  - [ ] `jacoco_report.passed` is `true` in the JSON report
+  - [ ] `summary.dimensions.test.conclusion` is `"Pass"`
+  - [ ] No Test Verification issues are recorded (zero false positives)
+  - [ ] Test compilation check item passes (no errors in `src/test/java/`)
+  - [ ] FXML load test and UI interaction test check items are satisfied (if present)
+  - [ ] Packaging verification proceeds normally (test verification did not short-circuit)
+
+---
+
+## Case 20: Low Coverage Triggers Major
+
+- **Input**: A JavaFX project where `mvn test` passes with 0 failures, but JaCoCo reports Controller/ViewModel line coverage below the 60% threshold. Several Controller methods (e.g., `handleSave`, `handleDelete`) have 0 test coverage.
+  ```xml
+  <!-- target/site/jacoco/jacoco.xml -->
+  <!-- Controller line coverage: 0.42 (below 0.60 threshold) -->
+  <!-- Uncovered methods: UserController#handleSave, UserController#handleDelete -->
+  ```
+- **Type**: Positive sample
+- **Covered Dimension**: Test Verification
+- **Expected Finding**: 1 Major — JaCoCo critical-path coverage below 60% threshold
+- **Verification Standards**:
+  - [ ] Runner executes `mvn test jacoco:report` and confirms all tests pass (`Tests run: N, Failures: 0, Errors: 0`)
+  - [ ] Runner parses `target/site/jacoco/jacoco.xml` and detects Controller line coverage (0.42) < 0.60 threshold
+  - [ ] A Major issue is recorded with `dimension: "Test Verification"`
+  - [ ] Issue title/description names the threshold (60%) and the actual coverage value (42%)
+  - [ ] `jacoco_report.passed` is `false` and `jacoco_report.uncovered_methods` lists `UserController#handleSave` and `UserController#handleDelete`
+  - [ ] `summary.dimensions.test.conclusion` is `"Conditional Pass"` (tests pass but coverage gate fails)
+  - [ ] Rule reference cites `test-coverage-gate.md -- JaCoCo Coverage Report`
+  - [ ] Severity is Major (not Critical — tests pass, this is a coverage gap, not a test failure)
+  - [ ] Fix recommendation lists the uncovered methods and recommends adding tests for them
+
+---
+
+## Case 21: Test Failure Triggers Critical
+
+- **Input**: A JavaFX project where `mvn test` reports failing test cases (e.g., a TestFX test asserting `TableView` initial data fails because the Controller's `initialize()` does not load data).
+  ```
+  Tests run: 5, Failures: 1, Errors: 0, Skipped: 0
+  <<< FAILURE! - shouldLoadUsersOnInitialize(UserControllerTest)
+  ```
+- **Type**: Positive sample
+- **Covered Dimension**: Test Verification
+- **Expected Finding**: 1 Critical — test execution failure
+- **Verification Standards**:
+  - [ ] Runner executes `mvn test` and captures the `BUILD FAILURE` / `Tests run: 5, Failures: 1, Errors: 0` output
+  - [ ] The failing test case name (`shouldLoadUsersOnInitialize`) and failure message are captured in the issue description / `raw_output`
+  - [ ] A Critical issue is recorded with `dimension: "Test Verification"`
+  - [ ] Severity is Critical (default baseline for test execution failure; tests must pass before delivery)
+  - [ ] Test failure short-circuit is triggered: packaging verification is skipped, report notes "should not package untested code"
+  - [ ] `summary.dimensions.test.conclusion` is `"Fail"`
+  - [ ] Rule reference cites `test-verification.md -- Test Execution`
+  - [ ] Includes fix handoff fields (target_file pointing to the Controller or test under test)
+  - [ ] Fix recommendation addresses the root cause (e.g., Controller `initialize()` must load data, or the test assertion must match actual behavior)

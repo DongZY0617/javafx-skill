@@ -22,6 +22,8 @@ depends_on:
   - javafx-developer
 consumes_from:
   - javafx-developer (source code)
+  - javafx-architect (architecture-handoff.json — database_schema for Dimension 7)
+  - javafx-runner (static-analysis-findings.json for Dimension 10)
 produces_for:
   - javafx-developer (fix handoff report)
 ---
@@ -65,7 +67,7 @@ The correspondence between the ten review dimensions and the `references/` docum
 | Memory Leak Risks | `memory-management.md` | `binding-compliance.md` (binding disposal) | `data-binding-patterns.md` |
 | Performance | `performance-guide.md` | `binding-compliance.md` (binding efficiency) | - |
 | Deep Compliance Audit | `compliance-rules.md` / `security-checklist.md` / `css-compliance.md` | `binding-compliance.md` (Properties null safety) | Coding/architecture/security rules + `css-best-practices.md` |
-| Database Access Security | `security-checklist.md` (SQL injection) | - | `database-integration.md` (common pitfalls) |
+| Database Access Security | `security-checklist.md` (SQL injection) | - | `developer/database-integration.md` (common pitfalls) — also mirrored in reviewer/references/database-integration.md |
 | Requirements Coverage | `requirements-coverage.md` | - | `templates/docs/requirements.md` (RTM template) |
 | Refactoring Verification | `../javafx-refactorer/references/refactoring-patterns.md` | `../javafx-refactorer/SKILL.md` (behavior equivalence check) | `../javafx-refactorer/SKILL.md` (Step 5: Behavior Equivalence Verification) |
 | Static Analysis Tool Findings | (consumes `target/static-analysis-findings.json` from runner) | `../javafx-developer/references/static-analysis-tools.md` (tool config & report parsing) | `../javafx-developer/references/static-analysis-tools.md` |
@@ -202,6 +204,7 @@ Consumes deterministic static analysis findings from `javafx-runner`'s Static An
 
 **Check Items**:
 - **Findings file consumption**: Whether `target/static-analysis-findings.json` exists (produced by runner's Step 2.5). If the file does not exist, this dimension is skipped with a note: "Static Analysis Tool Findings skipped — no static-analysis-findings.json. Consider running javafx-runner with static analysis enabled."
+- **Parallel execution timing**: In the default loop configuration, `javafx-code-reviewer` and `javafx-runner` execute **in parallel** from Round 1 onward (no data dependency between them). This means `static-analysis-findings.json` is **not yet generated** when the reviewer starts in the same round. Consequently, Dimension 10 is **automatically skipped in parallel mode for the current round** and becomes active only in **Round 2+ incremental rounds** (where the previous round's findings file already exists) or in **serial mode** (where runner completes before reviewer starts). This is by design — the orchestrator's "no data dependency" declaration refers to the reviewer not *blocking* on the runner, not that the file is always available.
 - **Deduplication with LLM findings**: For each tool finding, check whether the reviewer's own LLM review (Dimensions 1-9) already identified the same issue at the same location. Tool findings already found by LLM are annotated as "confirmed by {tool}" for higher confidence. Tool findings NOT found by LLM are added as supplementary issues with `source: "spotbugs" | "pmd" | "checkstyle"`
 - **SpotBugs findings triage**: Review each SpotBugs finding for validity — some may be false positives in JavaFX context (e.g., `UWF_NULL_FIELD` on lazy-initialized Properties). Invalid findings are marked `status: "false_positive"` with justification. Valid findings are integrated into the issue list
 - **PMD findings triage**: Review each PMD finding for validity — some may be false positives (e.g., `UnusedPrivateField` on `@FXML`-injected fields if the PMD XPath suppression was not applied). Invalid findings are marked `status: "false_positive"`. Valid findings are integrated

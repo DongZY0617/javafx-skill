@@ -1,12 +1,27 @@
 <!--
   Test Dependencies Snippet for pom.xml
   Usage: Insert these dependencies into the <dependencies> section of your pom.xml
-  Required: TestFX 4.0.18 + JUnit 5 + Monocle (for headless CI testing)
+  Required: TestFX 4.0.18 + JUnit 5 + Mockito 5.x + Monocle (for headless CI testing)
 -->
+<!-- JUnit 5 (Jupiter) test framework -->
 <dependency>
     <groupId>org.junit.jupiter</groupId>
     <artifactId>junit-jupiter</artifactId>
     <version>5.10.2</version>
+    <scope>test</scope>
+</dependency>
+<!-- Mockito: mocking framework for unit tests (e.g. ControllerTest mocks ActionEvent) -->
+<dependency>
+    <groupId>org.mockito</groupId>
+    <artifactId>mockito-core</artifactId>
+    <version>5.20.0</version>
+    <scope>test</scope>
+</dependency>
+<!-- Mockito JUnit 5 integration (enables @ExtendWith(MockitoExtension.class) + @Mock) -->
+<dependency>
+    <groupId>org.mockito</groupId>
+    <artifactId>mockito-junit-jupiter</artifactId>
+    <version>5.20.0</version>
     <scope>test</scope>
 </dependency>
 <dependency>
@@ -22,10 +37,12 @@
     <scope>test</scope>
 </dependency>
 <!-- Monocle: enables headless JavaFX testing in CI environments (no display required) -->
+<!-- NOTE: version must stay aligned with the main pom.xml (jdk-17+21) because the
+     SKILL.md declares JDK 17+ as the minimum supported runtime. -->
 <dependency>
     <groupId>org.testfx</groupId>
     <artifactId>openjfx-monocle</artifactId>
-    <version>jdk-21+27</version>
+    <version>jdk-17+21</version>
     <scope>test</scope>
 </dependency>
 

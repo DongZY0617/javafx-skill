@@ -299,6 +299,9 @@ This file defines the acceptance test cases for the `javafx-code-reviewer` skill
   - [ ] Each issue includes `target_lines` (start and end line numbers)
   - [ ] Each issue includes `fix_type` (replace / insert / delete)
   - [ ] Each issue includes `fix_priority` (priority sorted by severity + location, 1 is highest)
+  - [ ] Each issue includes `code_fingerprint` (64-character hex string, content hash for fingerprint matching)
+  - [ ] Each issue includes `anchor_pattern` (contextual anchor pattern for line-drift recovery)
+  - [ ] Each issue includes `ast_node_signature` (fully qualified AST signature, e.g. `com.example.controller.MainController#handleSave(ActionEvent)`; null for non-Java files)
   - [ ] Fix handoff fields can be directly consumed by `javafx-developer` to execute fixes
   - [ ] fix_type=replace includes a "Corrected Example" code snippet
 

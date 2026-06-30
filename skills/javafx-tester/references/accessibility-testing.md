@@ -289,5 +289,4 @@ JavaFX relies on the platform's native accessibility bridge (Windows: UI Automat
 ### 7.2 Cross-References
 
 When a screen-reader compatibility issue is rooted in missing JavaFX accessibility properties rather than the bridge itself, cross-reference:
-- `../javafx-code-reviewer/references/accessibility-guide.md` -- AccessibleRole / AccessibleText (static checks for missing properties)
 - `../javafx-code-reviewer/references/css-compliance.md` -- Color Contrast (static CSS check backing criterion 1.4.3)

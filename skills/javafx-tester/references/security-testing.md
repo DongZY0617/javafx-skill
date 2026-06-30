@@ -103,7 +103,7 @@ If the application uses a database (JPA/Hibernate/JDBC), specifically test:
 2. **Native SQL injection**: If native queries are used, inject SQL patterns
 3. **HQL injection**: Inject HQL-specific patterns
 
-**Cross-reference**: `../javafx-code-reviewer/references/database-access-safety.md` -- SQL Injection Prevention (static check for parameterized queries)
+**Cross-reference**: `../javafx-code-reviewer/references/database-integration.md` -- SQL Injection Prevention (static check for parameterized queries)
 
 ## 3. WebView Security
 

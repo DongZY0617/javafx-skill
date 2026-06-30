@@ -96,13 +96,12 @@ Each identified threat is recorded as a structured entry:
   "threat_id": "TM-001",
   "stride_category": "Tampering",
   "attack_surface": "Auto-update manifest",
-  "threat_description": "Attacker serves a forged update manifest via DNS hijacking or MITM, directing the app to download a malicious installer",
+  "description": "Attacker serves a forged update manifest via DNS hijacking or MITM, directing the app to download a malicious installer",
   "affected_component": "UpdateChecker.checkForUpdate()",
   "risk_rating": "High",
   "likelihood": "Medium",
   "impact": "Critical",
   "mitigation": "Enforce HTTPS with certificate pinning; verify installer SHA-256 checksum against a hardcoded or signed expected hash; reject manifests without valid signature",
-  "test_coverage": "SEC-TM-001: Fuzz update manifest URL with forged JSON; verify app rejects unsigned installers",
   "residual_risk": "Low — after HTTPS + checksum verification + signature validation"
 }
 ```

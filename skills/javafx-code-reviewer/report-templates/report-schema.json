@@ -24,7 +24,7 @@
     },
     "report_version": {
       "type": "string",
-      "const": "1.0",
+      "const": "1.1",
       "description": "Schema version"
     },
     "generated_at": {
@@ -269,7 +269,8 @@
         },
         "next_action": {
           "type": "string",
-          "enum": ["fixing", "incremental_review_and_verify", "passed", "paused"]
+          "enum": ["fixing", "incremental_review_and_verify", "passed", "paused"],
+          "description": "Loop state next action. Shared enum with javafx-runner. Note: differs from javafx-developer's summary.next_action which uses a developer-centric vocabulary"
         }
       }
     }

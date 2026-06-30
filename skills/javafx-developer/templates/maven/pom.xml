@@ -22,6 +22,9 @@
         <spotbugs.maven.plugin.version>4.8.6.6</spotbugs.maven.plugin.version>
         <pmd.version>7.7.0</pmd.version>
         <checkstyle.version>10.18.1</checkstyle.version>
+        <!-- Headless TestFX/JavaFX testing for CI. Override on the command line with
+             -Dtestfx.headless=false to run tests with a real display during local dev. -->
+        <testfx.headless>true</testfx.headless>
     </properties>
 
     <dependencies>
@@ -39,6 +42,23 @@
             <version>${javafx.version}</version>
         </dependency>
 
+        <!--
+          Test dependencies: JUnit 5, TestFX, Monocle, and Mockito.
+          The canonical, copy-paste set of test-scope dependencies is maintained
+          in templates/test/pom-test-dependencies.xml (junit-jupiter, mockito-core,
+          mockito-junit-jupiter, testfx-core, testfx-junit5, openjfx-monocle).
+          NOTE: junit-jupiter and mockito-core are required for the test templates
+          (ControllerTest, ViewModelTest) to compile — merge the contents of
+          pom-test-dependencies.xml into this <dependencies> section.
+        -->
+        <!-- JUnit 5 (Jupiter) — test engine required by TestFX JUnit5 and all unit tests.
+             Surefire 3.x (configured below) is required to run JUnit Platform tests. -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>5.10.2</version>
+            <scope>test</scope>
+        </dependency>
         <!-- TestFX — UI testing framework (for visual regression testing) -->
         <dependency>
             <groupId>org.testfx</groupId>
@@ -60,6 +80,21 @@
             <version>jdk-17+21</version>
             <scope>test</scope>
         </dependency>
+        <!-- Mockito — Mocking framework for controller/viewmodel unit tests.
+             Required by ControllerTest and ViewModelTest templates (Mockito.mock, @Mock).
+             mockito-junit-jupiter enables @ExtendWith(MockitoExtension.class) in JUnit 5. -->
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-core</artifactId>
+            <version>5.12.0</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-junit-jupiter</artifactId>
+            <version>5.12.0</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
@@ -74,6 +109,32 @@
                     <!-- Use release to set a single compile target version (replaces source/target) -->
                     <release>{{jdkVersion}}</release>
                     <encoding>UTF-8</encoding>
+                </configuration>
+            </plugin>
+
+            <!-- Maven Surefire Plugin (test execution; 3.x is required for JUnit 5 / JUnit Platform).
+                 @{argLine} preserves the JaCoCo agent injected by jacoco-maven-plugin;
+                 the remaining flags enable headless JavaFX rendering for CI. Override
+                 headless mode at runtime with -Dtestfx.headless=false. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.2.5</version>
+                <configuration>
+                    <argLine>@{argLine}
+                        --add-opens=javafx.graphics/com.sun.glass.ui=ALL-UNNAMED
+                        --add-opens=javafx.graphics/com.sun.javafx.application=ALL-UNNAMED
+                        --add-opens=javafx.base/com.sun.javafx.binding=ALL-UNNAMED
+                        --add-exports=javafx.graphics/com.sun.glass.ui=ALL-UNNAMED
+                        --enable-native-access=javafx.graphics
+                        -Dtestfx.robot=awt
+                        -Dtestfx.headless=${testfx.headless}
+                        -Dprism.order=sw
+                        -Dprism.text=t2k
+                    </argLine>
+                    <systemPropertyVariables>
+                        <java.awt.headless>true</java.awt.headless>
+                    </systemPropertyVariables>
                 </configuration>
             </plugin>
 
@@ -157,22 +218,20 @@
                             <goal>check</goal>
                         </goals>
                         <configuration>
+                            <!--
+                                NOTE: In the loop, javafx-runner executes `mvn test jacoco:report`
+                                (NOT `mvn verify`), so this check goal does NOT run during the loop.
+                                The runner parses target/site/jacoco/jacoco.xml itself to enforce
+                                the LINE >= 60% threshold on Controller/ViewModel classes.
+                                This rule is for standalone `mvn verify` usage and MUST stay aligned
+                                with runner/references/test-coverage-gate.md thresholds.
+                            -->
                             <rules>
-                                <rule>
-                                    <element>BUNDLE</element>
-                                    <limits>
-                                        <limit>
-                                            <counter>INSTRUCTION</counter>
-                                            <value>COVEREDRATIO</value>
-                                            <minimum>0.40</minimum>
-                                        </limit>
-                                    </limits>
-                                </rule>
                                 <rule>
                                     <element>CLASS</element>
                                     <includes>
-                                        <include>com.example.*.controller.*Controller</include>
-                                        <include>com.example.*.viewmodel.*ViewModel</include>
+                                        <include>com.example.controller.*</include>
+                                        <include>com.example.viewmodel.*</include>
                                     </includes>
                                     <limits>
                                         <limit>
@@ -188,7 +247,7 @@
                 </executions>
             </plugin>
 
-        <!-- Checkstyle Plugin (static analysis: code style) -->
+            <!-- Checkstyle Plugin (static analysis: code style) -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-checkstyle-plugin</artifactId>

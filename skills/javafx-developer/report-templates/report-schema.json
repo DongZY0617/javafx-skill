@@ -175,7 +175,7 @@
               },
               "dedup_merged_from": {
                 "type": ["string", "null"],
-                "description": "If this fix superseded an overlapping fix from another source (orchestrator dedup), records the source. Null if no dedup."
+                "description": "If this fix superseded an overlapping fix from another source during merge, records the discarded source. Populated by the orchestrator (orchestrated mode) or by the developer (standalone mode) during dedup. Null if no dedup occurred or if this entry was consumed as-is from a pre-merged batch."
               }
             }
           }
@@ -189,7 +189,7 @@
             "properties": {
               "check": {
                 "type": "string",
-                "enum": ["Controller-FXML binding", "module-info consistency", "CSS reference integrity", "FXML-Controller event handler binding"]
+                "enum": ["Controller-FXML consistency", "module-info consistency", "CSS reference integrity", "FXML-Controller event handler binding"]
               },
               "result": { "type": "string", "enum": ["Pass", "Warning"] },
               "detail": { "type": "string" }
@@ -239,7 +239,7 @@
         "next_action": {
           "type": "string",
           "enum": ["re_review_and_verify", "re_review", "re_verify", "manual_intervention", "passed", "standalone_complete"],
-          "description": "Recommended next action for the orchestrator"
+          "description": "Developer's recommended next action for the orchestrator. Note: this enum differs from reviewer/runner's loop_state.next_action because the developer expresses its own needs (e.g., 're_review' = developer asks for re-review), whereas reviewer/runner express the loop's state (e.g., 'fixing' = loop is in fixing phase)"
         },
         "warnings": {
           "type": "array",

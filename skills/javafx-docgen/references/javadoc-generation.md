@@ -169,7 +169,7 @@ When a public member has no Javadoc comment, the generator inserts a placeholder
 | `void clearCache()` | *No documentation available.* |
 ```
 
-The coverage metric (`api_coverage_percent`) counts these placeholders. A member marked *No documentation available* counts as undocumented; any member with a non-empty description counts as documented.
+The coverage metric (`coverage.api.coverage_percent`) counts these placeholders. A member marked *No documentation available* counts as undocumented; any member with a non-empty description counts as documented.
 
 ## Cross-Referencing Between Classes
 

@@ -32,7 +32,7 @@
       "properties": {
         "architecture_pattern": {
           "type": "string",
-          "enum": ["MVC", "MVVM", "MVP", "MVVM + Service Layer", "MVC + Service Layer"]
+          "enum": ["MVC", "MVVM", "MVP", "MVVM + Service Layer", "MVC + Service Layer", "Layered (n-tier)", "Event-Driven", "Plugin Architecture", "Microkernel"]
         },
         "javafx_version": { "type": "string", "enum": ["17", "21", "24", "25", "26"] },
         "build_tool": { "type": "string", "enum": ["Maven", "Gradle"] },
@@ -69,6 +69,7 @@
     "database_schema": {
       "type": "object",
       "description": "Conditional field — present only when system_design.technology_stack.database is not 'none'. Contains ER diagram, table definitions, indexes, and migration plan.",
+      "required": ["database_type", "orm", "migration_tool", "er_diagram", "migration_path", "tables"],
       "properties": {
         "database_type": { "type": "string" },
         "orm": { "type": "string" },
@@ -79,7 +80,7 @@
           "type": "array",
           "items": {
             "type": "object",
-            "required": ["name", "columns"],
+            "required": ["name", "description", "columns", "indexes", "foreign_keys"],
             "properties": {
               "name": { "type": "string" },
               "description": { "type": "string" },
@@ -117,16 +118,13 @@
                 "type": "array",
                 "items": {
                   "type": "object",
-                  "required": ["columns", "references_table", "on_delete", "on_update"],
+                  "required": ["column", "references_table", "references_column", "on_delete", "on_update"],
                   "properties": {
-                    "columns": {
-                      "type": "array",
-                      "items": { "type": "string" },
-                      "description": "Local FK column names"
-                    },
+                    "column": { "type": "string", "description": "Local FK column name" },
                     "references_table": { "type": "string", "description": "Referenced table name" },
-                    "on_delete": { "type": "string", "enum": ["CASCADE", "SET NULL", "RESTRICT", "NO ACTION"], "description": "ON DELETE action" },
-                    "on_update": { "type": "string", "enum": ["CASCADE", "SET NULL", "RESTRICT", "NO ACTION"], "description": "ON UPDATE action" }
+                    "references_column": { "type": "string", "description": "Referenced column name (usually 'id')" },
+                    "on_delete": { "type": "string", "enum": ["RESTRICT", "CASCADE", "SET NULL", "NO ACTION"], "description": "ON DELETE action" },
+                    "on_update": { "type": "string", "enum": ["RESTRICT", "CASCADE", "SET NULL", "NO ACTION"], "description": "ON UPDATE action" }
                   }
                 }
               }
@@ -203,11 +201,12 @@
               "threat_id": { "type": "string", "pattern": "^TM-\\d{3}$" },
               "test_case_id": { "type": "string", "pattern": "^SEC-TM-\\d{3}$" },
               "test_description": { "type": "string" },
+              "test_type": { "type": "string", "enum": ["fuzz", "static", "dynamic", "dependency"] },
               "coverage_status": { "type": "string", "enum": ["covered", "partially_covered", "not_covered", "not_applicable"] }
             }
           }
         },
-        "uncovered_threats": { "type": "array", "items": { "type": "object" } },
+        "uncovered_threats": { "type": "array", "items": { "type": "string" }, "description": "Threat IDs that have no test coverage" },
         "summary": {
           "type": "object",
           "required": ["total_threats", "critical", "high", "medium", "low", "covered"],

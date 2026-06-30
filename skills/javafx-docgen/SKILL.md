@@ -243,8 +243,8 @@ The docgen report is output in **two formats** by default:
 The JSON format is defined by the schema in `report-templates/report-schema.json`. Key fields:
 
 - `generated_documents[]`: List of all generated files with paths, types, and content summaries
-- `coverage.api_coverage_percent`: Percentage of public classes/methods with Javadoc
-- `coverage.fxml_coverage_percent`: Percentage of FXML files with user manual sections
+- `coverage.api.coverage_percent`: Percentage of public classes/methods with Javadoc
+- `coverage.user_manual.coverage_percent`: Percentage of FXML files with user manual sections
 - `project_info`: Project name, version, JavaFX version, architecture pattern
 
 **Output format control**: If `.loop-config.json` exists with `"output_format": "json"`, output only the JSON report; if `"output_format": "markdown"`, output only the Markdown report. Default outputs both formats.
@@ -317,7 +317,7 @@ When `doc_gate_mode: "non-blocking"` (or not set):
 ## Constraints
 
 ### Execution Safety
-1. **Read-only**: DocGen does not modify any existing project source files — it only creates new files in the `docs/` directory and `README.md`
+1. **Does not modify source code**: DocGen does not modify any existing project source files — it only creates or overwrites (with `.bak` backup) documentation files in the `docs/` directory and `README.md`
 2. **Command whitelist**: Only execute `git log` (for changelog); do not execute build commands or modify code
 3. **No side effects**: Does not modify `.loop-state.json` (only reads it); creates documentation files only
 4. **Overwrite protection**: If `docs/` directory or `README.md` already exists, DocGen creates backups (`.bak` extension) before overwriting

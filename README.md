@@ -119,33 +119,49 @@ Create a `.loop-config.json` in your project root to customize the loop:
 
 ```json
 {
-  "architect": true,
-  "designer": true,
+  "output_format": "both",
+  "requirements_phase": false,
+  "architect_phase": false,
+  "design_phase": false,
+  "max_rounds": 3,
+  "clean_compile": false,
+  "coverage_threshold": 0.60,
+  "parallel_execution": true,
   "deep_testing": true,
-  "refactoring": false,
+  "tester_parallel": true,
+  "visual_regression": true,
+  "vr_update_baselines": false,
+  "vr_diff_threshold": 0.02,
   "docgen": true,
   "doc_gate_mode": "non-blocking",
   "doc_javadoc_html": false,
-  "deployer": false,
-  "max_fix_iterations": 3,
-  "parallel_mode": true,
-  "vr_update_baselines": false
+  "refactor_phase": false,
+  "deploy_phase": false,
+  "dashboard": true
 }
 ```
 
 | Config | Default | Description |
 |--------|---------|-------------|
-| `architect` | `true` | Run architecture design phase before code generation |
-| `designer` | `true` | Run UI design phase before code generation |
+| `output_format` | `"both"` | Report output format: `"both"` (Markdown + JSON), `"json"` (JSON only), `"markdown"` (Markdown only) |
+| `requirements_phase` | `false` | Run requirements engineering phase before architect and developer |
+| `architect_phase` | `false` | Run architecture design phase before code generation |
+| `design_phase` | `false` | Run UI design phase before code generation |
+| `max_rounds` | `3` | Maximum fix-and-re-review cycles before manual intervention |
+| `clean_compile` | `false` | If `true`, runner executes `mvn clean compile` (full rebuild); if `false` (default), uses `mvn compile` (incremental) |
+| `coverage_threshold` | `0.60` | JaCoCo line coverage threshold (0.0-1.0) for critical paths (Controller/ViewModel) |
+| `parallel_execution` | `true` | Run code-reviewer and runner in parallel |
 | `deep_testing` | `true` | Run deep testing (performance, security, a11y, visual regression) after Combined Gate |
-| `refactoring` | `false` | Run refactoring phase after Test Gate passes |
+| `tester_parallel` | `true` | Run the tester's 4 dimensions in parallel as independent tracks |
+| `visual_regression` | `true` | Include visual regression testing (Track D) in tester's parallel tracks |
+| `vr_update_baselines` | `false` | Update visual regression baseline images (use `-Dupdate.baselines=true` alternatively) |
+| `vr_diff_threshold` | `0.02` | Pixel diff ratio threshold for visual regression (0.02 = 2%) |
 | `docgen` | `true` | Run documentation generation after Test Gate |
 | `doc_gate_mode` | `"non-blocking"` | Documentation gate: `"non-blocking"` (default) or `"blocking"` |
 | `doc_javadoc_html` | `false` | Generate Javadoc HTML site in addition to Markdown API reference |
-| `deployer` | `false` | Run deployment configuration after DocGen |
-| `max_fix_iterations` | `3` | Maximum fix-and-re-review cycles before manual intervention |
-| `parallel_mode` | `true` | Run code-reviewer and runner in parallel |
-| `vr_update_baselines` | `false` | Update visual regression baseline images (use `-Dupdate.baselines=true` alternatively) |
+| `refactor_phase` | `false` | Run refactoring phase after Test Gate passes |
+| `deploy_phase` | `false` | Run deployment configuration after DocGen |
+| `dashboard` | `true` | Generate `target/loop-dashboard.html` after every state update |
 
 ## Quality Gates
 
@@ -175,34 +191,34 @@ javafx-skill/
 ├── skills/
 │   ├── javafx-requirements/
 │   │   ├── SKILL.md                   # Skill definition
-│   │   ├── EVALUATE.md                # 12 test cases
+│   │   ├── EVALUATE.md                # 15 test cases
 │   │   ├── references/                # 4 reference docs
 │   │   ├── templates/                 # Requirement templates
 │   │   └── report-templates/          # Report schema
 │   ├── javafx-architect/
 │   │   ├── SKILL.md
-│   │   ├── EVALUATE.md                # 25 test cases
+│   │   ├── EVALUATE.md                # 29 test cases
 │   │   ├── references/                # 5 reference docs
 │   │   └── report-templates/
 │   ├── javafx-designer/
 │   │   ├── SKILL.md
-│   │   ├── EVALUATE.md                # 15 test cases
+│   │   ├── EVALUATE.md                # 20 test cases
 │   │   ├── references/                # 5 reference docs
 │   │   └── report-templates/
 │   ├── javafx-developer/
 │   │   ├── SKILL.md
-│   │   ├── EVALUATE.md                # 16 test cases
+│   │   ├── EVALUATE.md                # 18 test cases
 │   │   ├── references/                # 13 reference docs
 │   │   ├── templates/                 # 13 template directories (incl. maven/pom.xml with JaCoCo)
 │   │   └── report-templates/          # Report schema
 │   ├── javafx-code-reviewer/
 │   │   ├── SKILL.md
-│   │   ├── EVALUATE.md                # 14 test cases
+│   │   ├── EVALUATE.md                # 17 test cases
 │   │   ├── references/                # 11 reference docs
 │   │   └── report-templates/
 │   ├── javafx-runner/
 │   │   ├── SKILL.md
-│   │   ├── EVALUATE.md                # 18 test cases
+│   │   ├── EVALUATE.md                # 21 test cases
 │   │   ├── references/                # 7 reference docs
 │   │   └── report-templates/
 │   ├── javafx-tester/
@@ -212,7 +228,7 @@ javafx-skill/
 │   │   └── report-templates/
 │   ├── javafx-refactorer/
 │   │   ├── SKILL.md
-│   │   ├── EVALUATE.md                # 15 test cases
+│   │   ├── EVALUATE.md                # 18 test cases
 │   │   ├── references/                # 3 reference docs
 │   │   └── report-templates/
 │   ├── javafx-docgen/
@@ -255,7 +271,7 @@ Each skill includes an `EVALUATE.md` file with acceptance test cases:
 - **Negative samples**: Constraint violations verifying robustness
 - **Boundary cases**: Partial scopes, standalone mode, platform-specific scenarios
 
-Total: **190 evaluation test cases** across 11 skills.
+Total: **213 evaluation test cases** across 11 skills.
 
 ## Loop State Machine
 

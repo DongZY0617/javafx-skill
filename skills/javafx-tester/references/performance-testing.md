@@ -149,9 +149,9 @@ System.out.println("Used memory: " + (usedMemory / 1024 / 1024) + " MB");
 ### 3.3 Memory Cross-References
 
 When memory growth fails, cross-reference:
-- `../javafx-code-reviewer/references/memory-leak-risks.md` -- Listener Removal
-- `../javafx-code-reviewer/references/memory-leak-risks.md` -- Binding Release
-- `../javafx-code-reviewer/references/memory-leak-risks.md` -- Static References
+- `../javafx-code-reviewer/references/memory-management.md` -- Listener Removal
+- `../javafx-code-reviewer/references/memory-management.md` -- Binding Release
+- `../javafx-code-reviewer/references/memory-management.md` -- Static References
 
 ## 4. GC Pressure
 
@@ -208,9 +208,9 @@ AnimationTimer blockerDetector = new AnimationTimer() {
 ### 5.2 Thread Contention Cross-References
 
 When FX thread blocking is detected, cross-reference:
-- `../javafx-code-reviewer/references/thread-safety-guide.md` -- FX Thread Update
-- `../javafx-code-reviewer/references/thread-safety-guide.md` -- Background Task Wrapping
-- `../javafx-code-reviewer/references/thread-safety-guide.md` -- Platform.runLater
+- `../javafx-code-reviewer/references/thread-safety-rules.md` -- FX Thread Update
+- `../javafx-code-reviewer/references/thread-safety-rules.md` -- Background Task Wrapping
+- `../javafx-code-reviewer/references/thread-safety-rules.md` -- Platform.runLater
 
 ## 6. JMH Benchmark Templates
 
@@ -293,9 +293,9 @@ public class TableViewRenderBenchmark extends FxBenchmarkBase {
         runOnFx(() -> {
             table = new TableView<>();
             TableColumn<Row, String> c1 = new TableColumn<>("Name");
-            c1.setCellValueFactory(new PropertyValueType<>("name"));
+            c1.setCellValueFactory(new PropertyValueFactory<>("name"));
             TableColumn<Row, String> c2 = new TableColumn<>("Value");
-            c2.setCellValueFactory(new PropertyValueType<>("value"));
+            c2.setCellValueFactory(new PropertyValueFactory<>("value"));
             table.getColumns().addAll(c1, c2);
             rows = FXCollections.observableArrayList();
             for (int i = 0; i < 1000; i++) {
@@ -429,7 +429,7 @@ A growing GC frequency over time is a strong signal of a slow memory leak (objec
 | Increasing | Increasing | Confirmed leak, will eventually cause OutOfMemoryError |
 | Rapidly increasing | Rapidly increasing | Critical leak, fix immediately |
 
-When a leak is confirmed, cross-reference `../javafx-code-reviewer/references/memory-leak-risks.md` for the common root causes (Listener Removal, Binding Release, Static References).
+When a leak is confirmed, cross-reference `../javafx-code-reviewer/references/memory-management.md` for the common root causes (Listener Removal, Binding Release, Static References).
 
 ## 8. FX Thread Blocking Detection
 
@@ -513,8 +513,8 @@ The following patterns are the most frequent causes of FX thread blocking found 
 
 Runtime detection and static review are complementary. After identifying a blocking call at runtime, reconcile it with the reviewer's static checks to either confirm the static finding or refute a false positive:
 
-- **Confirm**: A `jstack` stack showing `java.sql.Connection.executeQuery` on the FX thread confirms the static rule `../javafx-code-reviewer/references/thread-safety-guide.md` -- Background Task Wrapping (which flags DB calls reachable from FX-thread entry points). The runtime finding raises confidence and provides evidence for the report.
-- **Confirm**: A `Thread.sleep` frame on the FX thread confirms `../javafx-code-reviewer/references/thread-safety-guide.md` -- Platform.runLater misuse.
+- **Confirm**: A `jstack` stack showing `java.sql.Connection.executeQuery` on the FX thread confirms the static rule `../javafx-code-reviewer/references/thread-safety-rules.md` -- Background Task Wrapping (which flags DB calls reachable from FX-thread entry points). The runtime finding raises confidence and provides evidence for the report.
+- **Confirm**: A `Thread.sleep` frame on the FX thread confirms `../javafx-code-reviewer/references/thread-safety-rules.md` -- Platform.runLater misuse.
 - **Refute**: If the static rule flags a method as a potential blocker but `jstack` during a freeze never shows that method on the FX thread, the static finding is a false positive (e.g., the method is only ever called from a background `Task`). Record the refutation so the reviewer heuristic can be tightened.
 - **Refute**: If `-Djavafx.eventlog=true` shows a dispatch gap with NO blocking frame in `jstack`, the freeze is GC-induced (section 7.2), not a blocking call — the static "Background Task Wrapping" rule does not apply and should not be cited.
 

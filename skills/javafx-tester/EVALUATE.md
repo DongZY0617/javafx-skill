@@ -91,7 +91,7 @@ public class MainController {
 - Performance Testing dimension: Memory Footprint
 - Memory growth: 50-100MB over 5 minutes (Major)
 - Issue generated with Fix Handoff
-- Cross-reference to reviewer's Memory Leak Risks dimension
+- Cross-reference to reviewer's Memory Management dimension
 
 **Pass criteria**:
 - [ ] Tester detects memory growth > 50MB over 5 min

@@ -155,6 +155,8 @@ Developer's triggers (`create`, `generate`, `build`, `scaffold`, `implement`) ar
    - **Module decomposition**: Generate code organized by the modules defined in `system_design.modules[]` — each module gets its own package with the specified responsibility
    - **Key constraints**: Enforce all `developer_instructions.key_constraints` (e.g., "All database access through Repository interfaces", "ViewModels must not reference JavaFX controls directly")
    - **UML reference**: Read `architecture/uml/class-diagram.puml` to understand the domain model and class relationships before generating entity and service classes
+   - **Database schema**: Consume `database_schema` to generate JPA entity classes, Repository interfaces, and Flyway/Liquibase migration files. Entity field names, types, and indexes must match the schema table definitions, and migration scripts must reflect the schema's DDL (see `database-design.md` §6.2 handoff protocol)
+   - **Threat model**: Consume `threat_model` to implement security mitigations in code — e.g., input validation on fields flagged in the threat model, permission/authorization checks for sensitive operations, parameterized queries to prevent SQL injection, and secure handling of secrets identified as assets (see `threat-modeling.md` handoff protocol)
    - If `architecture-handoff.json` does not exist, proceed with built-in defaults (default behavior)
 2. **Check for design handoff**: Before loading templates, check if `design/design-handoff.json` exists in the project root. If it does, `javafx-designer` has produced design artifacts that should be used instead of built-in templates:
    - **FXML templates**: Read FXML prototypes from `design/fxml/*.fxml` instead of `templates/fxml/*.fxml`. These prototypes already have proper layout containers, fx:id assignments, and styleClass values
@@ -162,12 +164,12 @@ Developer's triggers (`create`, `generate`, `build`, `scaffold`, `implement`) ar
    - **Icon config**: Read `design/icons/icon-config.json` and add the Ikonli Maven dependencies to `pom.xml`. Configure FontIcon usage in FXML and Java code based on the icon mapping
    - **Interaction flow**: Read `design/flow/interaction-flow.mmd` to understand screen transitions and implement navigation logic accordingly
    - If `design-handoff.json` does not exist, proceed with built-in templates (default behavior)
-2. **Load templates**: Read from `templates/` directory (or `design/` directory if designer handoff exists)
-3. **Variable replacement**: Replace placeholders with actual values
-4. **Logic filling**: Add business logic code based on user requirements
-5. **Style generation**: Generate corresponding CSS files (or use designer's CSS if available)
-6. **Resource handling**: Handle icons, images, and static resource references (use designer's icon config if available)
-7. **Requirement traceability annotation**: Annotate every generated Java source file with `@req` tags in the Javadoc class header, linking each file to the requirement ID(s) it implements. Format: `@req FR-001` (single) or `@req FR-001, FR-002` (multiple). Requirement IDs are sourced from the `requirements.md` specification (Section 3.1 Feature List). If a file implements infrastructure or utility functionality not tied to a specific functional requirement, annotate it with `@req INFRA` (infrastructure). This enables the reviewer's Requirements Coverage dimension to detect orphan code and unimplemented requirements
+3. **Load templates**: Read from `templates/` directory (or `design/` directory if designer handoff exists)
+4. **Variable replacement**: Replace placeholders with actual values
+5. **Logic filling**: Add business logic code based on user requirements
+6. **Style generation**: Generate corresponding CSS files (or use designer's CSS if available)
+7. **Resource handling**: Handle icons, images, and static resource references (use designer's icon config if available)
+8. **Requirement traceability annotation**: Annotate every generated Java source file with `@req` tags in the Javadoc class header, linking each file to the requirement ID(s) it implements. Format: `@req FR-001` (single) or `@req FR-001, FR-002` (multiple). Requirement IDs are sourced from the `requirements.md` specification (Section 3.1 Feature List). If a file implements infrastructure or utility functionality not tied to a specific functional requirement, annotate it with `@req INFRA` (infrastructure). This enables the reviewer's Requirements Coverage dimension to detect orphan code and unimplemented requirements
    ```java
    /**
     * User management controller.
@@ -177,14 +179,14 @@ Developer's triggers (`create`, `generate`, `build`, `scaffold`, `implement`) ar
     */
    public class UserController { ... }
    ```
-8. **Test scaffolding** (default): Generate test skeletons for each Controller and ViewModel using TestFX templates (`templates/test/`). This is now the default behavior — no user request needed. Generate:
+9. **Test scaffolding** (default): Generate test skeletons for each Controller and ViewModel using TestFX templates (`templates/test/`). This is now the default behavior — no user request needed. Generate:
    - `MainWindowTest.java` — Verifies main window initialization and FXML loading
    - `ControllerTest.java` — Verifies controller actions and event handlers
    - `ViewModelTest.java` — Verifies ViewModel property bindings and state transitions (MVVM only)
    - `CRUDViewTest.java` — Verifies CRUD operations if TableView is present
    - Each test method must reference the requirement ID it validates via the naming convention `test{Behavior}_{REQ_ID}()` — e.g., `testUserCreation_FR_001()`, and include `@req FR-001` in the test method's Javadoc. This enables the reviewer to verify that every requirement has test coverage
    - Add JaCoCo plugin to `pom.xml` for coverage measurement (see `javafx-runner`'s `references/test-coverage-gate.md` for threshold details)
-8. **Update RTM**: After all files are generated, update the Requirement Traceability Matrix in `requirements.md` (Section 7) — fill in the implementation file paths, test case references, and coverage summary. Set status to `Implemented` for code-only items and `Tested` for items with test scaffolding
+10. **Update RTM**: After all files are generated, update the Requirement Traceability Matrix in `requirements.md` (Section 7) — fill in the implementation file paths, test case references, and coverage summary. Set status to `Implemented` for code-only items and `Tested` for items with test scaffolding
 
 ### Step 5: Quality Check
 
@@ -739,17 +741,23 @@ Use this protocol when the input is a fix handoff report, identified by the pres
 - `anchor_pattern`: Surrounding context signature (for secondary location matching)
 - `ast_node_signature`: Fully qualified method/field/class signature (for refactor-resistant matching; `null` for non-Java files)
 
+This protocol is **also activated when `refactor-handoff.json` exists** (produced by `javafx-refactorer`). Unlike code-reviewer/runner reports, the refactorer embeds the 7 unified Fix Handoff fields **inside each `refactoring_plan[]` array item** rather than under a top-level `fix_handoff` field. Therefore, treat `refactor-handoff.json` as a valid fix handoff source when:
+- The file `refactor-handoff.json` is present in the project, **and**
+- Its `refactoring_plan[]` array contains items with the unified Fix Handoff fields: `target_file`, `target_lines`, `fix_type`, `fix_priority`, `code_fingerprint`, `anchor_pattern`, `ast_node_signature`.
+
+In this case, each `refactoring_plan[]` item is parsed as a single fix entry (using the same field semantics as the `fix_handoff` fields above), with `refactor_id` mapping to the fix id and `before_snippet`/`after_snippet` supplying the replace content. No field-name conversion is required — the refactorer's `refactor-handoff-schema.json` already aligns these fields with the unified Fix Handoff contract.
+
 ### Workflow
 
 **Step 1: Parse Report**
 - Extract all fix handoff entries from the report
-- **Multi-source merge**: When the input contains fix handoffs from **both** `javafx-code-reviewer` and `javafx-runner` (parallel execution mode), merge them into a single list before processing:
-  1. Collect all entries from both sources into a single list
-  2. **Deduplicate**: For entries targeting the **same `target_file`** with **overlapping `target_lines`** ranges (e.g., reviewer reports lines 10-15 and runner reports lines 12-18 on the same file):
+- **Multi-source merge**: When the input contains fix handoffs from **both** `javafx-code-reviewer` and `javafx-runner` (parallel execution mode), handle merging based on the execution context:
+  1. **Detect orchestrated batch**: Check whether any entry already carries a `dedup_merged_from` field — this signals that the orchestrator has already merged and deduplicated the batch (see `javafx-orchestrator/SKILL.md` → Step 4 "Fix Handoff Merge & Dedup"). If present, **skip deduplication entirely** — consume the pre-merged batch as-is and proceed directly to re-sorting (step 3). Do NOT re-deduplicate, as this would discard the orchestrator's traceability metadata (`dedup_merged_from`).
+  2. **Standalone deduplication (standalone mode only)**: If NO entry carries a `dedup_merged_from` field — i.e., the developer is operating in standalone mode and directly receiving unmerged dual-source handoffs — perform deduplication: For entries targeting the **same `target_file`** with **overlapping `target_lines`** ranges (e.g., reviewer reports lines 10-15 and runner reports lines 12-18 on the same file):
      - Keep the entry with the **higher severity** (Critical > Major > Minor > Info)
      - If both have the same severity, keep the **lower `fix_priority`** number (higher priority)
-     - Record the discarded entry's source and issue title in the kept entry's note for traceability
-  3. **Re-sort**: Sort the deduplicated list by `fix_priority` ascending (1 = highest) across both sources
+     - Record the discarded entry's source and issue title in the kept entry's `dedup_merged_from` field for traceability (mirroring the orchestrator's field name)
+  3. **Re-sort**: Sort the (deduplicated or pre-merged) list by `fix_priority` ascending (1 = highest) across all sources
 - Sort by `fix_priority` ascending (1 = highest)
 - Group entries by `target_file` for batch processing
 
@@ -931,7 +939,7 @@ In fix consumption mode, the full 12-item Quality Checklist is NOT re-run. Inste
 5. **Rollback**: If post-fix compile fails, restore all modified files from `.fix-backup/{timestamp}/`, mark fixes as `rolled_back`, append `rollback_event` to state. See `javafx-orchestrator/SKILL.md` → Serialization Triggers for the full rollback event schema
 6. **Backup cleanup**: `.fix-backup/` directory is auto-cleaned when the loop passes the quality gate. Paused/aborted loops preserve `.fix-backup/` for manual inspection
 
-> **Fix Handoff Format**: See `javafx-orchestrator/SKILL.md` → Fix Handoff Format for the authoritative field definitions (`target_file`, `target_lines`, `fix_type`, `fix_priority`, `code_fingerprint`, `anchor_pattern`, `ast_node_signature`). The developer's Fix Consumption Protocol (Step 3) describes how these fields are used for 4-level location matching.
+> **Fix Handoff Format**: See `javafx-orchestrator/SKILL.md` → Fix Handoff Format for the authoritative field definitions (`target_file`, `target_lines`, `fix_type`, `fix_priority`, `code_fingerprint`, `anchor_pattern`, `ast_node_signature`, and the optional `dedup_merged_from` added during merge). The developer's Fix Consumption Protocol (Step 1) describes how these fields are used for 4-level location matching, and how `dedup_merged_from` is used to detect pre-merged batches (skip dedup) versus standalone mode (perform dedup).
 
 ## Reference Documents
 
@@ -967,7 +975,7 @@ Reusable code templates in `templates/` directory:
 - `templates/controller/DialogController.java` — Dialog controller template
 - `templates/model/ObservableModel.java` — Model template
 - `templates/viewmodel/UserViewModel.java` — ViewModel template (MVVM pattern)
-- `templates/service/Service.java` — Service layer template
+- `templates/service/AbstractService.java` — Abstract service layer template (named AbstractService to avoid clashing with javafx.concurrent.Service)
 - `templates/service/Repository.java` — Repository interface template
 - `templates/dao/Entity.java` — JPA Entity template with JavaFX Property integration (@Access(PROPERTY), @Transient Property accessors, null-safe primitive setters)
 - `templates/dao/Repository.java` — Spring Data JPA Repository interface template (JpaRepository extension, derived/JPQL query methods, thread-safety notes)
@@ -980,7 +988,7 @@ Reusable code templates in `templates/` directory:
 - `templates/test/MainWindowTest.java` — Main window integration test template (FXML load, controller injection, CSS)
 - `templates/test/ControllerTest.java` — Controller unit test template (mocked Service, event handling logic)
 - `templates/test/ViewModelTest.java` — ViewModel unit test template (binding logic, computed properties)
-- `templates/test/CRUDViewTest.java` — CRUD view integration test template (TestFX table interactions)
+- `templates/test/CRUDViewTest.java` — Main view integration test template (FXML load, menu/content/status-bar structure verification; adaptable to CRUD views)
 - `templates/packaging/jpackage-config.properties` — Packaging config
 - `templates/ci/github-actions.yml` — GitHub Actions CI/CD workflow template (multi-platform matrix, Monocle headless testing, jpackage packaging)
 - `templates/ci/gitlab-ci.yml` — GitLab CI/CD template (compile, test, cross-platform packaging with tagged runners)

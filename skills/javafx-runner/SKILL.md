@@ -565,8 +565,6 @@ For in-depth criteria, refer to the following documents in the `references/` dir
 
 > **Cross-reference (developer skill)**: The "Database integration test" check item in the Test Verification dimension cross-references the developer skill's `references/database-integration.md` (section 8 "Common Pitfalls") — that document defines the runtime patterns (UI-thread blocking DB calls, null-handling for primitive Properties, connection-pool leaks, transaction-boundary scope, Flyway migration failures) that the database integration tests must guard against. The document lives in the `javafx-developer/references/` directory, not this skill's `references/` directory.
 
-## Report Template
-
 ## Report Templates
 
 Reusable skeleton templates in the `report-templates/` directory:

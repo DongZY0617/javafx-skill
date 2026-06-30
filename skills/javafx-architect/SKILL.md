@@ -80,7 +80,7 @@ When a user request matches both `javafx-architect` ("architecture / system desi
 | Database Schema Design | `database-design.md` | System design (database selection), domain model | `architecture/uml/er-diagram.puml`, migration files, `database_schema` in handoff JSON |
 | ADR Management | `adr-management.md` | Technology decisions, trade-off analysis | `architecture/adr/ADR-XXX-title.md` (one per decision) |
 | Threat Modeling | `threat-modeling.md` | System design (attack surfaces), technology stack (network, database, WebView) | `architecture/uml/threat-model-dfd.puml`, `threat_model` in handoff JSON, Security ADRs |
-| Prototype Validation | (inline in SKILL.md) | Key technical risks, uncertain technology choices | `architecture/prototype/` directory with proof-of-concept code |
+| Prototype Validation | `prototype-validation.md` | Key technical risks, uncertain technology choices | `architecture/prototype/` directory with proof-of-concept code |
 
 ## Workflow
 
@@ -99,7 +99,7 @@ When a user request matches both `javafx-architect` ("architecture / system desi
    - **Security**: Are there authentication, authorization, encryption, or compliance requirements?
    - **Integration**: Does the app need to connect to external services, databases, or legacy systems?
 4. **Determine architecture scope**: Based on the request, determine which dimensions to activate:
-   - **Full Architecture** (default): All 5 dimensions — system design, UML, database schema (conditional), ADR, threat modeling (conditional), prototype validation
+   - **Full Architecture** (default): All 6 dimensions — system design, UML, database schema (conditional), ADR, threat modeling (conditional), prototype validation
    - **System Design Only**: Only technology selection and module decomposition — for straightforward projects
    - **UML Only**: Only diagram generation — for documenting existing architecture
    - **ADR Only**: Only decision records — for capturing architectural decisions
@@ -118,7 +118,7 @@ When a user request matches both `javafx-architect` ("architecture / system desi
 
    | Category | Candidates | Recommended | Rationale |
    |----------|-----------|-------------|-----------|
-   | JavaFX Version | 17 LTS / 21 LTS / 25 LTS / 26 | [selected] | [rationale based on JDK, feature needs] |
+   | JavaFX Version | 17 LTS / 21 LTS / 24 / 25 LTS / 26 | [selected] | [rationale based on JDK, feature needs] |
    | Build Tool | Maven / Gradle | [selected] | [rationale] |
    | Database | SQLite / H2 / PostgreSQL / none | [selected] | [rationale based on data volume, concurrency] |
    | ORM | JPA/Hibernate / MyBatis / JDBC / none | [selected] | [rationale based on complexity] |
@@ -363,7 +363,7 @@ If threat modeling is applicable, perform STRIDE analysis on the architecture. S
 
 ### Step 5: Prototype Validation
 
-For key technical risks identified in Step 2, generate proof-of-concept prototype code:
+For key technical risks identified in Step 2, generate proof-of-concept prototype code. See `references/prototype-validation.md` for the complete methodology — prototype code structure rules, the four validation dimensions (compilation, basic functionality, performance benchmark, API availability), the result recording format (`risk` / `result` / `detail`), performance benchmarking methods (simple timing vs JMH), and the `prototype_results` handoff protocol.
 
 1. **Identify risk areas**: Determine which technology choices or design patterns carry the highest uncertainty:
    - Unfamiliar library integration (e.g., first time using ReactFX or Properties-based binding)
@@ -505,7 +505,7 @@ For key technical risks identified in Step 2, generate proof-of-concept prototyp
 }
 ```
 
-3. **Generate report**: Output the architecture report in both Markdown (`architecture-report.md`) and JSON (`architecture-report.json`) formats following the report templates
+3. **Generate report**: Output the architecture report in both Markdown (`architecture-report.md`) and JSON (`architecture-report.json`) formats following the report templates. The most critical downstream consumption file is `architecture/architecture-handoff.json` (produced in step 2) — `javafx-developer` reads it directly in Step 4 to drive code generation (module structure, layering rules, `database_schema`, `threat_model`, `prototype_results`), while the Markdown report serves stakeholder review and the JSON report serves CI/CD integration. Ensure `architecture-handoff.json` is complete and valid before declaring the architecture phase done.
 
 ## Architecture Handoff Protocol
 
@@ -551,6 +551,9 @@ The JSON format is defined by the schema in `report-templates/report-schema.json
 4. **Technology selection must be justified**: Every technology choice must include a rationale — unjustified choices are not acceptable
 5. **Module boundaries must be clear**: Each module must have a single, well-defined responsibility with minimal coupling to other modules
 6. **Prototype code is throwaway**: Prototypes validate concepts — they are not refactored into production code. The developer generates fresh production code based on the architecture specs
+7. **Database design rigor**: All foreign keys must specify ON DELETE and ON UPDATE actions; all FK columns must be indexed; monetary values must use DECIMAL not FLOAT
+8. **Threat modeling completeness**: Critical and High severity threats must have a corresponding Security ADR; every threat must be mapped to at least one test case in the traceability matrix
+9. **Version compatibility**: All selected technologies must be compatible with JDK 17+ and JavaFX 17/21/24/25/26
 
 ## Loop Orchestration Protocol
 
@@ -577,8 +580,11 @@ The architect contributes to `.loop-state.json`:
     "modules_designed": 4,
     "uml_diagrams": 3,
     "adr_count": 5,
+    "database_schema": true,
+    "database_tables": 6,
     "threat_model": true,
     "threats_identified": 12,
+    "security_adrs": 3,
     "threats_covered": 10,
     "prototype_validations": 2,
     "handoff_file": "architecture/architecture-handoff.json",
@@ -600,6 +606,7 @@ The architect contributes to `.loop-state.json`:
 - `references/adr-management.md` — ADR template, versioning rules, traceability, superseding process
 - `references/database-design.md` — ER diagram generation, schema conventions, indexing strategy, migration planning (Flyway/Liquibase), database_schema handoff protocol
 - `references/threat-modeling.md` — STRIDE threat modeling methodology, attack surface identification, DFD generation, threat catalog, mitigation design, threat-to-test traceability matrix, threat_model handoff protocol
+- `references/prototype-validation.md` — Prototype validation purpose, prototype code structure rules, validation dimensions, result recording format, performance benchmarking methods, prototype_results handoff protocol
 
 ## Relationship to Other Skills
 

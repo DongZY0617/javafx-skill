@@ -60,7 +60,7 @@ This file defines the acceptance test cases for the `javafx-deployer` skill, use
   - [ ] CrashHandler.java sets `setDefaultUncaughtExceptionHandler`
   - [ ] logback.xml has rolling file appender with 10MB/30day/1GB policy
   - [ ] deploy-handoff.json lists all artifacts and required secrets
-  - [ ] Design report has conclusion "Pass"
+  - [ ] Deploy report has conclusion "Pass"
 
 ---
 

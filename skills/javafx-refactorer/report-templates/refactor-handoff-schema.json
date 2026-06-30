@@ -71,7 +71,8 @@
           },
           "ast_node_signature": {
             "type": ["string", "null"],
-            "description": "AST-level anchor: fully qualified method/field/class signature (e.g., com.example.controller.UserController). Null for non-Java files. Uses the same format as the unified Fix Handoff ast_node_signature defined in javafx-orchestrator/SKILL.md."
+            "description": "AST-level anchor: fully qualified method/field/class signature (e.g., com.example.controller.UserController). Null for non-Java files. Uses the same format as the unified Fix Handoff ast_node_signature defined in javafx-orchestrator/SKILL.md.",
+            "pattern": "^([a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*\\.[A-Z][A-Za-z0-9_]*)(#[A-Za-z0-9_]+\\([^)]*\\)|#[A-Za-z0-9_]+)?$"
           },
           "severity": {
             "type": "string",
@@ -158,7 +159,8 @@
           },
           "ast_node_signature": {
             "type": ["string", "null"],
-            "description": "AST-level anchor: fully qualified method or class signature (e.g., com.example.controller.UserController#saveUser(ActionEvent)). Enables refactor-resistant location matching. Null for non-Java files. Uses the same format as the unified Fix Handoff ast_node_signature defined in javafx-orchestrator/SKILL.md. Unified Fix Handoff field — consumed by developer Fix Consumption Protocol."
+            "description": "AST-level anchor: fully qualified method or class signature (e.g., com.example.controller.UserController#saveUser(ActionEvent)). Enables refactor-resistant location matching. Null for non-Java files. Uses the same format as the unified Fix Handoff ast_node_signature defined in javafx-orchestrator/SKILL.md. Unified Fix Handoff field — consumed by developer Fix Consumption Protocol.",
+            "pattern": "^([a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*\\.[A-Z][A-Za-z0-9_]*)(#[A-Za-z0-9_]+\\([^)]*\\)|#[A-Za-z0-9_]+)?$"
           },
           "description": {
             "type": "string",
@@ -218,6 +220,11 @@
                 "type": "array",
                 "items": { "type": "string" },
                 "description": "New public API entries introduced by this refactoring action"
+              },
+              "side_effect_analysis": {
+                "type": "string",
+                "enum": ["none", "logging", "state_mutation", "io", "unknown"],
+                "description": "Side-effect classification of the refactored code. 'none' = pure function, no side effects; 'logging' = logging only; 'state_mutation' = modifies shared state; 'io' = performs I/O (file, network, DB); 'unknown' = cannot determine statically. Used to detect behavior divergence when inlining or moving code with side effects to new call sites."
               }
             }
           }
@@ -323,6 +330,17 @@
           "type": "array",
           "items": { "type": "string" },
           "description": "Aggregated new public API entries introduced by the refactoring"
+        },
+        "side_effect_analysis_summary": {
+          "type": "object",
+          "description": "Aggregated side-effect analysis across all refactoring actions. Maps each side_effect_category to the count of actions with that classification.",
+          "properties": {
+            "none": { "type": "integer", "description": "Number of actions classified as pure (no side effects)" },
+            "logging": { "type": "integer", "description": "Number of actions with logging side effects" },
+            "state_mutation": { "type": "integer", "description": "Number of actions with state mutation side effects" },
+            "io": { "type": "integer", "description": "Number of actions with I/O side effects" },
+            "unknown": { "type": "integer", "description": "Number of actions with undetermined side effects" }
+          }
         }
       }
     },

@@ -25,7 +25,7 @@
     "architecture_pattern": {
       "type": "string",
       "description": "Architecture pattern from architecture-handoff.json (if consumed) or inferred from design scope. Used to align FXML structure with the target architecture (e.g., MVVM requires View-ViewModel separation in FXML).",
-      "enum": ["MVC", "MVVM", "MVP", "MVVM + Service Layer", "MVC + Service Layer", "Unknown"]
+      "enum": ["MVC", "MVVM", "MVP", "MVVM + Service Layer", "MVC + Service Layer", "Layered (n-tier)", "Event-Driven", "Plugin Architecture", "Microkernel", "Unknown"],
     },
     "screens": {
       "type": "array",
@@ -51,7 +51,7 @@
       "description": "CSS theme files. Developer copies these to src/main/resources/css/ instead of using built-in CSS templates.",
       "properties": {
         "light": { "type": "string", "description": "Path to light theme CSS file" },
-        "dark": { "type": "string", "description": "Path to dark theme CSS file (optional)" }
+        "dark": { "type": "string", "description": "Path to dark theme CSS file" }
       }
     },
     "icons": {
@@ -74,7 +74,7 @@
     },
     "scope": {
       "type": "string",
-      "enum": ["full", "prototype_only", "theme_only", "responsive_only"],
+      "enum": ["full", "prototype_only", "theme_only", "flow_only", "responsive_only"],
       "description": "Design scope"
     },
     "developer_instructions": {

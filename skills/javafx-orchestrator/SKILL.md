@@ -160,14 +160,14 @@ The loop terminates as **Pass** only when BOTH reviewer and runner pass:
 
 | Reviewer Conclusion | Runner Conclusion | Overall | Action |
 |---------------------|-------------------|---------|--------|
-| Pass | Pass | **Pass** | Proceed to Test Gate (Step 4.5) → DocGen (Step 4.6) → Deliver |
+| Pass | Pass | **Pass** | Proceed to Test Gate (Step 8) → DocGen (Step 10) → Deliver |
 | Pass | Conditional/Fail | **Fail** | Fix runner issues, continue loop |
 | Conditional/Fail | Pass | **Fail** | Fix reviewer issues, continue loop |
 | Conditional/Fail | Conditional/Fail | **Fail** | Fix both, continue loop |
 
 **Priority rule**: When reviewer is Fail, fix reviewer issues first (static issues are usually root causes; fixing them may resolve runtime issues too).
 
-### 5.5. Test Gate (After Tester)
+### 4. Test Gate (After Tester)
 
 The Test Gate evaluates after the tester's 4 parallel tracks complete. The aggregated `tester_result.conclusion` determines the gate result:
 
@@ -184,7 +184,7 @@ The Test Gate evaluates after the tester's 4 parallel tracks complete. The aggre
 
 **Track-level partial failure**: If some tracks Pass but others Fail, the aggregated conclusion is Fail (any Fail → Fail). If some tracks Pass and others are Skipped (no Fail), the aggregated conclusion is Conditional Pass. See tester SKILL.md Section "Aggregation Gate" for the full 7-scenario matrix.
 
-### 4. Individual Gate Criteria
+### 5. Individual Gate Criteria
 
 **Reviewer Gate**:
 - **Pass**: No Critical/Major issues, pass rate >= 80%
@@ -196,7 +196,7 @@ The Test Gate evaluates after the tester's 4 parallel tracks complete. The aggre
 - **Conditional Pass**: Has Major but no Critical, all Major issues have clear fix plans; runtime verification passes but packaging verification has non-blocking issues
 - **Fail**: Has Critical issues (compilation errors, startup failures, etc.), must be fixed before delivery
 
-### 5. Fix Handoff Format
+### 6. Fix Handoff Format
 
 The Fix Handoff is the machine-readable format used by reviewer and runner to communicate fix instructions to developer:
 
@@ -209,6 +209,7 @@ The Fix Handoff is the machine-readable format used by reviewer and runner to co
 | `code_fingerprint` | string | SHA-256 hash of problematic code snippet (whitespace-normalized) |
 | `anchor_pattern` | string | Surrounding context signature (2 lines before + 2 lines after) |
 | `ast_node_signature` | string | AST-level anchor: fully qualified method or class signature (e.g., `com.example.controller.UserController#handleSave()`, `com.example.model.User`). Enables location matching when code has been moved or heavily refactored — the AST node is found by signature search, not line numbers. See [AST Anchor Format](#ast-anchor-format) below |
+| `dedup_merged_from` | string (optional, nullable) | Populated during merge/dedup: records the source (`reviewer` or `runner`) of a discarded overlapping entry that this fix superseded. Added by the orchestrator (orchestrated mode) or by the developer (standalone mode) during dedup. Absent or `null` if no dedup occurred. Used by the developer to detect pre-merged batches and skip re-deduplication |
 
 <a id="ast-anchor-format"></a>
 #### AST Anchor Format
@@ -236,7 +237,7 @@ The `ast_node_signature` field provides a refactor-resistant location anchor tha
 5. If the issue is in a **static initializer** or **instance initializer**, use `{package}.{Class}#<clinit>` or `{package}.{Class}#<init>`
 6. If the file is **not a Java source file** (e.g., FXML, CSS, `module-info.java`), set `ast_node_signature` to `null` — AST anchors apply only to `.java` files
 
-### 6. Loop State Serialization
+### 7. Loop State Serialization
 
 The loop state is persisted to `.loop-state.json` in the project root:
 
@@ -343,9 +344,9 @@ The loop state is persisted to `.loop-state.json` in the project root:
     "javadoc_html_generated": false,
     "generated_documents": ["docs/api-reference.md", "docs/user-manual.md", "docs/architecture.md", "docs/CHANGELOG.md", "README.md"],
     "coverage": {
-      "api_coverage_percent": 85.0,
-      "fxml_coverage_percent": 100.0,
-      "architecture_documented": true
+      "api": { "coverage_percent": 85.0 },
+      "user_manual": { "coverage_percent": 100.0 },
+      "architecture": { "packages_documented": 5, "dependencies_listed": 8 }
     },
     "warnings": ["3 public methods missing Javadoc comments"],
     "timestamp": "2026-06-29T10:20:00Z"
@@ -382,21 +383,21 @@ The loop state is persisted to `.loop-state.json` in the project root:
 
 Two levels of parallelism exist in the loop, both protected by field isolation:
 
-**Level 1 — Reviewer ∥ Runner** (Step 3): When the reviewer and runner execute in parallel, both need to write their results to `.loop-state.json`. The following rules ensure safe concurrent access:
+**Level 1 — Reviewer ∥ Runner** (Step 6): When the reviewer and runner execute in parallel, both need to write their results to `.loop-state.json`. The following rules ensure safe concurrent access:
 
 1. **Field isolation**: The reviewer writes **only** to `rounds[current_round].reviewer_result`; the runner writes **only** to `rounds[current_round].runner_result`. These are disjoint JSON paths — no field is written by both
-2. **No shared mutable state**: Neither skill modifies `status`, `current_round`, `convergence_trend`, or `next_action` — those are written **only** by the orchestrator after both skills complete (Step 3)
+2. **No shared mutable state**: Neither skill modifies `status`, `current_round`, `convergence_trend`, or `next_action` — those are written **only** by the orchestrator after both skills complete (Step 6)
 3. **Read-before-write**: Each skill reads the current state file, modifies only its own field, and writes back the full file. If a write conflict occurs (the file was modified between read and write), re-read and retry (optimistic concurrency)
 4. **Orchestrator as coordinator**: The orchestrator does not write to the state file while reviewer and runner are running. It waits for both to complete, then performs the Combined Gate update in a single atomic write
 
-**Level 2 — Tester Track A ∥ Track B ∥ Track C ∥ Track D** (Step 4.5): When the tester's four dimensions execute in parallel, each track writes to its own isolated field. The same safety rules apply:
+**Level 2 — Tester Track A ∥ Track B ∥ Track C ∥ Track D** (Step 8): When the tester's four dimensions execute in parallel, each track writes to its own isolated field. The same safety rules apply:
 
 5. **Track field isolation**: Performance writes **only** to `tester_perf_result`; Security writes **only** to `tester_sec_result`; Accessibility writes **only** to `tester_a11y_result`; Visual Regression writes **only** to `tester_vr_result`. These are disjoint JSON paths — no field is written by multiple tracks
 6. **No cross-track reads**: Each track operates independently and does not read another track's in-progress results. Cross-track correlation happens only in Step 7 (Aggregation), after all tracks complete
 7. **Aggregated field**: The unified `tester_result` field is computed **after** all tracks finish — it is written by the tester (or orchestrator) in a single atomic write, never by individual tracks
 8. **Partial failure**: If one track errors or times out, it writes `"conclusion": "Skipped"` to its own field. The other tracks are unaffected and continue to completion
 
-### 7. Loop Visualization Dashboard
+### 8. Loop Visualization Dashboard
 
 The orchestrator auto-generates an HTML dashboard after every state update, providing real-time visibility into loop progress, convergence trends, and Fix Handoff status. The dashboard is a self-contained HTML file that can be opened in any browser and auto-refreshes every 10 seconds.
 
@@ -468,19 +469,19 @@ The orchestrator generates the dashboard after **every state serialization** —
 5. The dashboard is self-contained — all data is embedded in the HTML, no external file dependencies (except the ECharts CDN)
 
 **Generation triggers** (every state update):
-- After Step 0 (requirements phase completion)
-- After Step 0.5 (architect phase completion)
+- After Step 2 (requirements phase completion)
+- After Step 3 (architect phase completion)
 - After Step 1 (loop initialization)
-- After Step 1.5 (design phase completion)
-- After Step 2 (generation completion)
-- After Step 3 (parallel review + verify completion)
-- After Step 4 (Combined Gate evaluation)
-- After Step 4.5 (Test Gate evaluation)
-- After Step 4.55 (refactoring phase completion)
-- After Step 4.6 (DocGen completion)
-- After Step 4.7 (Deploy completion)
-- After Step 5 (fix cycle completion)
-- After Step 6 (state recovery)
+- After Step 4 (design phase completion)
+- After Step 5 (generation completion)
+- After Step 6 (parallel review + verify completion)
+- After Step 7 (Combined Gate evaluation)
+- After Step 8 (Test Gate evaluation)
+- After Step 9 (refactoring phase completion)
+- After Step 10 (DocGen completion)
+- After Step 11 (Deploy completion)
+- After Step 12 (fix cycle completion)
+- After Step 15 (state recovery)
 
 #### Auto-Refresh
 
@@ -502,64 +503,64 @@ Dashboard generation is controlled by the `dashboard` config field in `.loop-con
 
 ## Orchestration Workflow
 
-> **Dashboard generation**: After every state update in the workflow below, the orchestrator generates `target/loop-dashboard.html` from `templates/loop-dashboard.html` (if `dashboard: true` in config). See [Section 7: Loop Visualization Dashboard](#7-loop-visualization-dashboard) for details.
+> **Dashboard generation**: After every state update in the workflow below, the orchestrator generates `target/loop-dashboard.html` from `templates/loop-dashboard.html` (if `dashboard: true` in config). See [Section 8: Loop Visualization Dashboard](#8-loop-visualization-dashboard) for details.
 
 ### Step 1: Initialize Loop
 
 1. **Receive user request**: Natural language description of the JavaFX project requirements
-2. **Check for requirements intent**: If the user request contains requirements keywords ("gather requirements", "user stories", "acceptance criteria", "stakeholder analysis", "change impact") OR `.loop-config.json` has `"requirements_phase": true`, activate the requirements phase (Step 0)
-3. **Check for architect intent**: If the user request contains architecture keywords ("design the architecture", "select technology stack", "generate UML", "create ADR") OR `.loop-config.json` has `"architect_phase": true`, activate the architect phase (Step 0.5)
-4. **Check for design intent**: If the user request contains design keywords ("design and generate", "create a prototype", "design a theme") OR `.loop-config.json` has `"design_phase": true`, activate the design phase (Step 1.5)
+2. **Check for requirements intent**: If the user request contains requirements keywords ("gather requirements", "user stories", "acceptance criteria", "stakeholder analysis", "change impact") OR `.loop-config.json` has `"requirements_phase": true`, activate the requirements phase (Step 2)
+3. **Check for architect intent**: If the user request contains architecture keywords ("design the architecture", "select technology stack", "generate UML", "create ADR") OR `.loop-config.json` has `"architect_phase": true`, activate the architect phase (Step 3)
+4. **Check for design intent**: If the user request contains design keywords ("design and generate", "create a prototype", "design a theme") OR `.loop-config.json` has `"design_phase": true`, activate the design phase (Step 4)
 5. **Create loop state**: Initialize `.loop-state.json` with `status: "requirements"` (if requirements phase) or `status: "architecting"` (if architect phase) or `status: "designing"` (if design phase only) or `status: "generating"` (if none), `current_round: 0`, `max_rounds: <value from .loop-config.json max_rounds field, default 3>`
 
-### Step 0: Requirements Phase (Optional)
+### Step 2: Requirements Phase (Optional)
 
 If requirements intent is detected:
 
 1. **Route to requirements**: Trigger `javafx-requirements` with the user request. Requirements produces stakeholder analysis, user stories with acceptance criteria, non-functional requirements, and a requirement traceability matrix seed in the `requirements/` directory
 2. **Wait for requirements result**: Requirements produces a `requirements-handoff.json` file with stakeholder list, user stories, NFRs, RTM seed, and developer instructions (req ID convention, annotation format, test naming convention)
 3. **Check requirements conclusion**:
-   - **Pass** → Proceed to Step 0.5 (Architect, if enabled) or Step 1.5 (Design, if enabled) or Step 2 (Generation). Architect will consume `requirements-handoff.json` in its Step 1; Developer will consume it in its Step 1
+   - **Pass** → Proceed to Step 3 (Architect, if enabled) or Step 4 (Design, if enabled) or Step 5 (Generation). Architect will consume `requirements-handoff.json` in its Step 1; Developer will consume it in its Step 1
    - **Pass with warnings** → Proceed to next phase. Warnings are recorded in `requirements_result` but do not block generation
    - **Fail** → Pause loop with `status: "paused"`, report requirements failure to user. Do NOT proceed to architect or generation — requirements are prerequisites for informed architecture and code generation
 4. **Update state**: Record `requirements_result` in `.loop-state.json` with triggered flag, scope, stakeholder count, user story count, NFR count, acceptance criteria count, change impact reports count, and handoff file path
 
 > **Requirements phase is optional**: When the user requests direct code generation without requirements intent ("create a JavaFX app"), this step is skipped entirely. Requirements can also run in standalone mode (no loop) when the user wants to review and iterate on requirements before committing to architecture and code generation. Requirements runs once — it is not part of the fix-verify cycle.
 
-### Step 0.5: Architect Phase (Optional)
+### Step 3: Architect Phase (Optional)
 
 If architect intent is detected:
 
 1. **Route to architect**: Trigger `javafx-architect` with the user request. Architect produces technology selection, UML diagrams (PlantUML), Architecture Decision Records (ADR), and prototype validation in the `architecture/` directory
 2. **Wait for architect result**: Architect produces an `architecture-handoff.json` file with the system design specs, UML artifact paths, ADR file paths, and developer instructions
 3. **Check architect conclusion**:
-   - **Pass** → Proceed to Step 1.5 (Design, if enabled) or Step 2 (Generation), set `status: "designing"` or `status: "generating"`. Developer will consume `architecture-handoff.json` in its Step 4
+   - **Pass** → Proceed to Step 4 (Design, if enabled) or Step 5 (Generation), set `status: "designing"` or `status: "generating"`. Developer will consume `architecture-handoff.json` in its Step 4
    - **Pass with warnings** → Proceed to next phase. Warnings are recorded in `architect_result` but do not block generation
    - **Fail** → Pause loop with `status: "paused"`, report architecture failure to user. Do NOT proceed to design or generation — architecture specs are prerequisites for code generation
 4. **Update state**: Record `architect_result` in `.loop-state.json` with triggered flag, scope, architecture pattern, module count, UML diagram count, ADR count, database schema flag (tables count), threat model flag (threats count, security ADRs count), and handoff file path
 
 > **Architect phase is optional**: When the user requests direct code generation without architecture intent ("create a JavaFX app"), this step is skipped entirely. Architect can also run in standalone mode (no loop) when the user wants to review the architecture before committing to code generation. Architect runs once — it is not part of the fix-verify cycle.
 
-### Step 1.5: Design Phase (Optional)
+### Step 4: Design Phase (Optional)
 
 If design intent is detected:
 
 1. **Route to designer**: Trigger `javafx-designer` with the user request. Designer produces FXML prototypes, CSS themes, interaction flow diagrams, and icon configurations in the `design/` directory
 2. **Wait for designer result**: Designer produces a `design-handoff.json` file with the list of design artifacts
 3. **Check designer conclusion**:
-   - **Pass** → Proceed to Step 2 (Generation), set `status: "generating"`. Developer will consume `design-handoff.json` in its Step 4
-   - **Pass with warnings** → Proceed to Step 2 (Generation). Warnings are recorded in `design_result` but do not block generation
+   - **Pass** → Proceed to Step 5 (Generation), set `status: "generating"`. Developer will consume `design-handoff.json` in its Step 4
+   - **Pass with warnings** → Proceed to Step 5 (Generation). Warnings are recorded in `design_result` but do not block generation
    - **Fail** → Pause loop with `status: "paused"`, report design failure to user. Do NOT proceed to generation — design artifacts are prerequisites for code generation
 4. **Update state**: Record `design_result` in `.loop-state.json` with triggered flag, dimensions, screens designed, artifacts list, and handoff file path
 
-> **Design phase is optional**: When the user requests direct code generation without design intent ("create a JavaFX app"), this step is skipped entirely and the loop starts at Step 2 (Generation). Designer can also run in standalone mode (no loop) when the user wants to review the design before committing to code generation.
+> **Design phase is optional**: When the user requests direct code generation without design intent ("create a JavaFX app"), this step is skipped entirely and the loop starts at Step 5 (Generation). Designer can also run in standalone mode (no loop) when the user wants to review the design before committing to code generation.
 
-### Step 2: Generation Phase
+### Step 5: Generation Phase
 
 1. **Route to developer**: Trigger `javafx-developer` with the user request. Developer checks for `design/design-handoff.json` — if present, uses designer's FXML/CSS/icon artifacts instead of built-in templates
 2. **Update state**: Set `status: "generating"`
 
-### Step 3: Post-Generation Parallel Routing
+### Step 6: Post-Generation Parallel Routing
 
 After `javafx-developer` completes code generation:
 1. **Update state**: Set `status: "reviewing_and_verifying"`, `current_round: 1`
@@ -568,7 +569,7 @@ After `javafx-developer` completes code generation:
 
 > **Parallel safety**: The reviewer and runner write to **separate fields** in `.loop-state.json` (`reviewer_result` and `runner_result` respectively). They do not mutate shared state and require no mutual exclusion. See [Loop State Parallel Write Safety](#parallel-write-safety) below.
 
-### Step 4: Post-Parallel-Execution Decision (Combined Gate)
+### Step 7: Post-Parallel-Execution Decision (Combined Gate)
 
 After **both** `javafx-code-reviewer` and `javafx-runner` complete:
 1. **Read both conclusions**: reviewer `Pass`/`Conditional Pass`/`Fail` AND runner `Pass`/`Conditional Pass`/`Fail`
@@ -576,8 +577,8 @@ After **both** `javafx-code-reviewer` and `javafx-runner` complete:
 3. **Merge Fix Handoffs**: Collect Fix Handoff entries from both reports into a single deduplicated list (see [Fix Handoff Merge & Dedup](#fix-handoff-merge--dedup) below)
 4. **Combined Gate evaluation**:
    - Both Pass → Check `deep_testing` config:
-     - `true` (default) → Set `status: "testing"`, route to `javafx-tester` (Step 4.5: Test Gate)
-     - `false` → Check `docgen` config (Step 4.6: Documentation Gate)
+     - `true` (default) → Set `status: "testing"`, route to `javafx-tester` (Step 8: Test Gate)
+     - `false` → Check `docgen` config (Step 10: Documentation Gate)
    - Either Fail/Conditional → Route to developer for Fix Consumption with the merged Fix Handoff list
 
 <a id="fix-handoff-merge--dedup"></a>
@@ -593,7 +594,7 @@ When reviewer and runner run in parallel, both may produce Fix Handoffs targetin
 3. **Re-sort**: Sort the deduplicated list by `fix_priority` ascending (1 = highest) across both sources
 4. **Pass to developer**: The merged list is handed to `javafx-developer`'s Fix Consumption Protocol as a single batch
 
-### Step 4.5: Test Gate (Optional — Deep Testing)
+### Step 8: Test Gate (Optional — Deep Testing)
 
 After the Combined Gate passes (reviewer AND runner both Pass), if `deep_testing` is enabled:
 
@@ -601,14 +602,14 @@ After the Combined Gate passes (reviewer AND runner both Pass), if `deep_testing
 2. **Route to tester**: Trigger `javafx-tester` with the project. The tester dispatches all 4 dimensions (performance, security, accessibility, visual regression) **in parallel** as independent tracks, each writing to its own isolated state field (`tester_perf_result`, `tester_sec_result`, `tester_a11y_result`, `tester_vr_result`). If `visual_regression` is disabled in config, only 3 dimensions run
 3. **Wait for all tracks**: The tester waits for all parallel tracks to complete (or timeout), then aggregates their results into the unified `tester_result` field using the aggregation gate (see `javafx-tester/SKILL.md` → Step 7)
 4. **Test Gate evaluation** (reads the aggregated `tester_result`):
-   - **Pass** → Proceed to Step 4.6 (Documentation Gate)
-   - **Fail** → Merge tester Fix Handoffs with any existing reviewer/runner Fix Handoffs (same merge logic as Step 3), route to developer (Fix Cycle, Step 4)
+   - **Pass** → Proceed to Step 10 (Documentation Gate)
+   - **Fail** → Merge tester Fix Handoffs with any existing reviewer/runner Fix Handoffs (same merge logic as Step 6), route to developer (Fix Cycle, Step 4)
 5. **Tester skip condition**: If runner failed to produce a runnable project (compile/startup failure), tester is skipped — the Combined Gate would have already routed to Fix Cycle
 6. **Parallel fallback**: If `.loop-config.json` has `"tester_parallel": false`, the tester executes the dimensions sequentially (field isolation rules still apply — only execution order changes)
 
 > **Test Gate is optional**: Controlled by `deep_testing` config (default: `true`). When `false`, this step is skipped entirely and the Combined Gate is the final quality gate.
 
-### Step 4.55: Refactoring Phase (Optional)
+### Step 9: Refactoring Phase (Optional)
 
 After the Test Gate passes (or Combined Gate if deep testing disabled), if refactoring is enabled:
 
@@ -619,16 +620,16 @@ After the Test Gate passes (or Combined Gate if deep testing disabled), if refac
 5. **Check refactorer conclusion**:
    - **Pass** → Proceed to apply refactoring (Step 5.5 below)
    - **Pass with warnings** → Proceed to apply refactoring. Warnings are recorded but do not block
-   - **Fail** → Skip refactoring, proceed to Step 4.6 (DocGen). Log refactoring failure as warning
+   - **Fail** → Skip refactoring, proceed to Step 10 (DocGen). Log refactoring failure as warning
 6. **Apply refactoring** (Step 5.5): Route to `javafx-developer` in Fix Consumption mode to apply the refactoring actions from `refactor-handoff.json`. Developer uses the 4-level location matching hierarchy (fingerprint → anchor → content → AST signature)
 7. **Verify behavior equivalence**: After refactoring is applied, route to `javafx-code-reviewer` with Dimension 9 (Refactoring Verification) activated. Reviewer checks method signature preservation, call site integrity, field access integrity, import graph acyclicity, and test result preservation
 8. **Check verification result**:
-   - **Pass** → Proceed to Step 4.6 (DocGen). Refactoring is complete
-   - **Fail** → Developer rolls back refactoring changes (using the pre-fix backup mechanism from T2.4). Proceed to Step 4.6 without refactoring. Log behavior equivalence failure
+   - **Pass** → Proceed to Step 10 (DocGen). Refactoring is complete
+   - **Fail** → Developer rolls back refactoring changes (using the pre-fix backup mechanism from T2.4). Proceed to Step 10 without refactoring. Log behavior equivalence failure
 
 > **Refactoring phase is optional**: Controlled by `refactor_phase` config (default: `false`). When `false`, this step is skipped entirely. Refactoring can also run as a standalone maintenance cycle on a delivered project — in this case, the user triggers refactorer directly without the full loop.
 
-### Step 4.6: Documentation Gate (Optional — DocGen)
+### Step 10: Documentation Gate (Optional — DocGen)
 
 After all quality gates pass (Combined Gate + optional Test Gate + optional Refactoring), if `docgen` is enabled:
 
@@ -652,7 +653,7 @@ After all quality gates pass (Combined Gate + optional Test Gate + optional Refa
 
 > **DocGen is optional**: Controlled by `docgen` config (default: `true`). When `false`, this step is skipped entirely (gate not evaluated) and the project is delivered immediately after the Test Gate (or Combined Gate if deep testing is also disabled).
 
-### Step 4.7: Deployment Gate (Optional — Deploy)
+### Step 11: Deployment Gate (Optional — Deploy)
 
 After DocGen completes (or is skipped), if `deploy_phase` is enabled or the user explicitly requests deployment:
 
@@ -671,7 +672,7 @@ After DocGen completes (or is skipped), if `deploy_phase` is enabled or the user
 
 > **Deploy phase is optional**: Controlled by `deploy_phase` config (default: `false`). When `false`, this step is skipped and the project is shipped immediately after DocGen. Can also be triggered by user request ("set up CI/CD", "deploy my app") regardless of config.
 
-### Step 5: Fix Cycle
+### Step 12: Fix Cycle
 
 After `javafx-developer` completes Fix Consumption:
 1. **Update state**: Set `status: "fixing"`, record fix summary including `fixes_applied`, `fixes_skipped`, `fixes_rolled_back` counts, and the `fix_handoffs` array with per-handoff `status` markers (`applied` / `skipped` / `rolled_back`) for dashboard visualization
@@ -686,37 +687,37 @@ After `javafx-developer` completes Fix Consumption:
    - 2 consecutive non-converging rounds → pause, report to user
 6. **Route to incremental review AND verification in parallel**: Trigger reviewer in Incremental Review mode AND runner in Targeted Verification mode simultaneously
 
-### Step 6: Incremental Cycle
+### Step 13: Incremental Cycle
 
 After incremental review and verification (both complete):
-1. **Merge Fix Handoffs**: Deduplicate Fix Handoff entries from both incremental reports (same merge logic as Step 3)
+1. **Merge Fix Handoffs**: Deduplicate Fix Handoff entries from both incremental reports (same merge logic as Step 6)
 2. **Evaluate Combined Gate**: Both reviewer and runner Pass?
-   - Yes → Proceed to Step 4.5 (Test Gate, if `deep_testing` enabled) → Step 4.6 (Documentation Gate, if `docgen` enabled) → **Delivered**
-   - No → Go to Step 5 (Fix Cycle) for next round
+   - Yes → Proceed to Step 8 (Test Gate, if `deep_testing` enabled) → Step 10 (Documentation Gate, if `docgen` enabled) → **Delivered**
+   - No → Go to Step 12 (Fix Cycle) for next round
 
-### Step 6.5: Serialization Triggers (Authoritative)
+### Step 14: Serialization Triggers (Authoritative)
 
 The following table defines all state serialization events in the loop. This is the **authoritative definition** — individual skills reference this table instead of maintaining their own copies.
 
 | Trigger | Writer | Action |
 |---------|--------|--------|
 | Loop initialization (Step 1) | Orchestrator | Create `.loop-state.json` with `status`, `current_round: 0`, `max_rounds`, `project` |
-| Requirements phase completes (Step 0) | Orchestrator | Write `requirements_result` with scope, stakeholder count, user story count, NFR count, handoff file |
-| Architect phase completes (Step 0.5) | Orchestrator | Write `architect_result` with scope, pattern, module count, UML count, ADR count, database schema flag, threat model flag, handoff file |
-| Design phase completes (Step 1.5) | Orchestrator | Write `design_result` with scope, screen count, handoff file |
-| Generation completes (Step 2) | Orchestrator | Set `status: "reviewing_and_verifying"`, `current_round: 1` |
+| Requirements phase completes (Step 2) | Orchestrator | Write `requirements_result` with scope, stakeholder count, user story count, NFR count, handoff file |
+| Architect phase completes (Step 3) | Orchestrator | Write `architect_result` with scope, pattern, module count, UML count, ADR count, database schema flag, threat model flag, handoff file |
+| Design phase completes (Step 4) | Orchestrator | Write `design_result` with scope, screen count, handoff file |
+| Generation completes (Step 5) | Orchestrator | Set `status: "reviewing_and_verifying"`, `current_round: 1` |
 | Reviewer completes (parallel) | Reviewer | Write **only** `rounds[current_round].reviewer_result` (field isolation — do not modify `runner_result`) |
 | Runner completes (parallel) | Runner | Write **only** `rounds[current_round].runner_result` (field isolation — do not modify `reviewer_result`) |
 | Both reviewer + runner complete | Orchestrator | Write `combined_gate` and `next_action` (atomic write) |
-| Tester track completes (parallel, Step 4.5) | Tester | Each track writes **only** its own field: `tester_perf_result` / `tester_sec_result` / `tester_a11y_result` / `tester_vr_result` (field isolation — do not modify another track's field) |
-| All tester tracks complete (Step 4.5) | Tester/Orchestrator | Compute aggregated `tester_result` from four track fields (atomic write). Set `next_action` based on Test Gate |
-| Refactoring completes (Step 4.55) | Orchestrator | Write `refactor_result` with smells, actions, debt metrics |
+| Tester track completes (parallel, Step 8) | Tester | Each track writes **only** its own field: `tester_perf_result` / `tester_sec_result` / `tester_a11y_result` / `tester_vr_result` (field isolation — do not modify another track's field) |
+| All tester tracks complete (Step 8) | Tester/Orchestrator | Compute aggregated `tester_result` from four track fields (atomic write). Set `next_action` based on Test Gate |
+| Refactoring completes (Step 9) | Orchestrator | Write `refactor_result` with smells, actions, debt metrics |
 | Pre-fix backup created (developer Step 1.5) | Developer | No state write — backup manifest written to `.fix-backup/{timestamp}/manifest.json` |
 | Fixes applied (developer Step 5.5) | Developer | Update fix summary, `fixes_applied`, `fixes_skipped`, `fixes_rolled_back`, `fix_handoffs[]` with per-handoff status |
 | Post-fix compile fails, rollback triggered | Developer | Append `rollback_event` to `rollback_events[]` with timestamp, backup dir, files restored, compile errors, verification status |
 | Rollback verification fails | Developer | Append `rollback_event` with `rollback_verification: "failed"`, set `status: "paused"` |
-| DocGen completes (Step 4.6) | Orchestrator | Write `docgen_result` with coverage metrics, warnings |
-| Deploy completes (Step 4.7) | Orchestrator | Write `deploy_result` with artifacts, secrets, conclusion |
+| DocGen completes (Step 10) | Orchestrator | Write `docgen_result` with coverage metrics, warnings |
+| Deploy completes (Step 11) | Orchestrator | Write `deploy_result` with artifacts, secrets, conclusion |
 | Loop passes all quality gates | Orchestrator | Write final state with `status: "passed"`, archive to `.loop-state.archive.json`. Clean up `.fix-backup/` |
 | Loop reaches max rounds / non-converging | Orchestrator | Write `status: "paused"`, include resume instructions. Preserve `.fix-backup/` |
 | User manually requests pause | Orchestrator | Write `status: "paused"`. Preserve `.fix-backup/` |
@@ -724,7 +725,7 @@ The following table defines all state serialization events in the loop. This is 
 
 > **Parallel write safety**: Reviewer and runner write to **different fields** (`reviewer_result` vs `runner_result`) — they never conflict. The orchestrator waits for both to complete before writing `combined_gate` and `next_action` in a single atomic write.
 
-### Step 7: State Recovery (Cross-Session)
+### Step 15: State Recovery (Cross-Session)
 
 If the orchestrator detects `.loop-state.json` on startup:
 1. **Validate**: Check `project` matches and `updated_at` is within 7 days
@@ -764,12 +765,12 @@ If the orchestrator detects `.loop-state.json` on startup:
 | "Set up auto-update / automatic updates" | javafx-deployer | Standalone auto-update configuration (no loop) |
 | "Set up monitoring / crash reporting / logging" | javafx-deployer | Standalone monitoring configuration (no loop) |
 | "Fix the issues in the report" | javafx-developer (Fix Consumption) | Resume loop from fix handoff |
-| Mixed intent (generate + review + verify) | All three, review & verify in parallel | Full closed-loop cycle (Step 3 triggers reviewer ∥ runner) |
-| Mixed intent (generate + review + verify + deep test) | All four | Full closed-loop with deep testing (Step 3 triggers reviewer ∥ runner → Step 4 Combined Gate → Step 4.5 Test Gate if configured) |
-| Mixed intent (generate + review + verify + deep test + docs) | All five | Full closed-loop with deep testing and documentation (Step 3 → Step 4 → Step 4.5 → Step 4.6 → Delivered) |
-| Mixed intent (generate + review + verify + docs, no deep test) | All four (skip tester) | Full closed-loop with documentation, no deep testing (Step 3 → Step 4 → Step 4.6 → Delivered) |
-| Mixed intent (design + generate + review + verify + deep test + docs) | All six | Full pipeline with design phase (Step 1.5 Design → Step 2 Generate → Step 3 → Step 4 → Step 4.5 → Step 4.6 → Delivered) |
-| Mixed intent (architect + design + generate + review + verify + deep test + docs) | All seven | Full pipeline with architect and design phases (Step 0.5 Architect → Step 1.5 Design → Step 2 Generate → Step 3 → Step 4 → Step 4.5 → Step 4.6 → Delivered) |
+| Mixed intent (generate + review + verify) | All three, review & verify in parallel | Full closed-loop cycle (Step 6 triggers reviewer ∥ runner) |
+| Mixed intent (generate + review + verify + deep test) | All four | Full closed-loop with deep testing (Step 6 triggers reviewer ∥ runner → Step 7 Combined Gate → Step 8 Test Gate if configured) |
+| Mixed intent (generate + review + verify + deep test + docs) | All five | Full closed-loop with deep testing and documentation (Step 6 → Step 7 → Step 8 → Step 10 → Delivered) |
+| Mixed intent (generate + review + verify + docs, no deep test) | All four (skip tester) | Full closed-loop with documentation, no deep testing (Step 6 → Step 7 → Step 10 → Delivered) |
+| Mixed intent (design + generate + review + verify + deep test + docs) | All six | Full pipeline with design phase (Step 4 Design → Step 5 Generate → Step 6 → Step 7 → Step 8 → Step 10 → Delivered) |
+| Mixed intent (architect + design + generate + review + verify + deep test + docs) | All seven | Full pipeline with architect and design phases (Step 3 Architect → Step 4 Design → Step 5 Generate → Step 6 → Step 7 → Step 8 → Step 10 → Delivered) |
 
 ### Standalone vs. Orchestrated Mode
 
@@ -807,6 +808,9 @@ The orchestrator and skills read optional configuration from `.loop-config.json`
 ```json
 {
   "output_format": "both",
+  "requirements_phase": false,
+  "architect_phase": false,
+  "design_phase": false,
   "max_rounds": 3,
   "clean_compile": false,
   "coverage_threshold": 0.60,
@@ -817,11 +821,11 @@ The orchestrator and skills read optional configuration from `.loop-config.json`
   "vr_update_baselines": false,
   "vr_diff_threshold": 0.02,
   "docgen": true,
-  "design_phase": false,
+  "doc_gate_mode": "non-blocking",
+  "doc_javadoc_html": false,
+  "refactor_phase": false,
   "deploy_phase": false,
-  "dashboard": true,
-  "architect_phase": false,
-  "refactor_phase": false
+  "dashboard": true
 }
 ```
 
@@ -900,7 +904,7 @@ The orchestrator references the following documents from the ten skills:
 - `../javafx-developer/SKILL.md` — Generation and Fix Consumption Protocol
 - `../javafx-code-reviewer/SKILL.md` — Review dimensions and Fix Handoff generation
 - `../javafx-runner/SKILL.md` — Verification dimensions and Runtime Findings Feedback
-- `../javafx-tester/SKILL.md` — Deep testing dimensions (performance, security, accessibility) and Test Gate
+- `../javafx-tester/SKILL.md` — Deep testing dimensions (performance, security, accessibility, visual regression) and Test Gate
 - `../javafx-refactorer/SKILL.md` — Refactoring phase artifacts (code smell catalog, refactoring plan, tech debt inventory, behavior equivalence verification)
 - `../javafx-docgen/SKILL.md` — Documentation generation dimensions and Documentation Gate
 - `../javafx-deployer/SKILL.md` — Deployment configuration (CI/CD, signing, auto-update, monitoring) and Deployment Gate

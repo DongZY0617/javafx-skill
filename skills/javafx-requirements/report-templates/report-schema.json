@@ -93,7 +93,7 @@
         "properties": {
           "change_id": { "type": "string" },
           "description": { "type": "string" },
-          "severity": { "type": "string", "enum": ["low", "medium", "high"] },
+          "impact_rating": { "type": "string", "enum": ["low", "medium", "high"] },
           "date": { "type": "string", "format": "date-time" }
         }
       }

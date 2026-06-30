@@ -55,13 +55,17 @@ public class MainController extends BaseController {
         return root;
     }
 
+    // NOTE: The menu handlers below are package-private (not private) so that
+    // ControllerTest can invoke them directly with a mocked ActionEvent.
+    // FXML still injects and dispatches events to package-private @FXML methods.
+
     /**
      * Handles the "New" menu action.
      *
      * @param event the action event
      */
     @FXML
-    private void handleNew(ActionEvent event) {
+    void handleNew(ActionEvent event) {
         // TODO: implement new document logic
     }
 
@@ -71,7 +75,7 @@ public class MainController extends BaseController {
      * @param event the action event
      */
     @FXML
-    private void handleOpen(ActionEvent event) {
+    void handleOpen(ActionEvent event) {
         // TODO: implement open logic
     }
 
@@ -81,7 +85,7 @@ public class MainController extends BaseController {
      * @param event the action event
      */
     @FXML
-    private void handleExit(ActionEvent event) {
+    void handleExit(ActionEvent event) {
         Platform.exit();
     }
 
@@ -91,7 +95,7 @@ public class MainController extends BaseController {
      * @param event the action event
      */
     @FXML
-    private void handleAbout(ActionEvent event) {
+    void handleAbout(ActionEvent event) {
         // TODO: implement about dialog logic
     }
 }

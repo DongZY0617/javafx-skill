@@ -98,11 +98,11 @@
 ### TC-16: Behavior Equivalence Violation (Negative)
 **Description**: Refactoring recommendation changes observable behavior but is NOT flagged as behavior-risky.
 **Input**: A refactoring plan recommends inlining a method that has a side effect (e.g., logging or state mutation) into two call sites. The `behavior_equivalence_check` for this action does not flag the side-effect divergence.
-**Expected Output**: The refactoring plan should mark this action with `behavior_equivalent: false` or `behavior_risk: "high"` and include a `verification_required` flag. If it doesn't, the test fails.
+**Expected Output**: The refactoring plan should mark this action with `risk: "High"` and/or set `behavior_equivalence_check.method_signatures_preserved` to `false` to flag the behavior change. If it doesn't, the test fails.
 **Pass Criteria**:
-- [ ] The action's `behavior_equivalence_check` identifies the side-effect divergence
-- [ ] The action is marked `behavior_equivalent: false` or `behavior_risk: "high"`
-- [ ] `verification_plan` includes a specific test recommendation for this action
+- [ ] The action's `behavior_equivalence_check` identifies the side-effect divergence (e.g., `method_signatures_preserved` is `false`)
+- [ ] The action is marked `risk: "High"`
+- [ ] `verification_plan` includes a relevant `semantic_checks` entry (e.g., `signature_preservation` or `call_site_integrity`) for this action
 - [ ] If the check fails to detect the behavior change, the refactorer's conclusion must be `Fail` or `Pass with warnings` (not clean `Pass`)
 
 ### TC-17: Constraint Violation — Modifying Production Code (Negative)

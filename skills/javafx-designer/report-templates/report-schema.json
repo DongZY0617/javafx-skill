@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://javafx-skill/designer/report-schema.json",
+  "$id": "https://javafx-skill.dev/schemas/designer-report-schema.json",
   "title": "JavaFX Designer Report",
   "description": "JSON schema for the javafx-designer design report output",
   "type": "object",
@@ -37,7 +37,7 @@
       "properties": {
         "mode": {
           "type": "string",
-          "enum": ["Full Design", "Prototype Only", "Theme Only", "Flow Only"],
+          "enum": ["Full Design", "Prototype Only", "Theme Only", "Flow Only", "Responsive Only"],
           "description": "Design scope mode"
         },
         "dimensions": {

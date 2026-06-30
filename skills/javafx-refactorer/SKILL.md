@@ -100,6 +100,9 @@ When a user request matches both `javafx-refactorer` ("refactor / restructure") 
    - **Primitive Obsession**: Excessive use of primitives instead of value objects
    - **Dead Code**: Unreachable methods, unused fields, unused imports
    - **Inappropriate Intimacy**: Class that directly accesses another class's private fields
+
+   > See `references/code-smells.md` for the complete catalog of 19 smell types (10 general + 7 JavaFX-specific + 2 structural). The schema enum in `report-templates/refactor-handoff-schema.json` defines all supported types.
+
 2. **Classify severity**: For each detected smell, assign a severity:
    - **Critical**: God Class > 1000 lines, circular dependencies, duplicated code blocks > 20 lines
    - **Major**: Long methods > 100 lines, God Class 500-1000 lines, feature envy
@@ -259,6 +262,11 @@ After refactoring recommendations are applied (by `javafx-developer`), verify be
     "post_refactor_expectation": "All 23 previously-passing tests must still pass. 2 pre-existing failures may remain.",
     "semantic_checks": ["signature_preservation", "call_site_integrity", "field_access_integrity", "import_graph_acyclic"]
   },
+  "behavior_equivalence_check": {
+    "method_signatures_preserved": true,
+    "call_sites_to_update": ["UserController.saveUser()", "UserController.updateUser()"],
+    "new_public_api": ["UserValidator.validate(User): ValidationResult"]
+  },
   "developer_instructions": {
     "apply_order": "Follow refactoring_plan priority order. Apply RF-001 before RF-003 (dependency).",
     "safety_constraints": [
@@ -314,7 +322,7 @@ When operating within an orchestrated loop (via `javafx-orchestrator`), the refa
 
 ### Refactorer's Role in the Loop
 
-`javafx-refactorer` occupies the optional **refactoring** stage, triggered after a project passes the Combined Quality Gate but before delivery — or as a standalone maintenance cycle on an existing project:
+`javafx-refactorer` occupies the optional **refactoring** stage, triggered after the Test Gate passes (or the Combined Quality Gate if `deep_testing` is disabled), but before DocGen and delivery — or as a standalone maintenance cycle on an existing project:
 
 - **Trigger condition**: User requests "refactor the code", "reduce technical debt", or `.loop-config.json` has `"refactor_phase": true`
 - **Round 1 only**: Refactoring analysis runs once — it is not part of the fix-verify cycle
@@ -359,7 +367,7 @@ The refactorer contributes to `.loop-state.json`:
 - **javafx-developer**: Consumes `refactor-handoff.json` in Fix Consumption mode — applies refactoring actions using the same location matching hierarchy (fingerprint → anchor → content → AST signature)
 - **javafx-code-reviewer**: Performs independent behavior equivalence verification after refactoring is applied — new "Refactoring Verification" review dimension
 - **javafx-runner**: Runs tests before and after refactoring to verify behavior preservation
-- **javafx-orchestrator**: Manages the refactoring phase as an optional post-quality-gate step in the loop state machine
+- **javafx-orchestrator**: Manages the refactoring phase as an optional post-Test-Gate step (or post-Combined-Gate if `deep_testing` is disabled) in the loop state machine, before DocGen
 
 ## EVALUATE.md
 

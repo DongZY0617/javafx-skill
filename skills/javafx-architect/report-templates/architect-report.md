@@ -70,9 +70,13 @@
 
 ### 4.2 Sequence Diagrams
 
+> One sequence diagram is generated **per key use case** (see `references/uml-generation.md` § "Sequence Diagram Best Practices" and Step 3.2 of `SKILL.md`). Repeat the row below for each use case; name each file `sequence-{use-case-slug}.puml` (or `sequence-diagram.puml` when there is a single primary use case).
+
 | Use Case | File | Participants |
 |----------|------|-------------|
-| [use-case-name] | `architecture/uml/sequence-diagram.puml` | [list] |
+| [use-case-1] | `architecture/uml/sequence-[use-case-1].puml` | [list] |
+| [use-case-2] | `architecture/uml/sequence-[use-case-2].puml` | [list] |
+| ... | `architecture/uml/sequence-[use-case-N].puml` | [list] |
 
 ### 4.3 Deployment Diagram
 

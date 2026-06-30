@@ -47,6 +47,7 @@
       "properties": {
         "architecture_pattern": {
           "type": "string",
+          "enum": ["MVC", "MVVM", "MVP", "MVVM + Service Layer", "MVC + Service Layer", "Layered (n-tier)", "Event-Driven", "Plugin Architecture", "Microkernel"],
           "description": "Selected architecture pattern (e.g., 'MVVM + Service Layer')"
         },
         "javafx_version": {
@@ -207,7 +208,7 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["risk", "result", "detail"],
+        "required": ["risk", "result"],
         "properties": {
           "risk": { "type": "string" },
           "result": { "type": "string", "enum": ["passed", "failed", "inconclusive"] },
@@ -218,6 +219,7 @@
     "threat_model": {
       "type": "object",
       "description": "STRIDE threat model (conditional — present only if threat modeling is executed)",
+      "required": ["methodology", "threats", "summary"],
       "properties": {
         "methodology": { "type": "string", "const": "STRIDE" },
         "dfd_diagram": { "type": "string", "description": "Path to PlantUML DFD file" },

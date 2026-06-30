@@ -57,7 +57,7 @@
           "as_a": { "type": "string" },
           "i_want_to": { "type": "string" },
           "so_that": { "type": "string" },
-          "priority": { "type": "string", "enum": ["High", "Medium", "Low"] },
+          "priority": { "type": "string", "enum": ["Must", "Should", "Could"] },
           "estimate_points": { "type": "integer", "minimum": 1 },
           "invest_check": {
             "type": "object",

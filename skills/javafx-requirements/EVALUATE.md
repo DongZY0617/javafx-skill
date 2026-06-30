@@ -107,6 +107,12 @@
 - Architect reads NFRs to constrain technology selection (e.g., performance NFR drives database choice)
 - Architect references RTM requirement IDs in ADRs for traceability
 
+**Verification standards**:
+- [ ] Architect's Step 1 reads `stakeholders[]` from `requirements-handoff.json`
+- [ ] Architect's Step 1 reads `user_stories[]` to identify key use cases for sequence diagrams
+- [ ] Architect's Step 1 reads `non_functional_requirements[]` to constrain technology selection
+- [ ] Architect references RTM requirement IDs (FR-xxx, NFR-xxx) in generated ADRs
+
 ### TC-10: Handoff Consumption by Developer
 
 **Input**: `requirements-handoff.json` is consumed by `javafx-developer` Step 1.
@@ -117,6 +123,12 @@
 - Developer uses `test_naming_convention` for test method names
 - Generated `requirements.md` RTM is seeded from the handoff's `traceability_matrix`
 
+**Verification standards**:
+- [ ] Developer's Step 1 reads `user_stories[]` as basis for `requirements.md` feature list
+- [ ] Developer uses `developer_instructions.req_id_convention` for `@req` annotations
+- [ ] Developer uses `developer_instructions.test_naming_convention` for test method names
+- [ ] Generated `requirements.md` RTM is seeded from `traceability_matrix` in the handoff
+
 ### TC-11: Handoff Consumption by Reviewer
 
 **Input**: `requirements-handoff.json` RTM seed is consumed by `javafx-code-reviewer` Requirements Coverage dimension.
@@ -126,6 +138,12 @@
 - Reviewer checks that every FR-xxx and NFR-xxx in the handoff has `@req` annotations in code
 - Reviewer checks that every `@req` annotation in code references a requirement ID in the handoff
 - If handoff doesn't exist, reviewer falls back to `requirements.md` (existing behavior)
+
+**Verification standards**:
+- [ ] Reviewer uses RTM seed as the authoritative requirement list
+- [ ] Reviewer checks that every FR-xxx and NFR-xxx in the handoff has `@req` annotations in code
+- [ ] Reviewer checks that every `@req` annotation in code references a requirement ID in the handoff
+- [ ] If handoff doesn't exist, reviewer falls back to `requirements.md` (existing behavior)
 
 ### TC-12: Standalone Mode (No Loop)
 
@@ -154,7 +172,23 @@
 - [ ] User stories pass INVEST (all 6 criteria)
 - [ ] NFR section exists but is explicitly marked as out-of-scope
 - [ ] RTM seed has FR-xxx entries only
-- [ ] `conclusion` is `Pass` (scope reduction is intentional, not a failure)
+- [ ] `conclusion` is `Pass`
+
+### TC-16: Schema Version Rejection (Negative)
+
+**Input**: A `requirements-handoff.json` with `"requirements_version": "2.0"` (the schema's `const` is `"1.0"`). User attempts to consume this handoff via `javafx-architect` or `javafx-developer`.
+
+**Expected**:
+- The consuming skill detects the version mismatch against the `const: "1.0"` constraint
+- The handoff is rejected with a clear error message: "requirements_version '2.0' does not match expected '1.0'. Incompatible handoff — regenerate or upgrade."
+- No processing occurs based on the mismatched handoff
+- The consuming skill reports `conclusion: "Fail"` with the version mismatch cited
+
+**Pass criteria**:
+- [ ] Version mismatch is detected before any field-level processing
+- [ ] Error message clearly states the expected version ("1.0") and the actual version ("2.0")
+- [ ] No partial processing occurs — the handoff is rejected in full
+- [ ] `conclusion` is `Fail` with version mismatch as the failure reason (scope reduction is intentional, not a failure)
 
 ### TC-14: Scope — NFR Only (Boundary)
 

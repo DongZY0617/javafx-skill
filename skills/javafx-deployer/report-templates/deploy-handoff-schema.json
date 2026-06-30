@@ -11,9 +11,6 @@
     "deploy_scope",
     "ci_cd",
     "release",
-    "signing",
-    "auto_update",
-    "monitoring",
     "required_secrets",
     "conclusion"
   ],
@@ -24,8 +21,8 @@
     },
     "deployer_version": {
       "type": "string",
-      "const": "1.1",
-      "description": "Deployer skill version. Fixed at 1.1 for this handoff format."
+      "const": "1.2",
+      "description": "Deployer skill version. Fixed at 1.2 for this handoff format."
     },
     "created_at": {
       "type": "string",

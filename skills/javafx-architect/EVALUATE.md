@@ -1,6 +1,6 @@
 # EVALUATE.md — javafx-architect
 
-> 25 evaluation test cases that quantify architecture design quality.
+> 29 evaluation test cases that quantify architecture design quality.
 > Each test case includes: description, input, expected output, and pass criteria.
 
 ## Test Cases
@@ -48,10 +48,10 @@
 **Pass Criteria**: No empty rationale cells. Each rationale references project-specific requirements (not generic).
 
 ### TC-08: Architecture Handoff JSON Structure
-**Description**: Verify handoff JSON is valid against report-schema.json.
+**Description**: Verify handoff JSON is valid against architecture-handoff-schema.json.
 **Input**: Full architecture design request.
 **Expected Output**: `architecture-handoff.json` with all required fields.
-**Pass Criteria**: JSON validates against `report-templates/report-schema.json`. Required fields: project, architect_version, created_at, scope, system_design, developer_instructions, conclusion.
+**Pass Criteria**: JSON validates against `report-templates/architecture-handoff-schema.json`. Required fields: project, architect_version, created_at, scope, system_design, developer_instructions, conclusion.
 
 ### TC-09: Module Decomposition Quality
 **Description**: Modules must have single responsibility and clear boundaries.
@@ -216,3 +216,54 @@
 - [ ] No Security ADR files created
 - [ ] Architecture report notes "Threat modeling skipped: minimal attack surface"
 - [ ] `architect_result.threat_model` is `false` in `.loop-state.json`
+
+### TC-26: Invalid PlantUML Syntax Rejected
+**Description**: When the input contains a PlantUML diagram with syntax errors, the architect must detect and report the error rather than silently producing malformed artifacts.
+**Input**: An existing `class-diagram.puml` with syntax errors (e.g., missing `@enduml`, unbalanced braces, invalid relationship arrow `-->` instead of `-->` with multiplicity, stray `}`).
+**Expected Output**: Architect detects the PlantUML syntax error during validation, reports the specific syntax violation with line number, and halts artifact finalization until corrected. No invalid `.puml` file is committed to `architecture/uml/`.
+**Pass Criteria**:
+- [ ] Architect identifies the syntax error and reports the offending line(s)
+- [ ] Error message references the PlantUML syntax rule that was violated
+- [ ] No malformed `.puml` file is written to `architecture/uml/`
+- [ ] `uml_artifacts` array in handoff JSON does not include the invalid diagram path
+- [ ] Architecture report records the validation failure under a diagnostics/warnings section
+- [ ] Architect provides a corrective suggestion (e.g., "add `@enduml`" or "close unclosed brace")
+
+### TC-27: Fail Conclusion Handling
+**Description**: When the architecture design cannot satisfy the requirements (e.g., conflicting NFRs that cannot be reconciled), the `conclusion` must be set to `Fail`, and the handoff file is still generated but annotated with the failure reason.
+**Input**: "Design the architecture for a JavaFX trading app that must respond to user input in <10ms (real-time NFR) while running a computationally heavy pricing engine synchronously on the JavaFX Application Thread." — The two NFRs (sub-10ms UI responsiveness and blocking UI-thread computation) conflict and cannot be satisfied simultaneously.
+**Expected Output**: `architecture-handoff.json` is still generated with `conclusion: "Fail"`. A `failure_reason` (or equivalent) field documents the conflicting NFRs and why no viable architecture decision could reconcile them. The developer is not triggered for code generation.
+**Pass Criteria**:
+- [ ] `architecture-handoff.json` exists and is valid JSON
+- [ ] `conclusion` is `"Fail"`
+- [ ] A failure reason is documented (e.g., in `failure_reason`, `warnings[]`, or a dedicated field) naming the conflicting NFRs
+- [ ] The conflict is explained with reference to the specific NFRs (e.g., real-time responsiveness vs. blocking computation)
+- [ ] No `developer_instructions` that would trigger code generation are actionable (either absent or explicitly marked as blocked)
+- [ ] `.loop-state.json` records the architect result as `Fail` and does not transition to the developer phase
+- [ ] The architecture report markdown also surfaces the `Fail` conclusion prominently in its summary
+
+### TC-28: Version Mismatch Rejection
+**Description**: When `architecture-handoff.json` contains an `architect_version` that does not match the `const` value declared in `architecture-handoff-schema.json`, validation must reject the file.
+**Input**: An `architecture-handoff.json` with `"architect_version": "2.0"` while the schema declares `"architect_version": { "type": "string", "const": "1.0" }`.
+**Expected Output**: Schema validation fails. The architect (or consuming skill) reports the version mismatch error, identifying the expected (`1.0`) and actual (`2.0`) versions. The handoff is not consumed downstream.
+**Pass Criteria**:
+- [ ] Validation against `architecture-handoff-schema.json` fails with a version-mismatch error
+- [ ] Error message identifies the expected version (`1.0`) and the actual version (`2.0`)
+- [ ] Error message points to the `architect_version` field as the failing property
+- [ ] The handoff file is not consumed by downstream skills (developer/designer)
+- [ ] No artifacts derived from the mismatched handoff are produced
+- [ ] `.loop-state.json` records the validation failure and does not advance to the next phase
+
+### TC-29: Requirements Handoff Consumption
+**Description**: When a `requirements-handoff.json` exists (produced by `javafx-requirements`), the architect's Step 1 must consume `stakeholders`, `user_stories`, and `non_functional_requirements` from it to drive architecture decisions, rather than re-eliciting requirements or ignoring the upstream handoff.
+**Input**: A project where `requirements-handoff.json` is present with: 3 stakeholders (`SH-001`..`SH-003`), 5 user stories (`US-001`..`US-005` mapped to `FR-001`..`FR-005`), and 4 NFRs (e.g., `NFR-PERF-001`: startup <= 3s, `NFR-SEC-001`: password hashing, `NFR-REL-001`: 99.9% uptime, `NFR-UI-001`: WCAG AA contrast). User then requests: "Design the architecture based on the requirements."
+**Expected Output**: The architect reads `requirements-handoff.json` and derives: technology selection justified against the NFRs (e.g., SQLite + connection pooling for `NFR-PERF-001`), module decomposition covering all functional requirements (`FR-001`..`FR-005`), ADRs that reference specific NFRs, and threat model entries driven by `NFR-SEC-001`. The architecture-handoff.json traces back to the requirement IDs.
+**Pass Criteria**:
+- [ ] Architect detects and reads `requirements-handoff.json` in Step 1 (no re-elicitation of stakeholders/stories)
+- [ ] `system_design` module decomposition covers all `FR-xxx` IDs from `user_stories[]`
+- [ ] Technology selection rationale references at least 2 NFRs by ID (e.g., `NFR-PERF-001`, `NFR-SEC-001`)
+- [ ] At least one ADR cites a specific NFR ID as part of its Context/Decision
+- [ ] `threat_model.threats[]` (when present) maps to security-related NFRs (e.g., `NFR-SEC-001` password hashing → Spoofing threat)
+- [ ] `architecture-handoff.json` `developer_instructions` aligns with `requirements-handoff.json` `developer_instructions` (req_id_convention, annotation_format, test_naming_convention)
+- [ ] Stakeholder goals from `stakeholders[]` are reflected in the architecture's priorities (e.g., high-influence stakeholder goals drive Must-priority architectural decisions)
+- [ ] The traceability chain is preserved: `FR-xxx` / `NFR-xxx` → architecture decision → ADR/handoff field

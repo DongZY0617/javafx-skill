@@ -13,7 +13,7 @@
     },
     "report_version": {
       "type": "string",
-      "const": "1.1",
+      "const": "1.2",
       "description": "Report format version. Incremented when the report schema structure changes. This tracks the report format, kept in sync with the SKILL.md version."
     },
     "project_info": {

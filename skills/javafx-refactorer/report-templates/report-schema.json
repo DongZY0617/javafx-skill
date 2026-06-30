@@ -67,7 +67,8 @@
       "items": {
         "type": "object",
         "required": [
-          "refactor_id", "type", "smell_ids", "target_file",
+          "refactor_id", "type", "smell_ids", "target_file", "target_lines",
+          "fix_type", "fix_priority", "code_fingerprint", "anchor_pattern", "ast_node_signature",
           "description", "effort", "priority",
           "before_snippet", "after_snippet", "behavior_equivalence_check"
         ],
@@ -90,6 +91,34 @@
             "items": { "type": "string", "pattern": "^SMELL-\\d{3}$" }
           },
           "target_file": { "type": "string" },
+          "target_lines": {
+            "type": "string",
+            "pattern": "^\\d+(-\\d+)?$",
+            "description": "Line range in the target file to modify, e.g., '45-60' or '78'. Unified Fix Handoff field — consumed by developer Fix Consumption Protocol. Aligned with refactor-handoff-schema.json."
+          },
+          "fix_type": {
+            "type": "string",
+            "enum": ["replace", "insert", "delete"],
+            "description": "Fix operation type. Refactoring actions typically use 'replace' or 'insert'. Unified Fix Handoff field — consumed by developer Fix Consumption Protocol. Aligned with refactor-handoff-schema.json."
+          },
+          "fix_priority": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Fix priority for batch ordering (1 = highest). Derived from the refactoring action priority and phase. Unified Fix Handoff field — consumed by developer Fix Consumption Protocol. Aligned with refactor-handoff-schema.json."
+          },
+          "code_fingerprint": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$",
+            "description": "SHA-256 hash of the problematic code snippet (whitespace-normalized). Used for drift-resistant matching in the developer's 4-level location hierarchy. Unified Fix Handoff field — consumed by developer Fix Consumption Protocol. Aligned with refactor-handoff-schema.json."
+          },
+          "anchor_pattern": {
+            "type": "string",
+            "description": "Surrounding context signature (2 lines before + 2 lines after the target code) for secondary location matching. Unified Fix Handoff field — consumed by developer Fix Consumption Protocol. Aligned with refactor-handoff-schema.json."
+          },
+          "ast_node_signature": {
+            "type": ["string", "null"],
+            "description": "AST-level anchor: fully qualified method/field/class signature. Null for non-Java files. Unified Fix Handoff field — consumed by developer Fix Consumption Protocol. Aligned with refactor-handoff-schema.json."
+          },
           "description": { "type": "string" },
           "new_files": {
             "type": "array",

@@ -71,7 +71,7 @@ app.setUserName(name);
 
 ## 2. JavaFX-Specific Code Smells
 
-Beyond standard Fowler smells, JavaFX projects exhibit UI-framework-specific smells. These are first-class entries in the smell catalog, typed with a `javafx_` prefix.
+Beyond standard Fowler smells, JavaFX projects exhibit UI-framework-specific smells. These are first-class entries in the smell catalog, using descriptive names without a prefix (e.g., `ui_logic_in_controller`, `blocking_ui_thread`).
 
 | # | Smell | Definition | Detection Heuristic | Example | Fix Recommendation |
 |---|-------|------------|---------------------|---------|--------------------|

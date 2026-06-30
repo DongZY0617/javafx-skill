@@ -88,6 +88,7 @@ When the user request contains ambiguous keywords that could trigger either desi
    - **Prototype Only**: Only FXML prototype generation — for quick layout mockups
    - **Theme Only**: Only CSS theme system — for restyling existing projects
    - **Flow Only**: Only interaction flow diagram — for planning user journeys
+   - **Responsive Only**: Only responsive layout specifications — for adapting existing UIs to different window sizes
 5. **Declare design scope**: Annotate the design scope in the report header
 
 ### Step 2: Interaction Flow Design
@@ -159,7 +160,7 @@ graph TD
    - **Text colors**: Primary, secondary
    - **Border color**: Subtle separation
    - **Semantic colors**: Success (green), Warning (amber), Danger (red), Info (blue)
-2. **Define typography**: Font family, sizes (caption 12px, body 13px, title 18px, headline 24px), weights
+2. **Define typography**: Font family, sizes (caption 12px, body 13px, subtitle 15px, title 18px, headline 24px), weights
 3. **Define spacing system**: Consistent padding/margin values (xs 4px, sm 8px, md 12px, lg 16px, xl 24px)
 4. **Define border radius**: sm 4px, md 6px, lg 8px
 5. **Generate CSS variables**: Define all design tokens as CSS variables in the `.root` selector
@@ -191,6 +192,11 @@ graph TD
    | Delete button | `mdal-delete` | `\ue872` |
 4. **Generate icon config**: Write `design/icons/icon-config.json` with the icon mapping
 5. **Provide Maven dependency**: Output the Ikonli Maven dependency snippet for `pom.xml`:
+
+   > **Version sync note**: The Ikonli version (currently `12.3.1`) is hardcoded in this `SKILL.md` and in `references/icon-management.md`. Keep them in sync — update both files together when upgrading Ikonli. The version also propagates to `design-handoff.json` (`icons.version`) and `icon-config.json` (`version`).
+   >
+   > **TODO**: Consider extracting the Ikonli version into a shared configuration variable or `.loop-config.json` field to eliminate manual sync across 4 locations.
+
    ```xml
    <dependency>
        <groupId>org.kordamp.ikonli</groupId>
@@ -283,6 +289,9 @@ design/
 - **fx:id must be unique**: Within a single FXML file, all `fx:id` values must be unique
 - **Mermaid syntax must be valid**: The interaction flow diagram must use valid Mermaid flowchart syntax (`graph TD` / `graph LR`)
 - **Icon literals must be accurate**: Ikonli icon literal codes must match the selected icon pack's actual codes
+- **Responsive layout requirements**: Root containers must declare minWidth and minHeight; center regions must not use fixed dimensions
+- **Control tree preview**: Every FXML file must be accompanied by a control tree preview showing the node hierarchy
+- **Accessibility for icon-only controls**: Icon-only buttons must set accessibleText for screen reader compatibility
 
 ## Loop Orchestration Protocol
 
@@ -325,7 +334,8 @@ In `.loop-state.json`:
     "screens_designed": 3,
     "artifacts": ["design/fxml/main-view.fxml", "design/css/light-theme.css", ...],
     "handoff_file": "design/design-handoff.json",
-    "timestamp": "2026-06-29T10:00:00Z"
+    "conclusion": "Pass | Pass with warnings | Fail",
+    "timestamp": "2026-06-30T10:00:00Z"
   }
 }
 ```
@@ -360,7 +370,7 @@ For in-depth guidance, refer to these documents in the `references/` directory:
 |-------|-------------|
 | `javafx-developer` | **Downstream consumer**: Developer consumes Designer's FXML prototypes, CSS themes, and icon configs in Step 4. If Designer ran, Developer skips its own template-based FXML/CSS generation and uses Designer's artifacts instead |
 | `javafx-orchestrator` | **Coordinator**: Orchestrator triggers Designer as an optional pre-generation phase when the user requests "design and generate". Orchestrator manages the design → generate handoff |
-| `javafx-code-reviewer` | **No direct interaction**: Reviewer reviews the final code (after developer generates from designer's artifacts). Reviewer's FXML Standards dimension validates the FXML that originated from Designer |
+| `javafx-code-reviewer` | **Indirect — reviewer audits FXML standards and CSS compliance on designer-produced artifacts**: Reviewer reviews the final code (after developer generates from designer's artifacts). Reviewer's FXML Standards dimension validates the FXML that originated from Designer |
 | `javafx-runner` | **No direct interaction**: Runner verifies the compiled project. Designer's FXML must be valid for the project to compile |
 | `javafx-docgen` | **No direct interaction**: DocGen generates documentation from the final code. Designer's interaction flow diagram may be referenced in the user manual |
 

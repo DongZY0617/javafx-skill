@@ -261,7 +261,7 @@ This file defines the acceptance test cases for the JavaFX Developer skill, used
 
 ---
 
-## Test Case 14: Fix Consumption — Multi-Source Handoff Merge (Positive)
+## Test Case 14: Fix Consumption — Multi-Source Handoff Merge, Orchestrated Mode (Positive)
 
 **Input**: A merged fix handoff batch from the orchestrator containing fixes from both `javafx-code-reviewer` (4 fixes) and `javafx-runner` (2 fixes). Two fixes target the same file with overlapping line ranges: reviewer Fix A (lines 45-60, Critical) and runner Fix B (lines 50-55, Major). The orchestrator has already deduplicated these (kept Fix A, the higher severity), recording `dedup_merged_from: "runner"` on Fix A.
 
@@ -272,11 +272,31 @@ This file defines the acceptance test cases for the JavaFX Developer skill, used
 - Fix Summary lists all 5 fixes, with Fix A noting it superseded a runner fix
 
 **Verification standards**:
-- [ ] The developer does NOT re-deduplicate (the orchestrator already did this) — it consumes the merged batch as-is
+- [ ] The developer detects the `dedup_merged_from` field on entries and skips re-deduplication (orchestrated mode) — it consumes the pre-merged batch as-is
 - [ ] Fix A's `dedup_merged_from` field is preserved in the Fix Summary for traceability
 - [ ] Fixes from both sources are sorted by `fix_priority` across the entire merged batch
 - [ ] The `source` field (`reviewer` or `runner`) is preserved per fix in the Fix Summary
 - [ ] Total fixes applied = 5 (not 6), confirming dedup was respected
+
+---
+
+## Test Case 14.1: Fix Consumption — Multi-Source Handoff Merge, Standalone Mode (Positive)
+
+**Input**: The developer is invoked in standalone mode (no orchestrator) and directly receives two separate fix handoff reports: one from `javafx-code-reviewer` (4 fixes) and one from `javafx-runner` (2 fixes). No entry carries a `dedup_merged_from` field. Two fixes target the same file with overlapping line ranges: reviewer Fix A (lines 45-60, Critical) and runner Fix B (lines 50-55, Major).
+
+**Expected output**:
+- Developer detects the absence of `dedup_merged_from` and activates standalone deduplication
+- Fix A and Fix B are deduplicated: Fix A (Critical) is kept, Fix B (Major) is discarded
+- Fix A's `dedup_merged_from` field is set to `"runner"` by the developer (mirroring the orchestrator's field name)
+- The resulting batch has 5 fixes (not 6), sorted by `fix_priority` ascending
+
+**Verification standards**:
+- [ ] The developer detects NO `dedup_merged_from` field on any entry and activates standalone deduplication
+- [ ] Overlapping entries on the same file are deduplicated (same `target_file` + overlapping `target_lines`)
+- [ ] The higher-severity entry (Fix A, Critical) is kept; the lower-severity entry (Fix B, Major) is discarded
+- [ ] The kept entry's `dedup_merged_from` field is populated with the discarded entry's source (`"runner"`) for traceability
+- [ ] Total fixes applied = 5 (not 6), confirming standalone dedup was performed
+- [ ] The deduplicated batch is re-sorted by `fix_priority` ascending across all sources
 
 ---
 
@@ -285,7 +305,7 @@ This file defines the acceptance test cases for the JavaFX Developer skill, used
 **Input**: User requests "design the architecture and generate code for a user management app". The orchestrator runs `javafx-architect` first, producing `architecture-handoff.json` with `system_design.architecture_pattern: "MVVM + Service Layer"`, `database_schema` with 3 tables, and `developer_instructions` specifying `@req` annotation format. Then `javafx-developer` is triggered.
 
 **Expected output**:
-- Developer Step 1 checks for `architecture-handoff.json` and consumes it
+- Developer Step 4 checks for `architecture-handoff.json` and consumes it
 - The generated project follows the MVVM + Service Layer pattern from the handoff
 - Database integration follows the `database_schema` (table names, column types, indexes match)
 - `@req` annotations in generated code follow the `req_id_convention` from the handoff

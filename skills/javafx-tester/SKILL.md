@@ -58,7 +58,9 @@ When a user request matches both `javafx-runner` ("compile/run/verify/smoke test
 - **Sequential execution**: When the user asks to "verify and then deep test", first have runner do smoke verification, then have tester do deep testing (tester requires a runnable project)
 - **Mixed intent split into steps**: When the user asks to "test everything", execute runner first (compile + run + package), then tester (performance + security + a11y + visual regression)
 
-## Testing Dimensions
+## Testing Dimensions Overview
+
+> **Note**: This is a quick-reference summary. For full check items, severity baselines, and typical violations, see the detailed **Testing Dimensions** section below (after the Testing Workflow).
 
 | Dimension | Reference Document | Tool Requirements | Relationship to Other Skills |
 |-----------|-------------------|-------------------|------------------------------|
@@ -123,7 +125,7 @@ The four testing dimensions have **no data dependency** on each other — perfor
 
 Execute performance benchmarks and capture metrics. Default severity baseline: Major.
 
-#### 2.1 Startup Time Benchmark
+#### 3.1 Startup Time Benchmark
 
 1. **Cold startup measurement**: Execute `mvn javafx:run` (or packaged JAR) and measure time from process start to primary window visible
    - Use `System.currentTimeMillis()` or `Instant.now()` in application `start()` method
@@ -136,7 +138,7 @@ Execute performance benchmarks and capture metrics. Default severity baseline: M
    - Cold startup 5-10 seconds → Major (noticeable delay, users may think app is hanging)
    - Cold startup > 10 seconds → Critical (unacceptable for desktop application)
 
-#### 2.2 UI Response Latency
+#### 3.2 UI Response Latency
 
 1. **Event handling latency**: For key user interactions (button click, table selection, search input), measure time from event trigger to UI update completion
    - Use `Platform.runLater()` with timestamp logging, or TestFX `interact()` with timing
@@ -147,14 +149,14 @@ Execute performance benchmarks and capture metrics. Default severity baseline: M
    - Response 300-1000ms → Major (feels sluggish)
    - Response > 1000ms → Critical (UI appears frozen, likely blocking FX thread)
 
-#### 2.3 Memory Footprint
+#### 3.3 Memory Footprint
 
 1. **Baseline memory**: Measure JVM heap usage after application startup stabilizes (using `Runtime.getRuntime().totalMemory() - freeMemory()` or JMX)
 2. **Memory growth trend**: Monitor heap usage over 5 minutes of simulated usage (open/close windows, load/save data, navigate views)
 3. **Threshold evaluation**:
    - Stable heap (growth < 10MB over 5 min) → Pass
    - Slow growth (10-50MB over 5 min) → Minor (possible minor leak)
-   - Moderate growth (50-100MB over 5 min) → Major (likely memory leak, cross-reference reviewer's Memory Leak Risks dimension)
+   - Moderate growth (50-100MB over 5 min) → Major (likely memory leak, cross-reference reviewer's Memory Management dimension)
    - Rapid growth (> 100MB over 5 min) → Critical (severe memory leak, will cause OutOfMemoryError)
 
 ### Step 4: Security Testing (Track B)
@@ -163,7 +165,7 @@ Execute performance benchmarks and capture metrics. Default severity baseline: M
 
 Execute security scans and vulnerability checks. Default severity baseline: Major.
 
-#### 3.1 Dependency Vulnerability Scan
+#### 4.1 Dependency Vulnerability Scan
 
 1. **Execute OWASP Dependency-Check**: Run `mvn org.owasp:dependency-check-maven:check` (or CLI `dependency-check --project <name> --scan target/`)
 2. **Parse CVE findings**: Extract CVE ID, severity (CVSS score), affected dependency, and vulnerability description
@@ -174,7 +176,7 @@ Execute security scans and vulnerability checks. Default severity baseline: Majo
    - CVSS < 4.0 (Low) → Minor
 4. **Suppression validation**: Check if existing `suppressions.xml` is valid and not suppressing real vulnerabilities
 
-#### 3.2 Input Fuzz Testing
+#### 4.2 Input Fuzz Testing
 
 1. **Text input fuzzing**: For all `TextField` / `TextArea` inputs, inject:
    - Empty string, very long string (10,000+ chars), special characters (`<>"'&`)
@@ -187,7 +189,7 @@ Execute security scans and vulnerability checks. Default severity baseline: Majo
    - Uncaught exception but application continues → Major (input not validated)
    - Application crash or hang → Critical (input can cause denial of service)
 
-#### 3.3 WebView Security
+#### 4.3 WebView Security
 
 > Skip this check if the project does not use `WebView` / `WebEngine`.
 
@@ -200,7 +202,7 @@ Execute security scans and vulnerability checks. Default severity baseline: Majo
    - WebView with JavaScript enabled but no input validation → Major
    - WebView loading arbitrary file:// URLs from user input → Critical
 
-#### 3.4 Threat Model Cross-Reference (Conditional)
+#### 4.4 Threat Model Cross-Reference (Conditional)
 
 > **Conditional check**: Only executed if `architecture/architecture-handoff.json` exists and contains a `threat_model` section. Skip if no threat model is present.
 
@@ -221,7 +223,7 @@ Execute security scans and vulnerability checks. Default severity baseline: Majo
 
 Execute accessibility checks for WCAG 2.1 AA compliance. Default severity baseline: Minor.
 
-#### 4.1 Keyboard Navigation
+#### 5.1 Keyboard Navigation
 
 1. **Tab order traversal**: Verify all interactive controls (Button, TextField, ComboBox, TableView, etc.) are reachable via Tab key in logical order
 2. **Focus visibility**: Verify focus indicators are visible (default JavaFX focus ring or custom focus styling)
@@ -232,7 +234,7 @@ Execute accessibility checks for WCAG 2.1 AA compliance. Default severity baseli
    - Focus indicator invisible (removed via CSS `:focused` without replacement) → Minor
    - No keyboard navigation possible (all interactions mouse-only) → Critical
 
-#### 4.2 Color Contrast
+#### 5.2 Color Contrast
 
 1. **Text contrast ratio**: For all text elements, calculate contrast ratio between foreground and background colors
    - Parse CSS files for `-fx-text-fill` and background colors
@@ -242,7 +244,7 @@ Execute accessibility checks for WCAG 2.1 AA compliance. Default severity baseli
    - Large text (font-size ≥ 18pt or ≥ 14pt bold): ratio ≥ 3.0:1 → Pass
    - Below threshold → Major (fails WCAG AA, may be unreadable for visually impaired users)
 
-#### 4.3 Screen Reader Compatibility
+#### 5.3 Screen Reader Compatibility
 
 1. **ARIA-like labels**: Check if controls have `accessibleText` / `accessibleHelp` properties set
 2. **Image alternative text**: Check if `ImageView` elements have `accessibleText` for decorative or informational images
@@ -395,7 +397,7 @@ Execute pixel-level screenshot comparison against baseline snapshots to detect u
 - **Layout stability**: No unintended layout shifts detected → Pass; rectangular diff regions → layout regression
 - **Color stability**: No unintended color changes detected → Pass; uniform element diff → color regression
 - **Element presence**: All expected elements present in screenshot → Pass; large diff region → missing element
-- **Baseline freshness**: Baseline `last_updated` within reasonable timeframe → Pass; stale baseline → Info (recommend re-capture)
+- **Baseline freshness**: Baseline `last_updated` within 90 days → Pass; baseline older than 90 days → Info (recommend re-capture). The `baseline_stale_days` threshold defaults to 90 and can be configured via `.loop-config.json`
 - **Diff image generation**: Diff visualization saved for each regression → required for Major/Critical issues
 
 > **Typical failure example**: Developer changes a CSS file to adjust button padding, but the change inadvertently shifts the entire toolbar layout by 4 pixels — visual regression detects 8% diff ratio (Major) on the main-view/default snapshot. The diff image clearly shows the toolbar shift in red. Fix: adjust the CSS padding to only affect the intended button, or update the baseline if the shift was intentional.
@@ -495,6 +497,7 @@ The test gate is evaluated **after** the Combined Gate (reviewer + runner) passe
 | Pass | Loop Passed | Deliver |
 | Conditional Pass | Loop Passed (with notes) | Deliver, record minor issues for next iteration |
 | Fail | Loop Continues | Route to developer for Fix Consumption |
+| Skipped (all tracks) | Pass | **Skipped** — Skip Test Gate, proceed to DocGen (tester dependencies missing or deep_testing disabled) |
 
 > **Test Gate is optional**: If `.loop-config.json` has `"deep_testing": false`, the Test Gate is skipped and the Combined Gate (reviewer + runner) is the final gate. This is useful for projects where deep testing is not yet required.
 
@@ -536,7 +539,7 @@ The loop state is serialized to `.loop-state.json` in the project root directory
 ## Relationship to Other Skills
 
 - **javafx-runner**: Tester is triggered **after** runner passes. Runner does smoke verification (does it start?), tester does deep testing (is it good enough?)
-- **javafx-code-reviewer**: Reviewer's static checks (Memory Leak Risks, Performance, Security Checklist) are complemented by tester's dynamic measurements. Reviewer finds potential issues, tester confirms actual impact
+- **javafx-code-reviewer**: Reviewer's static checks (Memory Management, Performance, Security Checklist) are complemented by tester's dynamic measurements. Reviewer finds potential issues, tester confirms actual impact
 - **javafx-developer**: Developer consumes tester's Fix Handoff entries via the same Fix Consumption Protocol as reviewer and runner reports
 
 ## Reference Documents

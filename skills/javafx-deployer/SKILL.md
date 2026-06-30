@@ -168,6 +168,7 @@ When a user request matches both `javafx-runner` ("verify packaging / try packag
    - Compares the manifest version with the current app version (semantic versioning comparison)
    - If an update is available, prompts the user with a dialog showing version, release notes, and download link
    - Downloads the new installer to a temp directory
+   - **Verifies download integrity**: Computes SHA-256 of the downloaded installer file and compares it against the `sha256` field in the manifest for the matching platform. If the hash does not match, deletes the downloaded file, logs a security warning, and aborts the update (does NOT launch the installer). This prevents executing a tampered or corrupted installer (supply-chain attack protection).
    - Launches the installer and exits the current app
 3. **Update manifest template**: Generate a JSON manifest template for the server:
    ```json
@@ -305,6 +306,13 @@ If rollback strategy is requested, implement version pinning, post-release healt
 3. **Deployment handoff summary**: Produce a `deploy-handoff.json` file documenting what was configured:
    ```json
    {
+     "project": "my-app",
+     "deployer_version": "1.2",
+     "created_at": "2026-06-30T10:00:00Z",
+     "deploy_scope": {
+       "mode": "Full Deployment",
+       "dimensions": ["ci_cd", "release", "signing", "auto_update", "monitoring", "distribution", "rollback"]
+     },
      "ci_cd": {
        "platform": "github-actions",
        "workflow_file": ".github/workflows/build.yml",
@@ -348,9 +356,27 @@ If rollback strategy is requested, implement version pinning, post-release healt
       "grace_period_hours": 24,
       "crash_threshold": 3,
       "rollback_enabled": true
-    }
+    },
+    "required_secrets": ["WINDOWS_CERT_PFX", "WINDOWS_CERT_PASSWORD", "APPLE_ID", "APPLE_TEAM_ID", "APPLE_APP_PASSWORD"],
+    "production_feedback": {
+      "health_check_endpoint": "https://<your-api-domain>/api/v1/health",
+      "crash_report_endpoint": "https://<your-api-domain>/api/v1/crash-report",
+      "rollback_triggered": false,
+      "rollback_reason": "none",
+      "feedback_to_loop": false
+    },
+    "conclusion": "Pass"
   }
   ```
+
+4. **Production feedback configuration**: Populate the `production_feedback` field in `deploy-handoff.json` based on the monitoring and rollback setup:
+   - `health_check_endpoint`: Set to the health check API endpoint configured in Step 6 (Monitoring). If monitoring was not activated, set to empty string.
+   - `crash_report_endpoint`: Set to the crash report API endpoint configured in Step 6 (Monitoring), consumed by `CrashHandler.maybeReportRemote()`. If monitoring was not activated, set to empty string.
+   - `rollback_triggered`: **Always `false`** at configuration generation time — Deployer only generates configs and does not execute deployments. This field is reserved for runtime population by the deployed application's `RollbackState` monitor.
+   - `rollback_reason`: **Always `"none"`** at configuration generation time. Updated at runtime if auto-rollback triggers.
+   - `feedback_to_loop`: Set to `true` only if the user explicitly requests production-to-development feedback (e.g., "if crashes happen in production, automatically open a new fix round"). Default is `false` — production feedback is informational only. When `true`, the orchestrator reads `deploy_result.production_feedback` from `.loop-state.json` and, if `rollback_triggered` becomes `true` at runtime, may initiate a new fix round targeting the crash-related issues.
+
+> **Note**: Since Deployer is configuration-only (does not execute builds or deployments), `production_feedback` captures the *feedback infrastructure configuration* — the endpoints and policies that will be active in production. The actual `rollback_triggered` and `rollback_reason` values are populated at runtime by the deployed application and reported back via the health check CI/CD job (Step 8, item 4).
 
 ## Deployment Artifacts Structure
 

@@ -139,7 +139,7 @@ When a user request matches both `javafx-requirements` ("requirements / user sto
 ```
 
 3. **Assign requirement IDs**: Each user story gets a stable ID (`US-001`, `US-002`, ...) that maps to functional requirement IDs (`FR-001`, `FR-002`, ...) for traceability
-4. **Prioritize**: Use MoSCoW (Must/Should/Could/Won't) or priority levels (High/Medium/Low) based on stakeholder input
+4. **Prioritize**: Use MoSCoW (Must/Should/Could/Won't) for both user stories and NFRs — `Must`/`Should`/`Could` are the canonical priority values across the entire skill set
 5. **Output**: Write all user stories to `requirements/user-stories.md`
 
 ### Step 3: Non-Functional Requirements

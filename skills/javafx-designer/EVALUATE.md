@@ -27,6 +27,11 @@ This file defines the acceptance test cases for the `javafx-designer` skill, use
 | 13 | Standalone mode (no loop) | Boundary | All 5 | Artifacts + standalone_complete |
 | 14 | Pre-generation mode (with loop) | Boundary | All 5 | Artifacts + generating next_action |
 | 15 | No production code generated | Negative | All 5 | No .java files in design/ |
+| 16 | Invalid FXML rejected | Negative | Prototype | Error report, no FXML output |
+| 17 | Duplicate fx:id detected | Negative | Prototype | Error report, validation failure |
+| 18 | Mermaid syntax error | Negative | Flow | Error report, no .mmd output |
+| 19 | Hardcoded CSS color detected | Negative | Theme | Error report, validation failure |
+| 20 | Architecture handoff consumption | Positive | Prototype | FXML aligned to architecture_pattern |
 
 ---
 
@@ -93,12 +98,13 @@ This file defines the acceptance test cases for the `javafx-designer` skill, use
 
 ## Case 4: Theme Only — Restyle Existing App
 
-- **Input**: "Design a dark theme for my existing JavaFX app. Use a purple primary color (#7c3aed) and slate gray backgrounds."
+- **Input**: "Design a dark theme for my existing JavaFX app. Use a purple primary color (#7c3aed) and slate gray backgrounds. The dark theme is the primary deliverable; the light theme should be auto-generated as a structural mirror to satisfy the light/dark structural identity rule."
 - **Type**: Boundary case
 - **Covered Dimensions**: Theme only
 - **Expected Artifacts**:
-  - `design/css/light-theme.css` and `design/css/dark-theme.css` only
+  - `design/css/dark-theme.css` (primary output — the user-requested dark theme with #7c3aed primary and slate gray backgrounds) and `design/css/light-theme.css` (structural mirror — same selectors and CSS variable names, only color values differ)
   - No FXML, Mermaid, or icon files
+- **Note**: The dark theme is the primary output explicitly requested by the user; the light theme is generated as a structural mirror because theme switching requires a structurally identical counterpart (see `references/theme-system.md` — "dark theme must be structurally identical to the light theme"). Both must be produced even though only the dark theme was explicitly requested.
 - **Verification Standards**:
   - [ ] Only CSS files are generated
   - [ ] Design report scope is "Theme Only"
@@ -275,3 +281,101 @@ This file defines the acceptance test cases for the `javafx-designer` skill, use
   - [ ] No `pom.xml` is created or modified (only Maven dependency snippet is provided in report)
   - [ ] No `module-info.java` is generated
   - [ ] Designer produces only FXML, CSS, Mermaid, and JSON artifacts
+
+---
+
+## Case 16: Invalid FXML Rejected
+
+- **Input**: "Design a JavaFX login form." — but the input/reference FXML contains malformed XML (e.g., unclosed `<TextField>` tag, mismatched `</VBox>` closing tag, attribute without quotes).
+- **Type**: Negative sample
+- **Covered Dimensions**: Prototype
+- **Expected Artifacts**: Error/diagnostic report; no FXML file committed to `design/fxml/`.
+- **Verification Standards**:
+  - [ ] Designer detects the malformed XML during the FXML validation phase (Step 2)
+  - [ ] An error is reported identifying the specific XML well-formedness violation (e.g., "unclosed tag `<TextField>` at line N")
+  - [ ] No invalid `.fxml` file is written to `design/fxml/`
+  - [ ] `design-handoff.json` is either not produced or marked with a validation failure / `conclusion: "Fail"`
+  - [ ] Designer does not attempt to generate controllers or downstream artifacts from the malformed FXML
+  - [ ] The error message includes a corrective hint (e.g., "close the `<TextField>` tag")
+
+---
+
+## Case 17: Duplicate fx:id Detected
+
+- **Input**: "Design a settings dialog with general, appearance, and notification tabs." — the generated/reviewed FXML inadvertently assigns the same `fx:id="tabPane"` to two distinct controls (e.g., two TabPanes).
+- **Type**: Negative sample
+- **Covered Dimensions**: Prototype
+- **Expected Artifacts**: Validation error report; FXML retained only after the duplicate is resolved.
+- **Verification Standards**:
+  - [ ] Designer detects the duplicate `fx:id` during the FXML validation phase (fx:id uniqueness check, Step 2)
+  - [ ] The error identifies the duplicated `fx:id` value and both offending control locations (line numbers)
+  - [ ] The duplicate `fx:id` is flagged before any handoff is finalized
+  - [ ] `design-handoff.json` lists each control with a unique `fx:id` (no duplicates after correction)
+  - [ ] If not auto-corrected, `conclusion` is `"Fail"` with the duplicate cited as the failure reason
+  - [ ] No two controls in the final FXML share the same `fx:id`
+
+---
+
+## Case 18: Mermaid Syntax Error
+
+- **Input**: "Design the interaction flow for a login system." — the generated/reviewed Mermaid file contains syntax errors (e.g., missing `graph TD` declaration, invalid edge `==>` instead of `-->`, node id with spaces `A[Login Screen]` used as `A Login Screen`).
+- **Type**: Negative sample
+- **Covered Dimensions**: Flow
+- **Expected Artifacts**: Error/diagnostic report; no `.mmd` file committed to `design/flow/`.
+- **Verification Standards**:
+  - [ ] Designer detects the Mermaid syntax error during the flow validation phase
+  - [ ] The error identifies the specific syntax violation and offending line
+  - [ ] No invalid `.mmd` file is written to `design/flow/`
+  - [ ] `design-handoff.json` `interaction_flow` is either absent or marked invalid
+  - [ ] Designer does not proceed to render or embed the broken diagram
+  - [ ] The error message includes a corrective suggestion (e.g., "use `-->` for edges" or "start with `graph TD`")
+
+---
+
+## Case 19: Hardcoded CSS Color Detected
+
+- **Input**: "Design themes for a JavaFX app with a blue primary color." — the generated CSS contains hardcoded color literals (e.g., `.button { -fx-background-color: #2563eb; }`) instead of referencing a CSS variable defined in `.root`.
+- **Type**: Negative sample
+- **Covered Dimensions**: Theme
+- **Expected Artifacts**: Validation error report; CSS accepted only after colors are converted to CSS variables.
+- **Verification Standards**:
+  - [ ] Designer detects hardcoded hex/rgb color values in component selectors (outside `.root`) during the theme validation phase
+  - [ ] Each hardcoded color is reported with the file, selector, and line number
+  - [ ] The violation is explained: component styles must reference CSS variables (e.g., `-fx-background-color: -fx-primary-color`) defined in `.root`
+  - [ ] CSS files are accepted only after all hardcoded colors are replaced with variable references
+  - [ ] If not corrected, `conclusion` is `"Fail"` with hardcoded colors cited as the failure reason
+  - [ ] Both light and dark theme files reference the same CSS variable names (no hardcoded colors)
+
+---
+
+## Case 20: Architecture Handoff Consumption
+
+- **Input**: A project where `architecture-handoff.json` exists (produced by `javafx-architect`) with `system_design.architecture_pattern` set to `"MVVM"` and `developer_instructions.package_structure` defining the package layout. User then requests: "Design the UI based on the architecture."
+- **Type**: Positive sample
+- **Covered Dimensions**: Prototype (and aligned All 5 when full scope)
+- **Expected Artifacts**: FXML whose structure aligns with the consumed `architecture_pattern`, plus `design-handoff.json` referencing the architecture.
+- **Verification Standards**:
+  - [ ] Designer detects and reads `architecture-handoff.json` in Step 1.2 (does not re-derive the architecture pattern)
+  - [ ] FXML structure aligns with `system_design.architecture_pattern`:
+    - `MVC` → FXML uses `fx:controller` with direct model/service references
+    - `MVVM` → FXML binds to ViewModel properties (`fx:id` + `@FXML` fields intended for ViewModel binding), no direct service/repository references in the controller
+    - `MVP` → FXML uses a passive view with presenter-mediated event handlers
+  - [ ] Controller class names and package paths follow `developer_instructions.naming_convention` and `package_structure` from the handoff
+  - [ ] `design-handoff.json` records the consumed `architecture_pattern` and references the source `architecture-handoff.json`
+  - [ ] Screen/control decomposition mirrors the `system_design.modules[]` boundaries (e.g., one view per module where applicable)
+  - [ ] When the architecture handoff specifies a `database` (non-"none"), the designer does NOT generate data-access FXML logic (stays in the presentation layer per `developer_instructions.layering_rule`)
+  - [ ] Designer does not contradict architectural layering rules (e.g., no direct JDBC calls wired in FXML/controller for an MVVM + Service Layer architecture)
+
+---
+
+## Case 21: Design Handoff Schema Version Rejection (Negative)
+
+- **Input**: A `design-handoff.json` with `"design_version": "2.0"` (the schema's `const` is `"1.0"`). User attempts to consume this handoff via `javafx-developer`.
+- **Type**: Negative sample
+- **Expected Artifacts**: Error/diagnostic report; no code generation from the mismatched handoff.
+- **Verification Standards**:
+  - [ ] Developer detects the version mismatch against the `const: "1.0"` constraint before any field-level processing
+  - [ ] Error message clearly states the expected version ("1.0") and the actual version ("2.0")
+  - [ ] No partial processing occurs — the handoff is rejected in full
+  - [ ] No FXML, CSS, or controller code is generated from the mismatched handoff
+  - [ ] `conclusion` is `Fail` with version mismatch cited as the failure reason
