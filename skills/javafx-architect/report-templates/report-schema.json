@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://javafx-skill/architect-report-schema.json",
+  "$id": "https://javafx-skill.dev/schemas/architect-report.json",
   "title": "JavaFX Architect Report",
   "description": "JSON schema for the architecture design report produced by javafx-architect",
   "type": "object",
@@ -20,7 +20,7 @@
     },
     "architect_version": {
       "type": "string",
-      "const": "1.0"
+      "const": "1.1"
     },
     "created_at": {
       "type": "string",
@@ -28,7 +28,7 @@
     },
     "scope": {
       "type": "string",
-      "enum": ["full", "system_design_only", "uml_only", "adr_only"]
+      "enum": ["full", "system_design_only", "uml_only", "adr_only", "threat_modeling_only"]
     },
     "conclusion": {
       "type": "string",
@@ -94,7 +94,109 @@
     "uml_artifacts": {
       "type": "array",
       "items": { "type": "string" },
-      "description": "List of PlantUML file paths"
+      "description": "List of PlantUML file paths (includes er-diagram.puml if database is used)"
+    },
+    "database_schema": {
+      "type": "object",
+      "description": "Complete database schema definition. Present only if system_design.technology_stack.database is not 'none'.",
+      "required": ["database_type", "orm", "migration_tool", "er_diagram", "migration_path", "tables"],
+      "properties": {
+        "database_type": {
+          "type": "string",
+          "enum": ["SQLite", "H2", "PostgreSQL", "MySQL", "MariaDB"],
+          "description": "Selected database engine"
+        },
+        "orm": {
+          "type": "string",
+          "description": "ORM/data access approach, e.g., 'JDBC (lightweight)', 'JPA/Hibernate', 'MyBatis'"
+        },
+        "migration_tool": {
+          "type": "string",
+          "enum": ["Flyway", "Liquibase", "None"],
+          "description": "Database migration tool"
+        },
+        "er_diagram": {
+          "type": "string",
+          "description": "Path to the PlantUML ER diagram file (e.g., 'architecture/uml/er-diagram.puml')"
+        },
+        "migration_path": {
+          "type": "string",
+          "description": "Directory path for migration files (e.g., 'src/main/resources/db/migration')"
+        },
+        "tables": {
+          "type": "array",
+          "description": "Complete table definitions with columns, indexes, and foreign keys",
+          "items": {
+            "type": "object",
+            "required": ["name", "description", "columns", "indexes", "foreign_keys"],
+            "properties": {
+              "name": { "type": "string", "description": "Table name (snake_case, singular)" },
+              "description": { "type": "string" },
+              "columns": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["name", "type", "nullable"],
+                  "properties": {
+                    "name": { "type": "string", "description": "Column name (snake_case)" },
+                    "type": { "type": "string", "description": "SQL type, e.g., 'BIGINT', 'VARCHAR(50)', 'DECIMAL(10,2)', 'TIMESTAMP'" },
+                    "nullable": { "type": "boolean" },
+                    "primary_key": { "type": "boolean", "default": false },
+                    "auto_increment": { "type": "boolean", "default": false },
+                    "unique": { "type": "boolean", "default": false },
+                    "default": { "type": "string", "description": "Default value SQL expression, e.g., 'CURRENT_TIMESTAMP'" },
+                    "check": { "type": "string", "description": "CHECK constraint expression, e.g., \"status IN ('ACTIVE', 'INACTIVE')\"" },
+                    "description": { "type": "string" }
+                  }
+                }
+              },
+              "indexes": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["name", "columns", "unique"],
+                  "properties": {
+                    "name": { "type": "string", "description": "Index name: idx_{table}_{cols} or uk_{table}_{cols}" },
+                    "columns": {
+                      "type": "array",
+                      "items": { "type": "string" },
+                      "description": "Column names in index order (matters for composite indexes)"
+                    },
+                    "unique": { "type": "boolean", "default": false }
+                  }
+                }
+              },
+              "foreign_keys": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["column", "references_table", "references_column", "on_delete", "on_update"],
+                  "properties": {
+                    "column": { "type": "string", "description": "Local FK column name" },
+                    "references_table": { "type": "string", "description": "Referenced table name" },
+                    "references_column": { "type": "string", "description": "Referenced column name (usually 'id')" },
+                    "on_delete": { "type": "string", "enum": ["RESTRICT", "CASCADE", "SET NULL", "NO ACTION"], "description": "ON DELETE action" },
+                    "on_update": { "type": "string", "enum": ["RESTRICT", "CASCADE", "SET NULL", "NO ACTION"], "description": "ON UPDATE action" }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "seed_data": {
+          "type": "array",
+          "description": "Initial data to be loaded via migration scripts",
+          "items": {
+            "type": "object",
+            "required": ["table", "description", "migration_file"],
+            "properties": {
+              "table": { "type": "string" },
+              "description": { "type": "string" },
+              "migration_file": { "type": "string", "description": "Migration file path that seeds this data" }
+            }
+          }
+        }
+      }
     },
     "adr_files": {
       "type": "array",
@@ -110,6 +212,84 @@
           "risk": { "type": "string" },
           "result": { "type": "string", "enum": ["passed", "failed", "inconclusive"] },
           "detail": { "type": "string" }
+        }
+      }
+    },
+    "threat_model": {
+      "type": "object",
+      "description": "STRIDE threat model (conditional — present only if threat modeling is executed)",
+      "properties": {
+        "methodology": { "type": "string", "const": "STRIDE" },
+        "dfd_diagram": { "type": "string", "description": "Path to PlantUML DFD file" },
+        "attack_surfaces": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "trust_boundary", "untrusted_source"],
+            "properties": {
+              "name": { "type": "string" },
+              "trust_boundary": { "type": "string" },
+              "untrusted_source": { "type": "string" }
+            }
+          }
+        },
+        "threats": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["threat_id", "stride_category", "description", "risk_rating", "mitigation"],
+            "properties": {
+              "threat_id": { "type": "string", "pattern": "^TM-\\d{3}$" },
+              "stride_category": { "type": "string", "enum": ["Spoofing", "Tampering", "Repudiation", "Information Disclosure", "Denial of Service", "Elevation of Privilege"] },
+              "attack_surface": { "type": "string" },
+              "description": { "type": "string" },
+              "affected_component": { "type": "string" },
+              "risk_rating": { "type": "string", "enum": ["Critical", "High", "Medium", "Low"] },
+              "likelihood": { "type": "string", "enum": ["Low", "Medium", "High"] },
+              "impact": { "type": "string", "enum": ["Low", "Medium", "High", "Critical"] },
+              "mitigation": { "type": "string" },
+              "residual_risk": { "type": "string", "enum": ["None", "Low", "Medium", "High", "Critical"] }
+            }
+          }
+        },
+        "security_adrs": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Paths to Security ADR files"
+        },
+        "traceability_matrix": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["threat_id", "test_case_id", "coverage_status"],
+            "properties": {
+              "threat_id": { "type": "string" },
+              "test_case_id": { "type": "string", "pattern": "^SEC-TM-\\d{3}$" },
+              "test_description": { "type": "string" },
+              "test_type": { "type": "string", "enum": ["fuzz", "static", "dynamic", "dependency"] },
+              "coverage_status": { "type": "string", "enum": ["covered", "partially_covered", "not_covered", "not_applicable"] }
+            }
+          }
+        },
+        "uncovered_threats": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Threat IDs that have no test coverage"
+        },
+        "summary": {
+          "type": "object",
+          "required": ["total_threats"],
+          "properties": {
+            "total_threats": { "type": "integer", "minimum": 0 },
+            "critical": { "type": "integer", "minimum": 0 },
+            "high": { "type": "integer", "minimum": 0 },
+            "medium": { "type": "integer", "minimum": 0 },
+            "low": { "type": "integer", "minimum": 0 },
+            "covered": { "type": "integer", "minimum": 0 },
+            "partially_covered": { "type": "integer", "minimum": 0 },
+            "not_covered": { "type": "integer", "minimum": 0 },
+            "not_applicable": { "type": "integer", "minimum": 0 }
+          }
         }
       }
     },

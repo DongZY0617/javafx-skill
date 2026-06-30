@@ -2,7 +2,7 @@
 
 > **Project**: {{PROJECT_NAME}}  
 > **Version**: {{PROJECT_VERSION}}  
-> **Deployment Scope**: {{DEPLOY_SCOPE}} (Full Deployment / CI/CD Only / Release Only / Signing Only / Monitoring Only)  
+> **Deployment Scope**: {{DEPLOY_SCOPE}} (Full Deployment / CI/CD Only / Release Only / Signing Only / Monitoring Only / Distribution Only / Rollback Only)  
 > **Generated At**: {{TIMESTAMP}}
 
 ## 1. Deployment Summary
@@ -98,13 +98,74 @@
 - **Metrics File**: `~/.{{APP_NAME}}/metrics/`
 - **JMX Exposure**: {{JMX_ENABLED}} (enabled / disabled)
 
-## 7. Generated Artifacts
+## 7. Distribution Channels
+
+> *Conditional section: Only included when distribution scope is activated.*
+
+**Target Channels**: {{DISTRIBUTION_CHANNELS}} (MSIX / Microsoft Store / Mac App Store / Snap / Flatpak)
+
+### MSIX / Microsoft Store
+- **Manifest**: `packaging/msix/AppxManifest.xml`
+- **Side-loading**: `.appinstaller` file with auto-update settings
+- **Build Command**: `jpackage --type msix --win-upgrade-uuid {{WIN_UPGRADE_UUID}}`
+- **Store Build Flag**: `-Dstore.distribution=true` (disables in-app UpdateChecker)
+
+### Mac App Store
+- **Entitlements**: `packaging/macos/entitlements.plist`
+- **Build Sequence**: `jpackage --type app-image` → `codesign` → `productbuild`
+- **Signing Identity**: 3rd Party Mac Developer Application
+
+### Snap
+- **Config**: `packaging/snap/snapcraft.yaml`
+- **Confinement**: strict
+- **Plugs**: desktop, network, home, opengl
+
+### Flatpak
+- **Manifest**: `packaging/flatpak/com.example.MyApp.json`
+- **Runtime**: org.gnome.Platform//46
+- **Finish-args**: --socket=x11 --share=network --filesystem=home
+
+### Store Build vs Direct Download
+- **Store builds**: In-app UpdateChecker disabled; store platform handles updates
+- **Direct-download builds**: Full auto-update support via server-side manifest
+
+## 8. Rollback Strategy
+
+> *Conditional section: Only included when rollback scope is activated.*
+
+### Version Pinning
+- **Pinned Version Field**: `pinned_version` in update manifest (nullable)
+- **Effect**: When set, UpdateChecker will not offer updates above pinned version
+- **Pinned Reason**: `pinned_reason` (human-readable explanation)
+
+### Automatic Rollback
+- **State Class**: `{{ROLLBACK_STATE_CLASS}}`
+- **State File**: `~/.{{APP_NAME}}/rollback-state.json`
+- **Grace Period**: {{GRACE_PERIOD_HOURS}} hours after update
+- **Crash Threshold**: {{CRASH_THRESHOLD}} crashes within grace period
+- **Rollback Version**: `rollback_version` in manifest (target for automatic rollback)
+- **Loop Guard**: Prevents infinite rollback (already rolled back / sanity ceiling / already on target)
+
+### Post-Release Health Check
+- **CI/CD Job**: `post-release-health-check`
+- **Schedule**: 1h, 6h, 24h after release
+- **Metrics Checked**: crash count, crash rate, launch success rate
+- **Auto-Action**: Pins previous version if metrics exceed thresholds
+- **Alert**: Sends notification to operations team
+
+### Manual Rollback Runbook
+- **Runbook**: `docs/rollback-runbook.md`
+- **Pin Previous Version**: Set `pinned_version` in manifest
+- **Force Rollback**: Set `minimum_version` to rollback target
+- **Store-Managed Rollback**: Procedures for Partner Center, App Store Connect, Snap Store
+
+## 9. Generated Artifacts
 
 | Artifact | Path | Type |
 |----------|------|------|
 | {{ARTIFACT_NAME}} | `{{ARTIFACT_PATH}}` | {{ARTIFACT_TYPE}} |
 
-## 8. Setup Instructions
+## 10. Setup Instructions
 
 ### Required Secrets
 
@@ -120,13 +181,13 @@ Add the following secrets to your {{CI_CD_PLATFORM}} repository:
 2. {{SETUP_STEP}}
 3. {{SETUP_STEP}}
 
-## 9. Warnings
+## 11. Warnings
 
 {{WARNINGS}}
 
 (If no warnings, output "No warnings.")
 
-## 10. Loop State
+## 12. Loop State
 
 - **Next Action**: {{NEXT_ACTION}} (shipped | standalone_complete | redeploy)
 - **Deploy Phase**: {{DEPLOY_PHASE}} (post-delivery | standalone | redeploy)

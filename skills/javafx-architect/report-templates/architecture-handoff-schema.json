@@ -1,0 +1,243 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://javafx-skill.dev/schemas/architecture-handoff.json",
+  "title": "Architecture Handoff JSON (architecture-handoff.json)",
+  "description": "Independent validation schema for the architecture-handoff.json file produced by javafx-architect. This file is consumed by javafx-developer (Step 4), javafx-tester (threat traceability), and optionally javafx-designer. Unlike architect-report.json (which is a summary), this handoff carries the full architecture data for downstream consumption.",
+  "type": "object",
+  "required": [
+    "project",
+    "architect_version",
+    "created_at",
+    "scope",
+    "system_design",
+    "developer_instructions",
+    "conclusion"
+  ],
+  "properties": {
+    "project": { "type": "string" },
+    "architect_version": {
+      "type": "string",
+      "const": "1.1",
+      "description": "Architect skill version — must match SKILL.md metadata.version"
+    },
+    "created_at": { "type": "string", "format": "date-time" },
+    "scope": {
+      "type": "string",
+      "enum": ["full", "system_design_only", "uml_only", "adr_only", "threat_modeling_only"],
+      "description": "Architecture scope. 'full' = all 6 dimensions; 'threat_modeling_only' = only STRIDE threat modeling."
+    },
+    "system_design": {
+      "type": "object",
+      "required": ["architecture_pattern", "javafx_version", "build_tool", "modules", "layers", "technology_stack"],
+      "properties": {
+        "architecture_pattern": {
+          "type": "string",
+          "enum": ["MVC", "MVVM", "MVP", "MVVM + Service Layer", "MVC + Service Layer"]
+        },
+        "javafx_version": { "type": "string", "enum": ["17", "21", "24", "25", "26"] },
+        "build_tool": { "type": "string", "enum": ["Maven", "Gradle"] },
+        "modules": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "package", "responsibility"],
+            "properties": {
+              "name": { "type": "string" },
+              "package": { "type": "string" },
+              "responsibility": { "type": "string" }
+            }
+          }
+        },
+        "layers": { "type": "array", "items": { "type": "string" } },
+        "technology_stack": {
+          "type": "object",
+          "properties": {
+            "database": { "type": "string" },
+            "orm": { "type": "string" },
+            "di": { "type": "string" },
+            "logging": { "type": "string" },
+            "testing": { "type": "string" }
+          }
+        }
+      }
+    },
+    "uml_artifacts": {
+      "type": "array",
+      "description": "Paths to generated UML diagram files (PlantUML format)",
+      "items": { "type": "string" }
+    },
+    "database_schema": {
+      "type": "object",
+      "description": "Conditional field — present only when system_design.technology_stack.database is not 'none'. Contains ER diagram, table definitions, indexes, and migration plan.",
+      "properties": {
+        "database_type": { "type": "string" },
+        "orm": { "type": "string" },
+        "migration_tool": { "type": "string", "enum": ["Flyway", "Liquibase", "None"] },
+        "er_diagram": { "type": "string" },
+        "migration_path": { "type": "string" },
+        "tables": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "columns"],
+            "properties": {
+              "name": { "type": "string" },
+              "description": { "type": "string" },
+              "columns": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["name", "type", "nullable"],
+                  "properties": {
+                    "name": { "type": "string" },
+                    "type": { "type": "string" },
+                    "nullable": { "type": "boolean" },
+                    "primary_key": { "type": "boolean" },
+                    "unique": { "type": "boolean" },
+                    "auto_increment": { "type": "boolean" },
+                    "default": { "type": "string" },
+                    "check": { "type": "string" },
+                    "description": { "type": "string" }
+                  }
+                }
+              },
+              "indexes": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["name", "columns"],
+                  "properties": {
+                    "name": { "type": "string" },
+                    "columns": { "type": "array", "items": { "type": "string" } },
+                    "unique": { "type": "boolean" }
+                  }
+                }
+              },
+              "foreign_keys": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["columns", "references_table", "on_delete", "on_update"],
+                  "properties": {
+                    "columns": {
+                      "type": "array",
+                      "items": { "type": "string" },
+                      "description": "Local FK column names"
+                    },
+                    "references_table": { "type": "string", "description": "Referenced table name" },
+                    "on_delete": { "type": "string", "enum": ["CASCADE", "SET NULL", "RESTRICT", "NO ACTION"], "description": "ON DELETE action" },
+                    "on_update": { "type": "string", "enum": ["CASCADE", "SET NULL", "RESTRICT", "NO ACTION"], "description": "ON UPDATE action" }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "seed_data": { "type": "array", "items": { "type": "object" } }
+      }
+    },
+    "adr_files": {
+      "type": "array",
+      "description": "Paths to ADR (Architecture Decision Record) markdown files",
+      "items": { "type": "string" }
+    },
+    "prototype_results": {
+      "type": "array",
+      "description": "Prototype validation results for feasibility risks",
+      "items": {
+        "type": "object",
+        "required": ["risk", "result"],
+        "properties": {
+          "risk": { "type": "string" },
+          "result": { "type": "string", "enum": ["passed", "failed", "inconclusive"] },
+          "detail": { "type": "string" }
+        }
+      }
+    },
+    "threat_model": {
+      "type": "object",
+      "description": "Conditional field — present only when threat modeling was executed (Step 4.5). Contains DFD, STRIDE threat catalog, security ADRs, and threat-test traceability.",
+      "required": ["methodology", "threats", "summary"],
+      "properties": {
+        "methodology": { "type": "string", "enum": ["STRIDE"] },
+        "dfd_diagram": { "type": "string", "description": "Path to DFD PlantUML file" },
+        "attack_surfaces": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "trust_boundary", "untrusted_source"],
+            "properties": {
+              "name": { "type": "string" },
+              "trust_boundary": { "type": "string" },
+              "untrusted_source": { "type": "string" }
+            }
+          }
+        },
+        "threats": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["threat_id", "stride_category", "description", "risk_rating", "mitigation"],
+            "properties": {
+              "threat_id": { "type": "string", "pattern": "^TM-\\d{3}$" },
+              "stride_category": { "type": "string", "enum": ["Spoofing", "Tampering", "Repudiation", "Information Disclosure", "Denial of Service", "Elevation of Privilege"] },
+              "attack_surface": { "type": "string" },
+              "description": { "type": "string" },
+              "affected_component": { "type": "string" },
+              "risk_rating": { "type": "string", "enum": ["Critical", "High", "Medium", "Low"] },
+              "likelihood": { "type": "string", "enum": ["High", "Medium", "Low"] },
+              "impact": { "type": "string", "enum": ["Critical", "High", "Medium", "Low"] },
+              "mitigation": { "type": "string" },
+              "residual_risk": { "type": "string", "enum": ["None", "Low", "Medium", "High", "Critical"] }
+            }
+          }
+        },
+        "security_adrs": { "type": "array", "items": { "type": "string" } },
+        "traceability_matrix": {
+          "type": "array",
+          "description": "Maps threat IDs to test case IDs for security testing traceability",
+          "items": {
+            "type": "object",
+            "required": ["threat_id", "test_case_id", "coverage_status"],
+            "properties": {
+              "threat_id": { "type": "string", "pattern": "^TM-\\d{3}$" },
+              "test_case_id": { "type": "string", "pattern": "^SEC-TM-\\d{3}$" },
+              "test_description": { "type": "string" },
+              "coverage_status": { "type": "string", "enum": ["covered", "partially_covered", "not_covered", "not_applicable"] }
+            }
+          }
+        },
+        "uncovered_threats": { "type": "array", "items": { "type": "object" } },
+        "summary": {
+          "type": "object",
+          "required": ["total_threats", "critical", "high", "medium", "low", "covered"],
+          "properties": {
+            "total_threats": { "type": "integer" },
+            "critical": { "type": "integer" },
+            "high": { "type": "integer" },
+            "medium": { "type": "integer" },
+            "low": { "type": "integer" },
+            "covered": { "type": "integer" },
+            "partially_covered": { "type": "integer" },
+            "not_covered": { "type": "integer" },
+            "not_applicable": { "type": "integer" }
+          }
+        }
+      }
+    },
+    "developer_instructions": {
+      "type": "object",
+      "required": ["package_structure", "layering_rule", "naming_convention", "key_constraints"],
+      "properties": {
+        "package_structure": { "type": "string" },
+        "layering_rule": { "type": "string" },
+        "naming_convention": { "type": "string" },
+        "key_constraints": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "conclusion": {
+      "type": "string",
+      "enum": ["Pass", "Pass with warnings", "Fail"]
+    }
+  }
+}

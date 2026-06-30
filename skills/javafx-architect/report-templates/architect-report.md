@@ -1,9 +1,9 @@
 # Architecture Design Report
 
 > **Project**: [project-name]
-> **Architect Version**: 1.0
+> **Architect Version**: 1.1
 > **Date**: [YYYY-MM-DD]
-> **Scope**: [full | system_design_only | uml_only | adr_only]
+> **Scope**: [full | system_design_only | uml_only | adr_only | threat_modeling_only]
 > **Conclusion**: [Pass | Pass with warnings | Fail]
 
 ---
@@ -19,6 +19,8 @@
 | System Design | [Yes/No] | [count] |
 | UML Generation | [Yes/No] | [count] diagrams |
 | ADR Management | [Yes/No] | [count] ADRs |
+| Database Schema Design | [Yes/No] | [count] tables, [count] migration files |
+| Threat Modeling (STRIDE) | [Yes/No] | [count] threats, [count] security ADRs |
 | Prototype Validation | [Yes/No] | [count] prototypes |
 
 ## 3. System Design
@@ -85,23 +87,74 @@
 | ADR-001 | [title] | Accepted | `architecture/adr/ADR-001-[title].md` |
 | ADR-002 | [title] | Accepted | `architecture/adr/ADR-002-[title].md` |
 
-## 6. Prototype Validation
+## 6. Database Schema Design
+
+> *Conditional section — present only if `system_design.technology_stack.database` is not "none".*
+
+### 6.1 ER Diagram
+
+- **File**: `architecture/uml/er-diagram.puml`
+- **Tables**: [count]
+- **Relationships**: [summary of foreign key relationships]
+
+### 6.2 Schema Definition
+
+| Table | Description | Columns | Indexes | Foreign Keys |
+|-------|-------------|---------|---------|--------------|
+| [table-name] | [description] | [count] | [count] | [count] |
+
+### 6.3 Migration Plan
+
+- **Migration tool**: [Flyway / Liquibase / None]
+- **Migration path**: `src/main/resources/db/migration`
+- **Initial migrations**: [count] files
+- **Seed data**: [count] tables seeded
+
+## 7. Threat Modeling (STRIDE)
+
+> *Conditional section — present only if threat modeling was executed.*
+
+### 7.1 Data Flow Diagram (DFD)
+
+- **File**: `architecture/uml/threat-model-dfd.puml`
+- **Trust boundaries**: [count]
+- **Attack surfaces**: [count]
+
+### 7.2 Threat Catalog
+
+| Threat ID | STRIDE Category | Description | Risk Rating | Mitigation |
+|-----------|----------------|-------------|-------------|------------|
+| TM-001 | [category] | [description] | [Critical/High/Medium/Low] | [mitigation] |
+
+### 7.3 Security ADRs
+
+| ADR # | Title | Status | File |
+|-------|-------|--------|------|
+| ADR-SEC-001 | [title] | Accepted | `architecture/adr/ADR-SEC-001-[title].md` |
+
+### 7.4 Threat-Test Traceability
+
+| Threat ID | Test Case ID | Coverage Status |
+|-----------|-------------|-----------------|
+| TM-001 | SEC-TM-001 | covered |
+
+## 8. Prototype Validation
 
 | # | Risk Area | Prototype File | Result | Detail |
 |---|----------|---------------|--------|--------|
 | 1 | [risk] | `architecture/prototype/[name]/` | [passed/failed] | [detail] |
 
-## 7. Developer Instructions
+## 9. Developer Instructions
 
-### 7.1 Package Structure
+### 9.1 Package Structure
 ```
 [package pattern, e.g., com.example.app.{module}]
 ```
 
-### 7.2 Layering Rule
+### 9.2 Layering Rule
 [layer dependency rules]
 
-### 7.3 Naming Convention
+### 9.3 Naming Convention
 | Type | Pattern | Example |
 |------|---------|---------|
 | Controller | {Entity}Controller | UserController |
@@ -109,16 +162,16 @@
 | Service | {Entity}Service / {Entity}ServiceImpl | UserService |
 | Repository | {Entity}Repository | UserRepository |
 
-### 7.4 Key Constraints
+### 9.4 Key Constraints
 1. [constraint 1]
 2. [constraint 2]
 3. [constraint 3]
 
-## 8. Warnings and Risks
+## 10. Warnings and Risks
 
 [List any warnings, unresolved risks, or areas requiring further investigation]
 
-## 9. Handoff
+## 11. Handoff
 
 - **Handoff file**: `architecture/architecture-handoff.json`
 - **Consumed by**: `javafx-developer` Step 4

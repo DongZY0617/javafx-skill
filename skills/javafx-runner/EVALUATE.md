@@ -25,6 +25,11 @@ This file defines the acceptance test cases for the `javafx-runner` skill, used 
 | 11 | Healthy project (negative sample) | Negative | All dimensions | 0 (zero false positives) |
 | 12 | Incremental verification (CSS only) | Boundary | Targeted dimension | CSS runtime issues only |
 | 13 | Fix handoff completeness | Positive | All dimensions | Includes handoff fields |
+| 14 | Static Analysis — SpotBugs NPE | Positive | Static Analysis Verification | 1 Major (NP_NULL_ON_SOME_PATH) |
+| 15 | Static Analysis — PMD false positive | Negative | Static Analysis Verification | 0 (suppressed) |
+| 16 | Static Analysis — Checkstyle method length | Positive | Static Analysis Verification | 1 Minor (MethodLengthCheck) |
+| 17 | Static Analysis skipped (no plugins) | Boundary | Static Analysis Verification | 0 (skipped) |
+| 18 | Static Analysis skipped (compile fail) | Short-circuit | Static Analysis Verification | 0 (short-circuited) |
 
 ---
 
@@ -340,3 +345,65 @@ This file defines the acceptance test cases for the `javafx-runner` skill, used 
   - [ ] Fix handoff fields can be directly consumed by `javafx-developer` to execute fixes with no format conversion
   - [ ] `fix_type=replace` and `fix_type=insert` issues include a "Corrected Example" code snippet
   - [ ] Compile error (Critical) gets `fix_priority: 1`, runtime issue (Critical) gets `fix_priority: 2`, packaging issue (Critical) gets `fix_priority: 3` (sorted by dimension within the same severity)
+
+## Case 14: Static Analysis — SpotBugs NPE Detection
+
+- **Input**: A JavaFX project where `UserService.findById()` has a possible null pointer dereference (user variable used without null check after `userRepository.findById()` call). SpotBugs configured in pom.xml.
+- **Type**: Positive sample
+- **Covered Dimension**: Static Analysis Verification
+- **Expected Finding**: SpotBugs detects `NP_NULL_ON_SOME_PATH` at the relevant line
+- **Verification Standards**:
+  - [ ] Runner executes `mvn spotbugs:check pmd:check checkstyle:check` after compile verification passes
+  - [ ] `target/spotbugsXml.xml` is generated and parsed
+  - [ ] Finding is mapped to unified issue structure with `tool: "spotbugs"`, `rule_id: "NP_NULL_ON_SOME_PATH"`, `severity: "Major"` (SpotBugs priority 1)
+  - [ ] `ast_node_signature` is extracted (e.g., `com.example.UserService#findById(Long)`)
+  - [ ] `target/static-analysis-findings.json` is generated containing the finding
+  - [ ] Verification report includes "Static Analysis Verification" section with SpotBugs finding count
+
+## Case 15: Static Analysis — PMD Unused @FXML Field (False Positive Suppression)
+
+- **Input**: A JavaFX project with an FXML controller that has `@FXML private TableView<User> userTable;` — the field is injected by FXMLLoader, not used directly in code. PMD with XPath suppression for `@FXML` is configured.
+- **Type**: Negative sample (false positive should be suppressed)
+- **Covered Dimension**: Static Analysis Verification
+- **Expected Finding**: PMD does NOT report `UnusedPrivateField` for `@FXML`-annotated fields
+- **Verification Standards**:
+  - [ ] `target/pmd.xml` is generated and parsed
+  - [ ] No `UnusedPrivateField` finding for `@FXML`-annotated fields (XPath suppression works)
+  - [ ] If PMD does report it (suppression not applied), the finding is still recorded but reviewer will later mark it as `false_positive`
+
+## Case 16: Static Analysis — Checkstyle Method Length Violation
+
+- **Input**: A JavaFX project where `UserController.handleSave()` is 85 lines long (exceeds the 80-line limit in checkstyle.xml).
+- **Type**: Positive sample
+- **Covered Dimension**: Static Analysis Verification
+- **Expected Finding**: Checkstyle detects `MethodLengthCheck` violation
+- **Verification Standards**:
+  - [ ] `target/checkstyle-result.xml` is generated and parsed
+  - [ ] Finding is mapped with `tool: "checkstyle"`, `rule_id: "MethodLengthCheck"`, `severity: "Minor"` (Checkstyle error → Minor)
+  - [ ] `line_number` and `source_file` are correctly extracted
+  - [ ] Finding is included in `target/static-analysis-findings.json`
+
+## Case 17: Static Analysis Skipped (No Plugins Configured)
+
+- **Input**: A JavaFX project whose `pom.xml` does NOT include SpotBugs/PMD/Checkstyle plugin configurations.
+- **Type**: Edge case
+- **Covered Dimension**: Static Analysis Verification
+- **Expected Finding**: Runner skips static analysis with a note
+- **Verification Standards**:
+  - [ ] Runner detects missing plugin configurations in pom.xml
+  - [ ] Static analysis step is skipped with note: "Static analysis skipped — no SpotBugs/PMD/Checkstyle plugins configured"
+  - [ ] No `target/static-analysis-findings.json` is generated
+  - [ ] Verification report notes the skip in the Static Analysis Verification section
+  - [ ] Runtime verification proceeds normally (not blocked by static analysis skip)
+
+## Case 18: Static Analysis Skipped (Compile Failure)
+
+- **Input**: A JavaFX project with a compilation error AND SpotBugs/PMD/Checkstyle configured.
+- **Type**: Short-circuit test
+- **Covered Dimension**: Static Analysis Verification
+- **Expected Finding**: Static analysis is skipped because compile verification failed
+- **Verification Standards**:
+  - [ ] Compile verification fails (Critical issue recorded)
+  - [ ] Static analysis is skipped (SpotBugs needs compiled bytecode)
+  - [ ] No `target/static-analysis-findings.json` is generated
+  - [ ] Verification report notes: "Static analysis skipped — compile verification failed"

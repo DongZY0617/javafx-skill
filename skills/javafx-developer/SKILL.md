@@ -9,7 +9,7 @@ license: Apache-2.0
 compatibility: Requires JDK 17+. Supports JavaFX 17/21/24/25/26.
 metadata:
   author: DongZY0617
-  version: "1.0"
+  version: "1.1"
 triggers:
   - create
   - generate
@@ -30,10 +30,12 @@ consumes_from:
   - javafx-designer (optional, design-handoff.json)
   - javafx-code-reviewer (fix handoff report)
   - javafx-runner (fix handoff report)
+  - javafx-tester (fix handoff report)
   - javafx-refactorer (optional, refactor-handoff.json)
 produces_for:
   - javafx-code-reviewer
   - javafx-runner
+  - javafx-tester
   - javafx-docgen
 ---
 
@@ -53,6 +55,23 @@ Use this skill when:
 - User asks about JavaFX version selection or JDK compatibility
 - User mentions JavaFX controls, tables, forms, dialogs, or navigation
 - User provides a fix handoff report from `javafx-code-reviewer` or `javafx-runner` (enters Fix Consumption mode, see Step 5.5 and Fix Consumption Protocol below)
+
+### Trigger Resolution with Other Skills
+
+Developer's triggers (`create`, `generate`, `build`, `scaffold`, `implement`) are broad by design — developer is the primary code-generation skill. However, ambiguity can arise with other skills:
+
+| User intent | Routed to | Rationale |
+|-------------|-----------|-----------|
+| "create a JavaFX app" | **developer** | Code generation intent |
+| "generate code for..." | **developer** | Explicit code generation |
+| "build a JavaFX app" | **developer** | Scaffolding intent (not compilation — compilation is `javafx-runner`) |
+| "design the UI and generate code" | **designer → developer** (sequential) | Design first, then generate from design handoff |
+| "review the code" | **code-reviewer** | Review intent, not generation |
+| "verify it compiles" | **runner** | Verification intent |
+| "refactor this class" | **refactorer** | Refactoring analysis intent |
+| Ambiguous ("fix this app") | **Confirm with user** | Could mean code review, runtime fix, or refactoring |
+
+**Special case — `build`**: When user says "build the project", this means **compilation/packaging verification** → route to `javafx-runner`. When user says "build a JavaFX app", this means **scaffolding/generation** → route to `javafx-developer`. The presence of "a/an" before "JavaFX app" distinguishes generation from compilation.
 
 ## Technology Stack
 
@@ -86,11 +105,19 @@ Use this skill when:
 
 ### Step 1: Requirements Analysis & Clarification
 
-1. **Identify intent**: Determine which capability module(s) the request falls into
-2. **Extract key info**: Project name, package path, functionality, UI type, data model
-3. **Ask for missing info**: If critical info is missing, ask the user
-4. **Infer defaults**: Use reasonable defaults for package names, class names, module names
-5. **Output requirements spec**: Generate a `requirements.md` file using `templates/docs/requirements.md` as the template. Document functional requirements (feature list, UI flows), non-functional requirements (performance, security, compatibility), and technical constraints (JavaFX version, JDK, build tool, architecture pattern). This serves as the baseline for incremental review and requirement traceability — reviewer can reference requirement IDs in review reports
+1. **Check for requirements handoff**: If `requirements/requirements-handoff.json` exists (produced by `javafx-requirements`), consume it as the primary requirements source instead of inferring requirements from scratch:
+   - Use `user_stories[]` as the basis for the feature list in `requirements.md` — each user story (US-xxx → FR-xxx) becomes a functional requirement entry
+   - Use `non_functional_requirements[]` to populate the non-functional requirements section — each NFR is already quantified with targets and verification methods
+   - Use `traceability_matrix[]` as the seed for the Requirement Traceability Matrix (Section 7 of `requirements.md`) — pre-populated with requirement IDs, source stakeholders, and verification methods
+   - Use `developer_instructions.req_id_convention` for `@req` annotation format (FR-xxx, NFR-xxx)
+   - Use `developer_instructions.test_naming_convention` for test method naming (e.g., `testUserCreation_FR_001()`)
+   - Use `developer_instructions.key_constraints[]` to ensure requirements constraints are respected during code generation
+   - If no handoff exists, proceed with requirement inference from the user request (existing behavior — Steps 2-5 below)
+2. **Identify intent**: Determine which capability module(s) the request falls into
+3. **Extract key info**: Project name, package path, functionality, UI type, data model
+4. **Ask for missing info**: If critical info is missing, ask the user
+5. **Infer defaults**: Use reasonable defaults for package names, class names, module names
+6. **Output requirements spec**: Generate a `requirements.md` file using `templates/docs/requirements.md` as the template. Document functional requirements (feature list, UI flows), non-functional requirements (performance, security, compatibility), and technical constraints (JavaFX version, JDK, build tool, architecture pattern). This serves as the baseline for incremental review and requirement traceability — reviewer can reference requirement IDs in review reports. When consuming a requirements handoff, the spec is enriched with stakeholder intent, acceptance criteria, and pre-seeded RTM
 
 ### Step 2: Version & Toolchain Selection
 
@@ -467,6 +494,41 @@ public class UserController implements Initializable {
 | TestFX | UI automated testing | `org.testfx:testfx-junit5:4.0.18` |
 
 For detailed integration guides, see `references/third-party-libraries.md`.
+
+## Network Integration (Retrofit)
+
+For JavaFX + Spring Boot applications that communicate with a backend REST API, use `retrofit-spring-boot-starter` for declarative HTTP clients.
+
+| Concern | Pattern |
+|---------|---------|
+| API definition | `@RetrofitClient` annotated interfaces with `@GET`/`@POST`/`@PUT`/`@DELETE` |
+| HTTP client | Custom OkHttpClient registered via `SourceOkHttpClientRegistrar` with interceptors and timeouts |
+| Authentication | OkHttp interceptor injecting `Authorization: Bearer <token>` from `TokenContext` |
+| Response parsing | `ApiResult.of(rawMap).assertSuccess()` — unified wrapper with code assertion and typed extraction |
+| Async execution | `AsyncUtil.run()` — dedicated thread pool (daemon threads, DiscardOldestPolicy) + `runLater()` for UI thread switching |
+| Exception handling | `ApiException` with response code; `GlobalExceptionHandler` with dialog throttling and auth-expired detection |
+| Auth expiry | `AuthContextHolder` — CAS-guarded navigation to login screen on 401 responses |
+
+**Critical**: Retrofit calls are synchronous and blocking — they MUST NOT run on the JavaFX Application Thread. Always wrap with `AsyncUtil.run()`.
+
+For complete integration patterns (config, API interface, interceptor, Service layer, async, exception handling), see `references/networking-retrofit.md`.
+
+## Custom Controls
+
+When standard JavaFX controls cannot meet the requirements, build custom controls using the Control/Skin architecture.
+
+| Aspect | Pattern |
+|--------|---------|
+| Control class | `extends Control` — public API, properties, CSS metadata; no rendering logic |
+| Skin class | `extends SkinBase<MyControl>` — visual rendering, event handling, layout |
+| Properties | JavaFX Beans convention (lazy init + final getter/setter) |
+| CSS styling | `StyleableObjectProperty` + `CssMetaData` for custom `-fx-*` properties |
+| Pseudo-classes | `PseudoClass.getPseudoClass()` for visual states (:readonly, :hover) |
+| High-perf drawing | `Canvas` + `GraphicsContext` for complex visuals (charts, gauges) |
+
+**Rule of thumb**: If you only need to compose existing controls, extend `Region` or a layout pane. If you need custom rendering, CSS-stylable properties, or novel interaction, use Control + Skin.
+
+For complete patterns (properties, CSS metadata, pseudo-classes, Canvas rendering, event handling) and a full RatingControl example (Control + Skin + CSS), see `references/custom-controls.md`.
 
 ## Packaging
 
@@ -882,6 +944,9 @@ For in-depth guidance, refer to these documents in the `references/` directory:
 - `references/css-best-practices.md` — CSS selectors, theme variables, responsive layout
 - `references/data-binding-patterns.md` — Property types, binding modes, form validation
 - `references/third-party-libraries.md` — Library integration guides, compatibility matrix
+- `references/networking-retrofit.md` — Retrofit (retrofit-spring-boot-starter) network integration: API interface definition, OkHttp client registration, token interceptor, unified response parsing (ApiResult), async execution with UI thread safety, global exception handling, timeout/retry config
+- `references/custom-controls.md` — Custom control development: Control/Skin architecture, JavaFX properties (Beans convention), CSS-stylable properties, pseudo-classes, Canvas-based rendering, event handling, complete RatingControl example (Control + Skin + CSS)
+- `references/static-analysis-tools.md` — Static analysis tool integration: SpotBugs/PMD/Checkstyle Maven plugin configuration, JavaFX-tailored rule sets, false positive exclusions, report parsing, unified issue mapping for runner/reviewer consumption
 - `references/packaging-deployment.md` — jpackage, jlink, CI/CD integration
 - `references/cross-platform-packaging.md` — Cross-platform jpackage options matrix, per-platform toolchains, icon conversion, code signing, CI/CD build matrix
 - `references/ci-cd-pipeline.md` — CI/CD pipeline configuration, Monocle headless testing, Loop Orchestration Protocol integration, example workflows

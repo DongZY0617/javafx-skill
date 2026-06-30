@@ -4,20 +4,24 @@ description: |
   JavaFX professional testing skill that performs deep testing beyond smoke
   verification — including performance benchmarking (startup time, UI response
   latency, memory footprint), security testing (dependency vulnerability scanning,
-  input fuzzing, WebView security), and accessibility testing (keyboard navigation,
-  color contrast, screen reader compatibility). Produces a structured test report
-  with Fix Handoff entries for javafx-developer to consume. Complements
-  javafx-runner's smoke verification with in-depth quality assessment.
+  input fuzzing, WebView security), accessibility testing (keyboard navigation,
+  color contrast, screen reader compatibility), and visual regression testing
+  (pixel-level UI diff against baseline snapshots via TestFX + Monocle). Produces
+  a structured test report with Fix Handoff entries for javafx-developer to
+  consume. Complements javafx-runner's smoke verification with in-depth quality
+  assessment.
 license: Apache-2.0
 compatibility: Requires JDK 17+. Supports JavaFX 17/21/24/25/26.
 metadata:
   author: DongZY0617
-  version: "1.0"
+  version: "1.2"
 triggers:
   - test
   - performance test
   - security test
   - accessibility test
+  - visual regression test
+  - screenshot test
   - deep testing
   - Test Gate
 depends_on:
@@ -38,19 +42,21 @@ Use this skill when:
 - The user asks to performance test / benchmark / measure startup time / check UI responsiveness of a JavaFX application
 - The user asks to security test / vulnerability scan / fuzz test / check dependency vulnerabilities of a JavaFX project
 - The user asks to accessibility test / a11y test / keyboard navigation test / color contrast check of a JavaFX UI
+- The user asks to visual regression test / screenshot test / check for UI changes / compare against baseline snapshots
 - The user asks to do a full quality assessment / deep testing / comprehensive testing beyond smoke tests
 - The user asks to check if the application meets performance SLAs (e.g., "startup under 3 seconds")
 - The user asks to verify the application is accessible (WCAG compliance, Section 508)
 - The user asks to scan for known vulnerabilities in project dependencies
+- The user asks to update visual baselines after intentional UI changes
 
 ## Skill Resolution
 
-When a user request matches both `javafx-runner` ("compile/run/verify/smoke test") and `javafx-tester` ("performance test/security test/accessibility test/benchmark"), resolve using the following rules:
+When a user request matches both `javafx-runner` ("compile/run/verify/smoke test") and `javafx-tester` ("performance test/security test/accessibility test/visual regression test/benchmark"), resolve using the following rules:
 
 - **Smoke verification goes to runner**: When the request contains keywords such as *compile / run / launch / smoke test / try running*, match runner first (basic execution verification)
-- **Deep testing goes to tester**: When the request contains keywords such as *performance test / benchmark / security test / vulnerability scan / fuzz / accessibility / a11y*, match tester (in-depth quality assessment)
+- **Deep testing goes to tester**: When the request contains keywords such as *performance test / benchmark / security test / vulnerability scan / fuzz / accessibility / a11y / visual regression / screenshot / baseline*, match tester (in-depth quality assessment)
 - **Sequential execution**: When the user asks to "verify and then deep test", first have runner do smoke verification, then have tester do deep testing (tester requires a runnable project)
-- **Mixed intent split into steps**: When the user asks to "test everything", execute runner first (compile + run + package), then tester (performance + security + a11y)
+- **Mixed intent split into steps**: When the user asks to "test everything", execute runner first (compile + run + package), then tester (performance + security + a11y + visual regression)
 
 ## Testing Dimensions
 
@@ -59,6 +65,7 @@ When a user request matches both `javafx-runner` ("compile/run/verify/smoke test
 | Performance Testing | `performance-testing.md` | JDK + Maven + JMH (optional) | runner: Runtime Verification (startup smoke) |
 | Security Testing | `security-testing.md` | OWASP Dependency-Check + Maven | reviewer: Security Checklist (static) |
 | Accessibility Testing | `accessibility-testing.md` | JDK + JavaFX + AXS (optional) | reviewer: CSS Compliance (contrast) |
+| Visual Regression Testing | `visual-regression-testing.md` | TestFX + Monocle + JDK | reviewer: CSS Compliance (visual confirmation) |
 
 ## Testing Workflow
 
@@ -75,11 +82,44 @@ When a user request matches both `javafx-runner` ("compile/run/verify/smoke test
    - OWASP Dependency-Check CLI (for security testing) — if not installed, use Maven plugin fallback
    - JMH (for performance benchmarking) — if not configured, use manual timing
 4. **Determine test scope**: Based on user request, determine which dimensions to execute:
-   - **Full Testing (default)**: All three dimensions in sequence (Performance → Security → Accessibility)
+   - **Full Testing (default)**: All four dimensions in parallel (Performance ∥ Security ∥ Accessibility ∥ Visual Regression)
    - **Targeted Dimension Testing**: User explicitly requests one dimension (e.g., "just security test")
-   - **Selective Testing**: User requests two of three dimensions (e.g., "performance and security")
+   - **Selective Testing**: User requests a subset of dimensions (e.g., "performance and visual regression")
+5. **Check visual regression prerequisites**: If Visual Regression Testing is in scope, verify:
+   - TestFX + Monocle dependencies are present in `pom.xml`
+   - Baseline snapshots exist in `src/test/resources/snapshots/` (if not, first run creates initial baselines)
+   - `.loop-config.json` has `"visual_regression": true` (default: `true` if deep_testing is enabled)
+6. **Allocate parallel tracks**: For Full Testing, prepare four independent execution tracks. Each track owns its own application launch (if needed), tool invocation, and state field. See [Parallel Execution Protocol](#parallel-execution-protocol) below.
 
-### Step 2: Performance Testing
+<a id="parallel-execution-protocol"></a>
+### Step 2: Parallel Execution Protocol
+
+The four testing dimensions have **no data dependency** on each other — performance metrics, security scans, accessibility checks, and visual regression screenshots operate on different aspects of the application. They are therefore executed **in parallel** as independent tracks, mirroring how `javafx-code-reviewer` and `javafx-runner` already run concurrently in the loop.
+
+**Track allocation**:
+
+| Track | Dimension | State Field (loop-state.json) | App Instance Required? |
+|-------|-----------|-------------------------------|------------------------|
+| Track A | Performance Testing | `tester_perf_result` | Yes (startup timing, UI latency) |
+| Track B | Security Testing | `tester_sec_result` | Partial (fuzz needs app; dependency scan & WebView check are static) |
+| Track C | Accessibility Testing | `tester_a11y_result` | Partial (keyboard nav needs app; contrast & screen reader are static) |
+| Track D | Visual Regression Testing | `tester_vr_result` | Yes (screenshot capture requires running app via TestFX) |
+
+**Parallel safety rules**:
+
+1. **Field isolation**: Each track writes **only** to its own state field (`tester_perf_result`, `tester_sec_result`, `tester_a11y_result`, or `tester_vr_result`). No track reads or modifies another track's field. This mirrors the reviewer∥runner field isolation pattern
+2. **Independent app launches**: When a track needs a running application instance, it launches its own `mvn javafx:run` process. Tracks do not share a single app instance — this avoids FX-thread contention and allows each track to control its own lifecycle (start, measure, stop)
+3. **No shared mutable state**: Tracks do not share in-memory objects. Each track produces its own issue list, which is merged in Step 7 (Report Generation)
+4. **Timeout independence**: Each track enforces its own timeout (performance 5 min, security 10 min, accessibility 5 min, visual regression 5 min). A timeout in one track does not abort the others
+5. **Partial failure tolerance**: If one track fails (exception, timeout, tool unavailable), the other tracks continue and produce results. The failed track is recorded as `"conclusion": "Skipped"` with an error note
+
+**Track execution order**: All four tracks are dispatched simultaneously. The tester waits for **all dispatched tracks** to complete (or timeout) before proceeding to Step 7 (Report Generation / Aggregation).
+
+> **Resource note**: On resource-constrained environments (CI headless, low RAM), set `"tester_parallel": false` in `.loop-config.json` to fall back to sequential execution. The field isolation rules still apply — only the execution order changes.
+
+> **Visual regression opt-out**: If `.loop-config.json` has `"visual_regression": false`, Track D is skipped entirely. This is useful for projects that have not yet set up TestFX/Monocle or do not require visual regression testing.
+
+### Step 3: Performance Testing (Track A)
 
 Execute performance benchmarks and capture metrics. Default severity baseline: Major.
 
@@ -117,7 +157,9 @@ Execute performance benchmarks and capture metrics. Default severity baseline: M
    - Moderate growth (50-100MB over 5 min) → Major (likely memory leak, cross-reference reviewer's Memory Leak Risks dimension)
    - Rapid growth (> 100MB over 5 min) → Critical (severe memory leak, will cause OutOfMemoryError)
 
-### Step 3: Security Testing
+### Step 4: Security Testing (Track B)
+
+> **Parallel track**: This dimension runs concurrently with Track A (Performance) and Track C (Accessibility). Writes only to `tester_sec_result` in `.loop-state.json`.
 
 Execute security scans and vulnerability checks. Default severity baseline: Major.
 
@@ -158,7 +200,24 @@ Execute security scans and vulnerability checks. Default severity baseline: Majo
    - WebView with JavaScript enabled but no input validation → Major
    - WebView loading arbitrary file:// URLs from user input → Critical
 
-### Step 4: Accessibility Testing
+#### 3.4 Threat Model Cross-Reference (Conditional)
+
+> **Conditional check**: Only executed if `architecture/architecture-handoff.json` exists and contains a `threat_model` section. Skip if no threat model is present.
+
+1. **Read threat model**: Parse `architecture-handoff.json` for `threat_model.traceability_matrix[]`
+2. **Execute threat-specific tests**: For each entry with `coverage_status: "covered"` or `"partially_covered"`, execute the test described in `test_description` using the method indicated by `test_type` (fuzz, static, dynamic, dependency)
+3. **Record results**: Each test result is recorded with `threat_id` and `test_case_id` references for traceability
+4. **Report coverage gaps**: Threats with `coverage_status: "not_covered"` are flagged as warnings in the security test report
+5. **Threshold evaluation**:
+   - All threat tests pass → Pass (mitigations are effective)
+   - One or more threat tests fail → Critical (mitigation not effective, vulnerability confirmed)
+   - Threats with `not_covered` status → Major (documented but untested threats)
+
+> See `references/security-testing.md` § 5 for detailed threat model consumption rules and test result mapping.
+
+### Step 5: Accessibility Testing (Track C)
+
+> **Parallel track**: This dimension runs concurrently with Track A (Performance) and Track B (Security). Writes only to `tester_a11y_result` in `.loop-state.json`.
 
 Execute accessibility checks for WCAG 2.1 AA compliance. Default severity baseline: Minor.
 
@@ -194,15 +253,91 @@ Execute accessibility checks for WCAG 2.1 AA compliance. Default severity baseli
    - Most controls missing accessibility properties → Major (screen reader users cannot use the application)
    - No accessibility properties anywhere → Major
 
-### Step 5: Report Generation
+### Step 6: Visual Regression Testing (Track D)
 
-Generate a structured test report containing: test summary, issue list (with Fix Handoff), and per-dimension results. The report format is isomorphic with `javafx-runner`'s verification report, with the Fix Handoff field fully consistent, ensuring `javafx-developer` can consume both reports using the same logic.
+> **Parallel track**: This dimension runs concurrently with Track A (Performance), Track B (Security), and Track C (Accessibility). Writes only to `tester_vr_result` in `.loop-state.json`.
+
+> **Prerequisite**: Requires TestFX + Monocle dependencies in `pom.xml`. If not present, this track is skipped with `"conclusion": "Skipped"` and a note recommending to add the dependencies. See `references/visual-regression-testing.md` for setup instructions.
+
+Execute pixel-level visual regression testing by comparing current screenshots against baseline snapshots. Default severity baseline: Major.
+
+#### 6.1 Baseline Snapshot Discovery
+
+1. **Locate baselines**: Check for `src/test/resources/snapshots/snapshot-manifest.json`. If the manifest exists, read all snapshot definitions (view, state, path, ignore regions)
+2. **No baselines found**: If no manifest or no snapshots exist, this is a first run:
+   - Capture screenshots for all identified views/states
+   - Save them as initial baselines
+   - Record result as `"Baseline Created"` (Pass with note)
+   - Log an Info entry: "Initial visual baselines created for N views"
+3. **Baseline update mode**: If `.loop-config.json` has `"vr_update_baselines": true` or system property `-Dupdate.baselines=true`:
+   - Capture screenshots and overwrite existing baselines
+   - Update manifest `last_updated` and `update_reason` fields
+   - Skip comparison — no regression issues reported
+   - Log an Info entry per updated snapshot
+
+#### 6.2 Screenshot Capture
+
+1. **Launch application via TestFX**: Use TestFX to launch the application in headless mode (Monocle) with deterministic rendering settings
+2. **Navigate to each view**: For each snapshot defined in the manifest, navigate to the corresponding view and set the required state
+3. **Stabilize rendering**: Wait for 2 JavaFX pulse cycles, disable animations, and wait 200ms for CSS application (see `references/visual-regression-testing.md` § 7.2)
+4. **Capture screenshot**: Use `Scene.snapshot()` to capture the rendered scene as a `BufferedImage`
+5. **Handle dynamic content**: Apply ignore regions (from manifest) or mock dynamic data before capture
+
+#### 6.3 Pixel Comparison
+
+1. **Load baseline**: Read the baseline PNG file for the current view/state
+2. **Compare pixel by pixel**: Use the pixel comparison algorithm (see `references/visual-regression-testing.md` § 5):
+   - Per-channel RGB tolerance: 3 (default, configurable via `vr_pixel_tolerance` in `.loop-config.json`)
+   - Ignore regions: rectangles excluded from comparison
+3. **Calculate diff ratio**: `diff_ratio = diff_pixels / comparable_pixels`
+4. **Generate diff image**: Create a diff visualization (red = different, original = same, gray = ignored) and save to `target/test-output/vr-diffs/{view}/{state}-diff.png`
+
+#### 6.4 Threshold Evaluation
+
+| Diff Ratio | Severity | Description |
+|-----------|----------|-------------|
+| < 2% | Pass | Within threshold, acceptable variance |
+| 2% - 5% | Minor | Slight visual change, likely intentional |
+| 5% - 15% | Major | Significant visual change, likely unintended regression |
+| > 15% | Critical | Major layout collapse or complete view change |
+
+> **Baseline missing**: If no baseline exists for a captured view, the screenshot is saved as the initial baseline and the result is recorded as `"Baseline Created"` (Pass with note).
+
+#### 6.5 Root Cause Analysis
+
+For each regression detected, analyze the diff pattern to suggest the likely cause:
+
+- **Layout shift** (rectangular diff region): Likely a layout constraint change in FXML or Java — Fix Handoff targets the FXML/Java file
+- **Color change** (uniform diff across an element): Likely a CSS color property change — Fix Handoff targets the CSS file
+- **Text change** (diff localized to text areas): Likely a font, size, or content change — Fix Handoff targets the FXML or CSS file
+- **Missing element** (large diff region where element was): Likely a visibility bug — Fix Handoff targets the Java controller or FXML
+- **Entire view different** (> 50% diff): Likely wrong view loaded or theme switch — Fix Handoff targets the main application class
+
+### Step 7: Report Generation and Aggregation
+
+After **all four parallel tracks** complete (or timeout), aggregate their results into a single unified test report. This step merges the four independent issue lists, computes the overall conclusion, and produces both Markdown and JSON outputs.
+
+**Aggregation procedure**:
+
+1. **Collect track results**: Gather the conclusion, issue list, and metrics from each track (`tester_perf_result`, `tester_sec_result`, `tester_a11y_result`, `tester_vr_result`)
+2. **Merge issues**: Concatenate all issues from all tracks into a single list, sorted by severity descending (Critical → Major → Minor → Info), then by dimension (Performance → Security → Accessibility → Visual Regression). Assign sequential `id` values after sorting
+3. **Deduplicate cross-track issues**: If two tracks report the same root cause (e.g., performance finds "FX thread blocked" and security finds "input causes hang" — both stem from synchronous I/O on FX thread; or accessibility finds "contrast too low" and visual regression finds "color changed" — both stem from a CSS color edit), keep the higher-severity entry and record the secondary in `escalation_note`
+4. **Compute overall conclusion**: Apply the aggregation gate:
+   - All four tracks Pass → `Pass`
+   - Any track Conditional Pass, none Fail → `Conditional Pass`
+   - Any track Fail → `Fail`
+   - Any track Skipped (error/timeout) → `Conditional Pass` with a warning noting which track was skipped
+5. **Compute pass rate**: `pass_rate = (total checks - failed checks) / total checks` across all four tracks
+6. **Record parallel timing**: Record each track's `start_time`, `end_time`, and `duration_ms` in the report's `parallel_execution` metadata
+
+Generate a structured test report containing: test summary, issue list (with Fix Handoff), per-dimension results, and parallel execution metadata. The report format is isomorphic with `javafx-runner`'s verification report, with the Fix Handoff field fully consistent, ensuring `javafx-developer` can consume both reports using the same logic.
 
 **Report requirements**:
 1. Include all test metrics (startup time, response latency, memory usage, CVE count, contrast ratios)
 2. Include all issues with severity classification and Fix Handoff fields
 3. Include per-dimension pass/fail/skip summary
-4. The Fix Handoff field format is fully consistent with `javafx-code-reviewer` and `javafx-runner`
+4. Include parallel execution metadata (per-track start/end time, duration, status)
+5. The Fix Handoff field format is fully consistent with `javafx-code-reviewer` and `javafx-runner`
 
 ## Testing Dimensions
 
@@ -250,6 +385,21 @@ Execute keyboard navigation, color contrast, and screen reader compatibility che
 
 > **Typical failure example**: Custom CSS sets `-fx-focus-color: transparent; -fx-faint-focus-color: transparent;` removing the focus ring entirely — keyboard users cannot see which control is focused (Minor). Fix: replace with a visible custom focus style.
 
+### 4. Visual Regression Testing
+
+Execute pixel-level screenshot comparison against baseline snapshots to detect unintended UI changes. Default severity baseline: Major.
+
+**Check Items** (see `references/visual-regression-testing.md`):
+- **Snapshot coverage**: All primary views and dialogs have baseline snapshots → Pass; missing baselines → Minor (auto-created on first run)
+- **Pixel diff ratio**: Diff < 2% (Pass), 2-5% (Minor), 5-15% (Major), > 15% (Critical)
+- **Layout stability**: No unintended layout shifts detected → Pass; rectangular diff regions → layout regression
+- **Color stability**: No unintended color changes detected → Pass; uniform element diff → color regression
+- **Element presence**: All expected elements present in screenshot → Pass; large diff region → missing element
+- **Baseline freshness**: Baseline `last_updated` within reasonable timeframe → Pass; stale baseline → Info (recommend re-capture)
+- **Diff image generation**: Diff visualization saved for each regression → required for Major/Critical issues
+
+> **Typical failure example**: Developer changes a CSS file to adjust button padding, but the change inadvertently shifts the entire toolbar layout by 4 pixels — visual regression detects 8% diff ratio (Major) on the main-view/default snapshot. The diff image clearly shows the toolbar shift in red. Fix: adjust the CSS padding to only affect the intended button, or update the baseline if the shift was intentional.
+
 ## Severity Classification
 
 | Severity | Definition | Examples | Action |
@@ -269,11 +419,13 @@ The tester outputs reports in **two formats simultaneously** by default:
 The JSON format is defined by the schema in `report-templates/report-schema.json`. Key fields:
 
 - `summary.conclusion`: `Pass`, `Conditional Pass`, or `Fail` — CI/CD can use `jq .summary.conclusion test-report.json` for quality gate decisions
-- `summary.dimensions`: Per-dimension conclusions (performance/security/accessibility) with metrics
+- `summary.dimensions`: Per-dimension conclusions (performance/security/accessibility/visual_regression) with metrics
 - `fix_handoffs[]`: Standalone array sorted by `fix_priority`, fully consistent with reviewer and runner
 - `performance_metrics`: Startup time, response latency, memory footprint metrics
 - `security_findings`: CVE list with CVSS scores and affected dependencies
 - `accessibility_results`: Contrast ratios, keyboard navigation results, accessible text coverage
+- `visual_regression_results`: Per-snapshot diff ratios, diff image paths, baseline status
+- `parallel_execution`: Per-track timing and status metadata (start_time, end_time, duration_ms, conclusion for each of the 4 tracks)
 - `loop_state`: Current loop state snapshot for orchestrator synchronization
 
 **Output format control**: If `.loop-config.json` exists in the project root with `"output_format": "json"`, output only the JSON report; if `"output_format": "markdown"`, output only the Markdown report. Default (no config file or `"output_format": "both"`) outputs both formats.
@@ -298,8 +450,8 @@ This protocol is shared across `javafx-developer`, `javafx-code-reviewer`, `java
 
 `javafx-tester` occupies the **deep test** stage of the loop, triggered **after** `javafx-runner` passes:
 - **Trigger condition**: Runner smoke verification passes (project compiles and starts)
-- **Round 1**: Full testing — performance + security + accessibility (all three dimensions)
-- **Round 2+**: Targeted testing — only dimensions affected by fixes (e.g., if only CSS was fixed, re-test accessibility only)
+- **Round 1**: Full testing — performance ∥ security ∥ accessibility ∥ visual regression (all four dimensions in parallel)
+- **Round 2+**: Targeted testing — only dimensions affected by fixes (e.g., if only CSS was fixed, re-test accessibility and visual regression). Affected dimensions still run in parallel if more than one is targeted
 - **Optional**: Tester can be configured as optional in the loop via `.loop-config.json` with `"deep_testing": false`
 
 ### Loop State Machine
@@ -321,7 +473,7 @@ This protocol is shared across `javafx-developer`, `javafx-code-reviewer`, `java
                                                                                    (round = max?) → [Paused]
 ```
 
-> **Parallel execution**: Reviewer and runner run in parallel — they have no data dependency. Tester runs **after** both pass (tester requires a runnable project). When orchestrated, see `javafx-orchestrator/SKILL.md` for the authoritative protocol definition.
+> **Parallel execution**: Reviewer and runner run in parallel — they have no data dependency. Tester runs **after** both pass (tester requires a runnable project). **Within tester**, the four dimensions (performance, security, accessibility, visual regression) also run in parallel as independent tracks — they have no data dependency on each other and write to isolated state fields (`tester_perf_result`, `tester_sec_result`, `tester_a11y_result`, `tester_vr_result`). When orchestrated, see `javafx-orchestrator/SKILL.md` for the authoritative protocol definition.
 
 ### Loop Rules
 
@@ -329,7 +481,7 @@ This protocol is shared across `javafx-developer`, `javafx-code-reviewer`, `java
 |------|-----------|-------------|
 | Max rounds | Fix → verify → test cycle loops at most 3 rounds | At 3 rounds without pass → pause, report to user |
 | Tester trigger | Tester is triggered after runner passes; skipped if runner fails | Runner failure short-circuits: skip tester |
-| Re-test strategy | Round 1: full testing; Round 2+: targeted testing (only dimensions touched by fixes) | Targeted testing checks only fix-affected dimensions |
+| Re-test strategy | Round 1: full parallel testing (all 4 tracks); Round 2+: targeted testing (only dimensions touched by fixes, still parallel if >1) | Targeted testing checks only fix-affected dimensions |
 | Convergence detection | Compare current round issue count with previous round | 2 consecutive non-converging rounds → pause, report to user |
 | User intervention points | Max rounds reached / non-converging / unfixable issues | Pause with current state report |
 | State persistence | Loop state serialized to `.loop-state.json` after each round | Cross-session recovery enabled |
@@ -350,28 +502,36 @@ The test gate is evaluated **after** the Combined Gate (reviewer + runner) passe
 
 The loop state is serialized to `.loop-state.json` in the project root directory by `javafx-developer`. The tester reads this file to determine the current round and select the appropriate testing strategy:
 
-- **Round 1** (after runner passes): Full testing — performance + security + accessibility
-- **Round 2+** (state file exists): Targeted testing — only dimensions affected by fixes (identified by `target_file` in the state's `last_fix_handoff`)
+- **Round 1** (after runner passes): Full parallel testing — performance ∥ security ∥ accessibility ∥ visual regression (all four tracks dispatched simultaneously)
+- **Round 2+** (state file exists): Targeted testing — only dimensions affected by fixes (identified by `target_file` in the state's `last_fix_handoff`). If more than one dimension is affected, they still run in parallel
 
 #### Tester's Serialization Responsibilities
 
 1. **Read state**: Before starting testing, check for `.loop-state.json`. If found, extract `current_round` and `last_fix_handoff` to determine testing scope
-2. **Determine strategy**: Round 1 → Full Testing; Round 2+ → Targeted Testing (only dimensions related to `target_file`s in the fix handoff)
-3. **Write result**: After completing testing, update **only** the `rounds[current_round].tester_result` field with conclusion, issue counts by severity, and fix handoff count. Do not modify `reviewer_result` or `runner_result` (field isolation)
-4. **Set next action**: If tester passes, set `status: "passed"` and archive; if tester fails, set `next_action: "fixing"` (developer consumes merged fix handoffs from reviewer + runner + tester)
+2. **Determine strategy**: Round 1 → Full Parallel Testing (all 4 tracks); Round 2+ → Targeted Testing (only dimensions related to `target_file`s in the fix handoff)
+3. **Write track results**: Each parallel track writes **only** to its own isolated field in `rounds[current_round]`:
+   - Track A (Performance) → `tester_perf_result` with `conclusion`, `issues` count, `critical`/`major`/`minor`/`info` counts, `fix_handoff_count`, `duration_ms`
+   - Track B (Security) → `tester_sec_result` with the same structure
+   - Track C (Accessibility) → `tester_a11y_result` with the same structure
+   - Track D (Visual Regression) → `tester_vr_result` with the same structure, plus `snapshots_compared`, `snapshots_passed`, `snapshots_regressed`, `snapshots_baseline_created`
+   - Do not modify `reviewer_result`, `runner_result`, or another track's field (field isolation)
+4. **Aggregated tester_result**: After all tracks complete, the tester (or orchestrator) computes the aggregated `tester_result` field from the four track fields using the aggregation gate (see [Step 7: Report Generation and Aggregation](#step-7-report-generation-and-aggregation)). This aggregated field is what the Test Gate reads
+5. **Set next action**: If the aggregated tester_result is Pass, set `status: "passed"` and archive; if Fail, set `next_action: "fixing"` (developer consumes merged fix handoffs from reviewer + runner + tester)
 
 ## Constraints
 
 ### Execution Safety
 1. **Command whitelist**: Only execute build-related commands (`mvn`, `gradle`, `java -version`, `dependency-check`); do not execute arbitrary system commands
-2. **Timeout protection**: Performance benchmarks 5 minutes, security scans 10 minutes, accessibility tests 5 minutes; terminate after timeout
-3. **No side effects**: Do not modify user project files (only read and execute); fixes are performed by `javafx-developer`
+2. **Timeout protection**: Performance benchmarks 5 minutes, security scans 10 minutes, accessibility tests 5 minutes, visual regression tests 5 minutes; terminate after timeout
+3. **No side effects**: Do not modify user project files (only read and execute); fixes are performed by `javafx-developer`. Exception: visual regression baseline creation/update writes to `src/test/resources/snapshots/` — this is intentional and only occurs on first run or when `vr_update_baselines` is enabled
 4. **Fuzz testing safety**: Input fuzzing must not delete or modify project data; use in-memory test data only
+5. **Visual regression safety**: Screenshot capture must not interact with production data; use mock/sample data for populated states
 
 ### Tool Dependencies
 1. **OWASP Dependency-Check**: If CLI not available, use Maven plugin (`org.owasp:dependency-check-maven:check`)
 2. **JMH**: If not configured in project, use manual `System.nanoTime()` timing (less precise but sufficient)
-3. **Monocle**: For headless CI performance testing, require Monocle dependency
+3. **Monocle**: For headless CI performance testing and visual regression testing, require Monocle dependency (`org.testfx:openjfx-monocle`)
+4. **TestFX**: For visual regression screenshot capture, require TestFX dependencies (`testfx-core` + `testfx-junit5`). If not present, Track D is skipped with a note
 
 ## Relationship to Other Skills
 
@@ -386,6 +546,7 @@ The tester references the following documents in the `references/` directory:
 - `references/performance-testing.md` - Performance testing rules, thresholds, and measurement methodologies
 - `references/security-testing.md` - Security testing rules, vulnerability classification, and fuzzing patterns
 - `references/accessibility-testing.md` - Accessibility testing rules, WCAG 2.1 criteria, and check methodologies
+- `references/visual-regression-testing.md` - Visual regression rules, TestFX + Monocle setup, pixel comparison algorithm, baseline management
 
 The tester also cross-references documents from other skills:
 

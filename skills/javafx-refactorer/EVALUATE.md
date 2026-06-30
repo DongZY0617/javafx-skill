@@ -1,6 +1,6 @@
 # EVALUATE.md — javafx-refactorer
 
-> 15 evaluation test cases that quantify refactoring quality.
+> 18 evaluation test cases that quantify refactoring quality.
 > Each test case includes: description, input, expected output, and pass criteria.
 
 ## Test Cases
@@ -94,3 +94,39 @@
 **Input**: "Analyze the code for refactoring opportunities — don't apply changes yet."
 **Expected Output**: Refactoring artifacts produced, `refactor-handoff.json` exists, no source files modified.
 **Pass Criteria**: `refactor-handoff.json` exists with complete smell catalog and refactoring plan. No Java source files are modified (git diff shows no changes to src/). Loop state shows `refactor_result` but no `rounds` array (developer not triggered).
+
+### TC-16: Behavior Equivalence Violation (Negative)
+**Description**: Refactoring recommendation changes observable behavior but is NOT flagged as behavior-risky.
+**Input**: A refactoring plan recommends inlining a method that has a side effect (e.g., logging or state mutation) into two call sites. The `behavior_equivalence_check` for this action does not flag the side-effect divergence.
+**Expected Output**: The refactoring plan should mark this action with `behavior_equivalent: false` or `behavior_risk: "high"` and include a `verification_required` flag. If it doesn't, the test fails.
+**Pass Criteria**:
+- [ ] The action's `behavior_equivalence_check` identifies the side-effect divergence
+- [ ] The action is marked `behavior_equivalent: false` or `behavior_risk: "high"`
+- [ ] `verification_plan` includes a specific test recommendation for this action
+- [ ] If the check fails to detect the behavior change, the refactorer's conclusion must be `Fail` or `Pass with warnings` (not clean `Pass`)
+
+### TC-17: Constraint Violation — Modifying Production Code (Negative)
+**Description**: Refactorer must NOT modify any production source files. This test verifies the constraint is enforced.
+**Input**: Full project refactoring request with 5 detected smells and a complete refactoring plan.
+**Expected Output**: Refactorer produces analysis artifacts (smell catalog, refactoring plan, tech debt inventory, verification plan) and `refactor-handoff.json`. No files under `src/main/` are modified.
+**Pass Criteria**:
+- [ ] `git diff --name-only src/main/` returns empty (no production code changes)
+- [ ] `refactor-handoff.json` contains all recommended actions but none are applied
+- [ ] Only `refactor-report.md`, `refactor-report.json`, and `refactor-handoff.json` are created/modified
+- [ ] The `developer_instructions` section describes how developer should apply the changes (refactorer delegates, does not execute)
+- [ ] If any `src/main/` file is modified, the test fails with "Constraint violated: refactorer modified production code"
+
+### TC-18: Refactor Handoff Fix Consumption Compatibility
+**Description**: Verify that `refactor-handoff.json` produced by the refactorer contains the unified Fix Handoff fields in every `refactoring_plan` item and can be consumed by the developer's Fix Consumption Protocol without conversion.
+**Input**: A full project refactoring request that produces `refactor-handoff.json` with 3 refactoring actions (extract_class, extract_method, move_class). The handoff is then passed to `javafx-developer`'s Fix Consumption Protocol.
+**Expected Output**: Each `refactoring_plan` item contains `target_file`, `target_lines`, `fix_type`, `fix_priority`, `code_fingerprint`, `anchor_pattern`, and `ast_node_signature` — matching the unified Fix Handoff format defined in `javafx-orchestrator/SKILL.md`. The developer's Fix Consumption Protocol parses the handoff and activates Fix Consumption mode without any field conversion.
+**Pass Criteria**:
+- [ ] All `refactoring_plan` items contain `target_file` (file path string)
+- [ ] All items contain `target_lines` matching the valid pattern `^\d+(-\d+)?$` (single line or start-end range)
+- [ ] All items contain `fix_type` with value `replace`, `insert`, or `delete`
+- [ ] All items contain `fix_priority` as an integer ≥ 1
+- [ ] All items contain `code_fingerprint` as a valid SHA-256 hash matching `^[a-f0-9]{64}$`
+- [ ] All items contain `anchor_pattern` (surrounding context signature)
+- [ ] All items contain `ast_node_signature` (a method/field/class signature string, or `null` for non-Java targets)
+- [ ] `smell_catalog` field names aligned with `report-schema.json` (`smell_id`, `lines`, `detail`, `ast_node_signature`)
+- [ ] Developer Fix Consumption Protocol can parse the handoff without conversion (recognizes the unified Fix Handoff fields and activates Step 5.5)

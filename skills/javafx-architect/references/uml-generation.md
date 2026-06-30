@@ -1,6 +1,6 @@
 # UML Diagram Generation with PlantUML
 
-This reference defines how the JavaFX Architect skill produces UML diagrams using PlantUML syntax. It covers class, sequence, and deployment diagrams, naming conventions, ADR cross-referencing, and a validation checklist. All diagrams are emitted as `.puml` files under `docs/diagrams/`.
+This reference defines how the JavaFX Architect skill produces UML diagrams using PlantUML syntax. It covers class, sequence, and deployment diagrams, naming conventions, ADR cross-referencing, and a validation checklist. All diagrams are emitted as `.puml` files under `architecture/uml/`.
 
 ## PlantUML Syntax Reference
 
@@ -253,7 +253,7 @@ Add a `note` linking diagram elements to the relevant Architecture Decision Reco
 class OrderService
 note right of OrderService
   Transaction boundary defined in
-  docs/adr/0007-transaction-scope.md
+  architecture/adr/0007-transaction-scope.md
 end note
 ```
 
@@ -266,4 +266,4 @@ end note
 - [ ] Sequence diagrams include return arrows (`-->`) for synchronous calls.
 - [ ] Deployment diagrams label all connections with a protocol.
 - [ ] No syntax errors — verify with `plantuml -checkonly diagram.puml`.
-- [ ] ADR-linked notes reference an existing file under `docs/adr/`.
+- [ ] ADR-linked notes reference an existing file under `architecture/adr/`.

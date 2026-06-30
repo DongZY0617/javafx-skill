@@ -1,0 +1,263 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://javafx-skill/deployer/deploy-handoff-schema.json",
+  "title": "JavaFX Deployer Handoff",
+  "description": "Independent validation schema for the deploy-handoff.json file produced by javafx-deployer. This schema validates the handoff artifact documenting deployment configuration for ops consumption, separate from the deployment report schema. Enum values are kept consistent with the definitions in javafx-deployer/SKILL.md and report-templates/report-schema.json. Conditional fields (distribution, rollback) are not required and are present only when the corresponding deployment scope is activated.",
+  "type": "object",
+  "required": [
+    "project",
+    "deployer_version",
+    "created_at",
+    "deploy_scope",
+    "ci_cd",
+    "release",
+    "signing",
+    "auto_update",
+    "monitoring",
+    "required_secrets",
+    "conclusion"
+  ],
+  "properties": {
+    "project": {
+      "type": "string",
+      "description": "Name of the project being deployed"
+    },
+    "deployer_version": {
+      "type": "string",
+      "const": "1.1",
+      "description": "Deployer skill version. Fixed at 1.1 for this handoff format."
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp when the handoff file was created (ISO 8601, e.g., 2026-06-30T10:00:00Z)"
+    },
+    "deploy_scope": {
+      "type": "object",
+      "description": "Deployment scope declaration, consistent with javafx-deployer/SKILL.md and report-templates/report-schema.json",
+      "required": ["mode", "dimensions"],
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": ["Full Deployment", "CI/CD Only", "Release Only", "Signing Only", "Monitoring Only", "Distribution Only", "Rollback Only"],
+          "description": "Deployment mode, matching the scope options in javafx-deployer/SKILL.md Step 1"
+        },
+        "dimensions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["ci_cd", "release", "signing", "auto_update", "monitoring", "distribution", "rollback"]
+          },
+          "description": "Activated deployment dimensions. Enum values are identical to report-templates/report-schema.json deploy_scope.dimensions."
+        }
+      }
+    },
+    "ci_cd": {
+      "type": "object",
+      "description": "CI/CD pipeline configuration, consistent with the handoff example in javafx-deployer/SKILL.md",
+      "properties": {
+        "platform": {
+          "type": "string",
+          "enum": ["github-actions", "gitlab-ci", "both"],
+          "description": "CI/CD platform choice"
+        },
+        "workflow_file": {
+          "type": "string",
+          "description": "Path to the generated build workflow file, e.g., .github/workflows/build.yml"
+        },
+        "target_platforms": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["windows", "macos", "linux"]
+          },
+          "description": "Target platforms for the build matrix"
+        }
+      }
+    },
+    "release": {
+      "type": "object",
+      "description": "Release management configuration, consistent with the handoff example in javafx-deployer/SKILL.md",
+      "properties": {
+        "workflow_file": {
+          "type": "string",
+          "description": "Path to the release workflow file, e.g., .github/workflows/release.yml"
+        },
+        "version_script": {
+          "type": "string",
+          "description": "Path to the version bump script, e.g., scripts/bump-version.sh"
+        }
+      }
+    },
+    "signing": {
+      "type": "object",
+      "description": "Code signing and notarization configuration, consistent with the handoff example in javafx-deployer/SKILL.md",
+      "properties": {
+        "windows_script": {
+          "type": "string",
+          "description": "Path to the Windows code signing script, e.g., scripts/sign-windows.sh"
+        },
+        "macos_script": {
+          "type": "string",
+          "description": "Path to the macOS notarization script, e.g., scripts/notarize-macos.sh"
+        },
+        "required_secrets": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Signing-specific CI/CD secrets, e.g., WINDOWS_CERT_PFX, APPLE_ID"
+        }
+      }
+    },
+    "auto_update": {
+      "type": "object",
+      "description": "Auto-update mechanism configuration, consistent with the handoff example in javafx-deployer/SKILL.md",
+      "properties": {
+        "checker_class": {
+          "type": "string",
+          "description": "Path to the UpdateChecker Java class, e.g., src/main/java/com/example/UpdateChecker.java"
+        },
+        "config_file": {
+          "type": "string",
+          "description": "Path to the update configuration file, e.g., src/main/resources/update-config.json"
+        },
+        "manifest_template": {
+          "type": "string",
+          "description": "Path to the server-side update manifest template, e.g., docs/update-manifest-template.json"
+        }
+      }
+    },
+    "monitoring": {
+      "type": "object",
+      "description": "Runtime monitoring configuration, consistent with the handoff example in javafx-deployer/SKILL.md",
+      "properties": {
+        "logback_config": {
+          "type": "string",
+          "description": "Path to the Logback configuration file, e.g., src/main/resources/logback.xml"
+        },
+        "crash_handler": {
+          "type": "string",
+          "description": "Path to the CrashHandler Java class, e.g., src/main/java/com/example/CrashHandler.java"
+        },
+        "metrics_collector": {
+          "type": "string",
+          "description": "Path to the MetricsCollector Java class, e.g., src/main/java/com/example/MetricsCollector.java"
+        }
+      }
+    },
+    "distribution": {
+      "type": "object",
+      "description": "Conditional field: Distribution channel configuration. Present only when store distribution is requested (deploy_scope.dimensions includes 'distribution'). Not in the required list.",
+      "properties": {
+        "channels": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["msix", "microsoft-store", "mac-app-store", "snap", "flatpak"]
+          },
+          "description": "Target distribution channels. Enum values are consistent with report-templates/report-schema.json distribution.channels."
+        },
+        "configs": {
+          "type": "object",
+          "description": "Paths to distribution channel configuration files",
+          "properties": {
+            "msix": {
+              "type": "string",
+              "description": "Path to the MSIX AppxManifest.xml"
+            },
+            "snap": {
+              "type": "string",
+              "description": "Path to the snapcraft.yaml"
+            },
+            "flatpak": {
+              "type": "string",
+              "description": "Path to the Flatpak manifest JSON"
+            },
+            "macos_entitlements": {
+              "type": "string",
+              "description": "Path to the macOS entitlements.plist"
+            }
+          }
+        },
+        "store_build_flag": {
+          "type": "string",
+          "description": "Maven flag to disable in-app updates for store builds, e.g., -Dstore.distribution=true"
+        },
+        "in_app_update_disabled": {
+          "type": "boolean",
+          "description": "Whether the UpdateChecker is disabled for store-distributed builds (stores handle updates)"
+        }
+      }
+    },
+    "rollback": {
+      "type": "object",
+      "description": "Conditional field: Rollback strategy configuration. Present only when rollback support is requested (deploy_scope.dimensions includes 'rollback'). Not in the required list.",
+      "properties": {
+        "state_class": {
+          "type": "string",
+          "description": "Path to the RollbackState Java class, e.g., src/main/java/com/example/RollbackState.java"
+        },
+        "rollback_state_file": {
+          "type": "string",
+          "description": "Path to the rollback state file, e.g., ~/.myapp/rollback-state.json"
+        },
+        "health_check_job": {
+          "type": "string",
+          "description": "CI/CD job name for post-release health check, e.g., post-release-health-check"
+        },
+        "runbook": {
+          "type": "string",
+          "description": "Path to the manual rollback Runbook, e.g., docs/rollback-runbook.md"
+        },
+        "grace_period_hours": {
+          "type": "integer",
+          "description": "Grace period in hours for crash counting after an update (default: 24)"
+        },
+        "crash_threshold": {
+          "type": "integer",
+          "description": "Crash count within the grace period that triggers automatic rollback (default: 3)"
+        },
+        "rollback_enabled": {
+          "type": "boolean",
+          "description": "Whether automatic rollback is active"
+        }
+      }
+    },
+    "required_secrets": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "All CI/CD secrets the user must configure in the repository settings, aggregated across signing and other dimensions. Values match the secret names referenced in javafx-deployer/SKILL.md (e.g., WINDOWS_CERT_PFX, WINDOWS_CERT_PASSWORD, APPLE_ID, APPLE_TEAM_ID, APPLE_APP_PASSWORD)."
+    },
+    "conclusion": {
+      "type": "string",
+      "enum": ["Pass", "Pass with warnings", "Fail"],
+      "description": "Overall deployment configuration conclusion"
+    },
+    "production_feedback": {
+      "type": "object",
+      "description": "Production feedback loop configuration. When health checks or auto-rollback detect production issues, this field provides the data path for orchestrator to record in deploy_result and potentially trigger a new fix round.",
+      "properties": {
+        "health_check_endpoint": {
+          "type": "string",
+          "description": "API endpoint for post-release health checks (crash count, launch success rate)"
+        },
+        "crash_report_endpoint": {
+          "type": "string",
+          "description": "API endpoint for crash reports, consumed by CrashHandler.maybeReportRemote()"
+        },
+        "rollback_triggered": {
+          "type": "boolean",
+          "description": "Whether automatic rollback was triggered post-release"
+        },
+        "rollback_reason": {
+          "type": "string",
+          "enum": ["crash_threshold_exceeded", "launch_failure_rate_high", "manual", "none"],
+          "description": "Reason for rollback if triggered"
+        },
+        "feedback_to_loop": {
+          "type": "boolean",
+          "description": "Whether production issues should feed back to orchestrator loop-state for a new fix round (default: false — production feedback is informational only by default)"
+        }
+      }
+    }
+  }
+}

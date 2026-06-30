@@ -1,0 +1,280 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://javafx-skill.dev/schemas/developer-report.json",
+  "title": "JavaFX Developer Report (JSON)",
+  "description": "Machine-readable report schema for javafx-developer. Covers both generation mode (initial project scaffolding) and fix consumption mode (applying fix handoffs from reviewer/runner/tester). Used by the orchestrator for loop state updates and CI/CD integration.",
+  "type": "object",
+  "required": [
+    "report_type",
+    "developer_version",
+    "generated_at",
+    "project",
+    "mode",
+    "summary",
+    "loop_state"
+  ],
+  "properties": {
+    "report_type": {
+      "type": "string",
+      "const": "developer",
+      "description": "Always 'developer' to distinguish from review, verification, and test reports"
+    },
+    "developer_version": {
+      "type": "string",
+      "const": "1.1",
+      "description": "Developer skill version — must match SKILL.md metadata.version"
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "project": { "type": "string" },
+    "mode": {
+      "type": "string",
+      "enum": ["generating", "fix_consumption"],
+      "description": "generating = initial code generation (Steps 1-6); fix_consumption = applying fix handoffs (Step 5.5)"
+    },
+    "generation_result": {
+      "type": "object",
+      "description": "Present only when mode is 'generating'. Describes the generated project artifacts.",
+      "required": ["architecture_pattern", "artifacts", "quality_checklist"],
+      "properties": {
+        "architecture_pattern": {
+          "type": "string",
+          "enum": ["MVC", "MVVM", "MVP", "MVVM + Service Layer", "MVC + Service Layer"],
+          "description": "Architecture pattern used for code generation"
+        },
+        "javafx_version": {
+          "type": "string",
+          "enum": ["17", "21", "24", "25", "26"]
+        },
+        "build_tool": {
+          "type": "string",
+          "enum": ["Maven", "Gradle"]
+        },
+        "artifacts": {
+          "type": "object",
+          "required": ["controllers", "view_models", "models", "fxml_files", "css_files", "services", "daos"],
+          "properties": {
+            "controllers": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "List of generated Controller class paths"
+            },
+            "view_models": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "List of generated ViewModel class paths (empty if MVC pattern)"
+            },
+            "models": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "List of generated Model/Entity class paths"
+            },
+            "fxml_files": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "List of generated FXML file paths"
+            },
+            "css_files": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "List of generated CSS file paths"
+            },
+            "services": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "List of generated Service class paths"
+            },
+            "daos": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "List of generated DAO/Repository class paths"
+            }
+          }
+        },
+        "handoffs_consumed": {
+          "type": "array",
+          "description": "List of handoff files consumed during generation (architecture-handoff.json, design-handoff.json, requirements-handoff.json)",
+          "items": { "type": "string" }
+        },
+        "quality_checklist": {
+          "type": "object",
+          "required": ["passed", "failed", "skipped"],
+          "properties": {
+            "passed": { "type": "integer", "minimum": 0 },
+            "failed": { "type": "integer", "minimum": 0 },
+            "skipped": { "type": "integer", "minimum": 0 },
+            "failed_items": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Names of failed quality checklist items"
+            }
+          }
+        },
+        "compile_result": {
+          "type": "string",
+          "enum": ["Pass", "Fail"],
+          "description": "Whether the generated project compiles successfully"
+        }
+      }
+    },
+    "fix_summary": {
+      "type": "object",
+      "description": "Present only when mode is 'fix_consumption'. Aggregated results of fix handoff consumption.",
+      "required": ["fixes_applied", "fixes_skipped", "fixes_rolled_back", "fixes_failed", "fixes"],
+      "properties": {
+        "fixes_applied": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Count of fixes successfully applied (including relocated)"
+        },
+        "fixes_skipped": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Count of fixes skipped (line drift, file not found, missing corrected_example)"
+        },
+        "fixes_rolled_back": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Count of fixes rolled back due to compilation failure (batch-level)"
+        },
+        "fixes_failed": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Count of fixes that failed to apply (distinct from skipped/rolled_back)"
+        },
+        "fixes": {
+          "type": "array",
+          "description": "Per-fix status entries, sorted by fix_priority ascending",
+          "items": {
+            "type": "object",
+            "required": ["fix_priority", "target_file", "target_lines", "fix_type", "status", "source"],
+            "properties": {
+              "fix_priority": { "type": "integer", "minimum": 1 },
+              "target_file": { "type": "string" },
+              "target_lines": { "type": "string", "pattern": "^\\d+(-\\d+)?$" },
+              "fix_type": { "type": "string", "enum": ["replace", "insert", "delete"] },
+              "status": {
+                "type": "string",
+                "enum": ["applied", "applied (relocated)", "applied (relocated by anchor)", "applied (relocated by AST)", "skipped", "skipped (line drift)", "skipped (target file not found)", "skipped (missing corrected_example)", "skipped (AST signature not found)", "rolled_back", "failed"],
+                "description": "Fix application status. 'applied' variants indicate successful application possibly at a relocated position."
+              },
+              "source": {
+                "type": "string",
+                "enum": ["reviewer", "runner", "tester"],
+                "description": "Which skill produced this fix handoff"
+              },
+              "note": {
+                "type": "string",
+                "description": "Additional context (e.g., 'Line drift, found at line 32', 'Method moved to path/to/NewLocation.java')"
+              },
+              "ast_node_signature": {
+                "type": ["string", "null"],
+                "description": "AST-level anchor used for Level 4 matching. Null for non-Java files."
+              },
+              "dedup_merged_from": {
+                "type": ["string", "null"],
+                "description": "If this fix superseded an overlapping fix from another source (orchestrator dedup), records the source. Null if no dedup."
+              }
+            }
+          }
+        },
+        "cross_impact_warnings": {
+          "type": "array",
+          "description": "Cross-impact check results (Step 4). Warnings do not block fixes but are reported for reviewer/runner evaluation.",
+          "items": {
+            "type": "object",
+            "required": ["check", "result", "detail"],
+            "properties": {
+              "check": {
+                "type": "string",
+                "enum": ["Controller-FXML binding", "module-info consistency", "CSS reference integrity", "FXML-Controller event handler binding"]
+              },
+              "result": { "type": "string", "enum": ["Pass", "Warning"] },
+              "detail": { "type": "string" }
+            }
+          }
+        },
+        "rollback_events": {
+          "type": "array",
+          "description": "Rollback events if compilation failed after applying fixes. Empty if no rollback occurred.",
+          "items": {
+            "type": "object",
+            "required": ["round", "timestamp", "backup_dir", "files_restored", "compile_error_count", "rollback_verification"],
+            "properties": {
+              "round": { "type": "integer", "minimum": 1 },
+              "timestamp": { "type": "string", "format": "date-time" },
+              "backup_dir": { "type": "string", "description": "Path to .fix-backup/{timestamp}/ used for restoration" },
+              "files_restored": { "type": "integer", "minimum": 0 },
+              "compile_error_count": { "type": "integer", "minimum": 0 },
+              "rollback_verification": {
+                "type": "string",
+                "enum": ["passed", "failed"],
+                "description": "Whether post-rollback compilation passed (project restored to pre-fix state)"
+              }
+            }
+          }
+        },
+        "compile_result": {
+          "type": "string",
+          "enum": ["Pass", "Fail"],
+          "description": "Post-fix compilation result. 'Fail' triggers automatic rollback."
+        },
+        "backup_dir": {
+          "type": ["string", "null"],
+          "description": "Path to .fix-backup/{timestamp}/ directory. Null if no backup was created."
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "required": ["conclusion", "next_action"],
+      "properties": {
+        "conclusion": {
+          "type": "string",
+          "enum": ["Pass", "Pass with warnings", "Fail"],
+          "description": "Overall conclusion. 'Pass' = all fixes applied and compilation passed; 'Pass with warnings' = some fixes skipped but project compiles; 'Fail' = rollback occurred or generation failed quality checks"
+        },
+        "next_action": {
+          "type": "string",
+          "enum": ["re_review_and_verify", "re_review", "re_verify", "manual_intervention", "passed", "standalone_complete"],
+          "description": "Recommended next action for the orchestrator"
+        },
+        "warnings": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "List of warnings (skipped fixes, cross-impact issues, quality check failures)"
+        }
+      }
+    },
+    "loop_state": {
+      "type": "object",
+      "description": "Loop state fields written by the developer to .loop-state.json",
+      "required": ["current_round", "fixes_applied", "fixes_skipped", "fixes_rolled_back"],
+      "properties": {
+        "current_round": { "type": "integer", "minimum": 1 },
+        "fixes_applied": { "type": "integer", "minimum": 0 },
+        "fixes_skipped": { "type": "integer", "minimum": 0 },
+        "fixes_rolled_back": { "type": "integer", "minimum": 0 },
+        "fix_handoffs": {
+          "type": "array",
+          "description": "Per-handoff status markers for dashboard visualization",
+          "items": {
+            "type": "object",
+            "required": ["target_file", "target_lines", "fix_type", "fix_priority", "source", "status"],
+            "properties": {
+              "target_file": { "type": "string" },
+              "target_lines": { "type": "string", "pattern": "^\\d+(-\\d+)?$" },
+              "fix_type": { "type": "string", "enum": ["replace", "insert", "delete"] },
+              "fix_priority": { "type": "integer", "minimum": 1 },
+              "source": { "type": "string", "enum": ["reviewer", "runner", "tester"] },
+              "status": { "type": "string", "enum": ["applied", "skipped", "rolled_back"] },
+              "ast_node_signature": { "type": ["string", "null"] }
+            }
+          }
+        }
+      }
+    }
+  }
+}

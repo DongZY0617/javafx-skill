@@ -12,21 +12,26 @@ This file defines the acceptance test cases for the `javafx-deployer` skill, use
 
 | ID | Name | Type | Covered Dimensions | Expected Artifacts |
 |----|------|------|--------------------|--------------------|
-| 1 | Full deployment: GitHub Actions | Positive | All 5 | CI/CD + Release + Signing + Auto-update + Monitoring |
-| 2 | Full deployment: GitLab CI | Positive | All 5 | Same as above with GitLab config |
+| 1 | Full deployment: GitHub Actions | Positive | All 7 | CI/CD + Release + Signing + Auto-update + Monitoring + Distribution + Rollback |
+| 2 | Full deployment: GitLab CI | Positive | All 7 | Same as above with GitLab config |
 | 3 | CI/CD only: multi-platform matrix | Boundary | CI/CD | Workflow YAML only |
 | 4 | Release only: version bump + changelog | Boundary | Release | Release workflow + version script |
 | 5 | Signing only: Windows + macOS | Boundary | Signing | Signing scripts only |
 | 6 | Monitoring only: logging + crash + metrics | Boundary | Monitoring | logback.xml + Java classes |
 | 7 | No secrets in generated files | Negative | Signing | Scripts use env vars, no plaintext secrets |
 | 8 | YAML validity check | Positive | CI/CD | Valid YAML parseable by CI/CD platform |
-| 9 | Java code compilability | Positive | Auto-update, Monitoring | Generated Java is syntactically correct |
+| 9 | Java code compilability | Positive | Auto-update, Monitoring, Rollback | Generated Java is syntactically correct |
 | 10 | Auto-update manifest format | Positive | Auto-update | Valid JSON manifest with all required fields |
-| 11 | Post-delivery mode (with loop) | Boundary | All 5 | Artifacts + shipped next_action |
-| 12 | Standalone mode (no loop) | Boundary | All 5 | Artifacts + standalone_complete |
+| 11 | Post-delivery mode (with loop) | Boundary | All 7 | Artifacts + shipped next_action |
+| 12 | Standalone mode (no loop) | Boundary | All 7 | Artifacts + standalone_complete |
 | 13 | Single platform (Windows only) | Boundary | CI/CD, Signing | Windows-only config |
-| 14 | No build execution | Negative | All 5 | No mvn package or jpackage executed |
+| 14 | No build execution | Negative | All 7 | No mvn package or jpackage executed |
 | 15 | Shell scripts executable | Positive | Signing, Release | Scripts have shebang and executable permission |
+| 16 | MSIX / Microsoft Store distribution | Boundary | Distribution | MSIX manifest + AppxManifest.xml |
+| 17 | Snap + Flatpak distribution | Boundary | Distribution | snapcraft.yaml + Flatpak manifest |
+| 18 | Rollback strategy: version pinning + auto rollback | Positive | Rollback, Auto-update | RollbackState.java + manifest rollback fields |
+| 19 | Rollback Runbook + health check | Positive | Rollback | Runbook + CI/CD health check job |
+| 20 | Store build disables in-app update | Negative | Distribution, Auto-update | Store flag skips UpdateChecker |
 
 ---
 
@@ -34,14 +39,15 @@ This file defines the acceptance test cases for the `javafx-deployer` skill, use
 
 - **Input**: "Set up CI/CD for my JavaFX app using GitHub Actions. I need multi-platform builds, automated releases, Windows code signing, macOS notarization, auto-update, and runtime monitoring."
 - **Type**: Positive sample
-- **Covered Dimensions**: All 5 (ci_cd, release, signing, auto_update, monitoring)
+- **Covered Dimensions**: All 7 (ci_cd, release, signing, auto_update, monitoring, distribution, rollback)
 - **Expected Artifacts**:
   - `.github/workflows/build.yml` (multi-platform build matrix)
   - `.github/workflows/release.yml` (tag-triggered release)
   - `scripts/bump-version.sh`, `scripts/sign-windows.sh`, `scripts/notarize-macos.sh`
-  - `src/main/java/.../UpdateChecker.java`, `CrashHandler.java`, `MetricsCollector.java`
+  - `src/main/java/.../UpdateChecker.java`, `CrashHandler.java`, `MetricsCollector.java`, `RollbackState.java`
   - `src/main/resources/logback.xml`, `update-config.json`
-  - `docs/update-manifest-template.json`
+  - `packaging/msix/AppxManifest.xml`, `packaging/snap/snapcraft.yaml`, `packaging/flatpak/com.example.MyApp.json`, `packaging/macos/entitlements.plist`
+  - `docs/update-manifest-template.json`, `docs/rollback-runbook.md`
   - `deploy-handoff.json`
 - **Verification Standards**:
   - [ ] Build workflow has `strategy.matrix` with `os: [windows-latest, macos-latest, ubuntu-latest]`
@@ -62,7 +68,7 @@ This file defines the acceptance test cases for the `javafx-deployer` skill, use
 
 - **Input**: "Configure deployment for my JavaFX app using GitLab CI with multi-platform builds, releases, signing, auto-update, and monitoring."
 - **Type**: Positive sample
-- **Covered Dimensions**: All 5
+- **Covered Dimensions**: All 7
 - **Expected Artifacts**: Same as Case 1 but with `.gitlab-ci.yml` instead of GitHub Actions workflows
 - **Verification Standards**:
   - [ ] `.gitlab-ci.yml` has separate jobs for windows, macos, linux with appropriate tags
@@ -209,7 +215,7 @@ This file defines the acceptance test cases for the `javafx-deployer` skill, use
 
 - **Input**: After loop passes all gates and DocGen completes: "Now deploy my app — set up CI/CD, signing, and auto-update."
 - **Type**: Boundary case
-- **Covered Dimensions**: All 5
+- **Covered Dimensions**: All 7
 - **Expected Artifacts**: All deployment artifacts + deploy-handoff.json
 - **Verification Standards**:
   - [ ] Deploy report loop_state.next_action is "shipped"
@@ -278,3 +284,102 @@ This file defines the acceptance test cases for the `javafx-deployer` skill, use
   - [ ] Scripts include error handling (check for required env vars before proceeding)
   - [ ] Scripts include echo/printf statements for progress feedback
   - [ ] Version bump script accepts `--major`, `--minor`, `--patch`, `--release` flags
+
+---
+
+## Case 16: MSIX / Microsoft Store Distribution
+
+- **Input**: "Package my JavaFX app as MSIX for the Microsoft Store."
+- **Type**: Boundary case
+- **Covered Dimensions**: Distribution
+- **Expected Artifacts**: `packaging/msix/AppxManifest.xml`, `.appinstaller` file, CI/CD MSIX build job
+- **Verification Standards**:
+  - [ ] `AppxManifest.xml` has `runFullTrust` capability declared
+  - [ ] `AppxManifest.xml` has correct `Identity` with Name, Publisher, Version
+  - [ ] Visual assets section references correct icon paths
+  - [ ] jpackage command uses `--type msix` with `--win-upgrade-uuid`
+  - [ ] `.appinstaller` file has `UpdateSettings` for side-loading auto-update
+  - [ ] CI/CD workflow has a Windows runner job for MSIX build
+  - [ ] Deploy report scope is "Distribution Only"
+  - [ ] Deploy report dimensions array contains "distribution"
+  - [ ] Partner Center submission guide is included in docs
+
+---
+
+## Case 17: Snap + Flatpak Distribution
+
+- **Input**: "Create Snap and Flatpak packages for my JavaFX app on Linux."
+- **Type**: Boundary case
+- **Covered Dimensions**: Distribution
+- **Expected Artifacts**: `packaging/snap/snapcraft.yaml`, `packaging/flatpak/com.example.MyApp.json`, launcher script
+- **Verification Standards**:
+  - [ ] `snapcraft.yaml` has `confinement: strict`
+  - [ ] `snapcraft.yaml` includes plugs: `desktop`, `network`, `home`, `opengl`
+  - [ ] `snapcraft.yaml` stage-packages include OpenJDK and `libgl1-mesa-glx`
+  - [ ] Snap app definition has correct `command` pointing to launcher
+  - [ ] Flatpak manifest uses `org.gnome.Platform//46` runtime
+  - [ ] Flatpak `finish-args` include `--socket=x11`, `--share=network`, `--filesystem=home`
+  - [ ] Flatpak manifest has a launcher script module with Java module path
+  - [ ] CI/CD workflow includes `snapcore/action-build` for Snap
+  - [ ] Deploy report lists both channels in distribution config
+
+---
+
+## Case 18: Rollback Strategy — Version Pinning + Automatic Rollback
+
+- **Input**: "Add rollback support to my auto-update system with version pinning and automatic rollback on crashes."
+- **Type**: Positive sample
+- **Covered Dimensions**: Rollback, Auto-update
+- **Expected Artifacts**: `RollbackState.java`, extended `CrashHandler.java`, manifest template with rollback fields, `update-config.json` with rollback config
+- **Verification Standards**:
+  - [ ] `RollbackState.java` tracks `previous_version`, `current_version`, `crash_count`, `updated_at`
+  - [ ] `RollbackState.java` has `isWithinGracePeriod()` method (default 24h)
+  - [ ] `RollbackState.java` has `shouldAttemptRollback()` with loop guard (already rolled back / excessive crashes)
+  - [ ] `RollbackState.java` saves/loads from `~/.myapp/rollback-state.json`
+  - [ ] Update manifest template includes `pinned_version`, `pinned_reason`, `rollback_enabled`, `rollback_version` fields
+  - [ ] `CrashHandler.java` increments `crash_count` on uncaught exceptions within grace period
+  - [ ] `CrashHandler.java` triggers rollback when `crash_count >= crash_threshold` (default: 3)
+  - [ ] `update-config.json` includes `rollback_enabled`, `rollback_grace_period_hours`, `rollback_crash_threshold`, `rollback_silent`
+  - [ ] Rollback logic prevents infinite loops (checks if already on rollback version)
+  - [ ] All Java code compiles with JDK 17+
+  - [ ] Deploy report dimensions array contains "rollback"
+
+---
+
+## Case 19: Rollback Runbook + Health Check
+
+- **Input**: "Set up post-release health checks and a manual rollback Runbook for my JavaFX app."
+- **Type**: Positive sample
+- **Covered Dimensions**: Rollback
+- **Expected Artifacts**: `docs/rollback-runbook.md`, CI/CD health check job in release workflow
+- **Verification Standards**:
+  - [ ] `rollback-runbook.md` documents pin previous version procedure (set `pinned_version` in manifest)
+  - [ ] `rollback-runbook.md` documents force rollback procedure (set `minimum_version` to rollback target)
+  - [ ] `rollback-runbook.md` documents store-managed rollback (Partner Center, App Store Connect, Snap Store)
+  - [ ] `rollback-runbook.md` includes post-rollback verification checklist
+  - [ ] `rollback-runbook.md` includes contact/escalation information template
+  - [ ] CI/CD release workflow has `post-release-health-check` job
+  - [ ] Health check job runs at 1h, 6h, and 24h after release (schedule triggers)
+  - [ ] Health check job checks crash count and launch success rate via API
+  - [ ] Health check auto-pins previous version if metrics exceed thresholds
+  - [ ] Health check sends alert to operations team (Slack/email webhook)
+  - [ ] Deploy report scope is "Rollback Only"
+
+---
+
+## Case 20: Store Build Disables In-App Update
+
+- **Input**: "My app is distributed through the Microsoft Store and Mac App Store. Make sure the in-app update checker doesn't conflict with store updates."
+- **Type**: Negative sample
+- **Covered Dimensions**: Distribution, Auto-update
+- **Expected Artifacts**: Conditional UpdateChecker integration, build flag configuration
+- **Verification Standards**:
+  - [ ] Generated code includes a build flag `-Dstore.distribution=true`
+  - [ ] `App.java` integration code conditionally skips UpdateChecker when store flag is active
+  - [ ] UpdateChecker is NOT initialized at startup for store-distributed builds
+  - [ ] Background scheduled check is NOT started for store-distributed builds
+  - [ ] `update-config.json` is either absent or has `check_on_startup: false` for store builds
+  - [ ] CI/CD workflow for store builds passes `-Dstore.distribution=true` to Maven
+  - [ ] Direct-download builds (non-store) still have full auto-update functionality
+  - [ ] Deploy report notes that store builds delegate updates to the store platform
+  - [ ] No runtime errors when UpdateChecker is disabled (graceful degradation)

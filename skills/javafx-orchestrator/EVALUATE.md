@@ -118,3 +118,53 @@
 - `status: "passed"` → CI pipeline succeeds
 - `status: "paused"` → CI pipeline fails with state report
 - JSON reports (`review-report.json`, `verification-report.json`) available for parsing
+
+### TC-11: Requirements Phase Integration (Full Pipeline)
+
+**Input**: User requests "gather requirements, design the architecture, and generate code for a user management app".
+
+**Expected**:
+- Orchestrator detects requirements intent ("gather requirements") → activates Step 0
+- Requirements phase runs first, produces `requirements/requirements-handoff.json`
+- `requirements_result` written to `.loop-state.json` with stakeholder/story/NFR counts
+- Orchestrator detects architect intent ("design the architecture") → activates Step 0.5
+- Architect consumes `requirements-handoff.json` in its Step 1 — uses stakeholders, user stories, NFRs
+- Orchestrator proceeds to Step 2 (Generation)
+- Developer consumes `requirements-handoff.json` in its Step 1 — uses user stories for requirements.md, req_id_convention for @req annotations
+- Generated code has `@req FR-xxx` annotations matching handoff requirement IDs
+- Reviewer uses handoff `traceability_matrix[]` as authoritative requirement list for Requirements Coverage dimension
+
+### TC-12: Requirements Phase Skipped (Direct Generation)
+
+**Input**: User requests "create a JavaFX app" without requirements/architecture/design intent.
+
+**Expected**:
+- Orchestrator does NOT activate Step 0 (no requirements keywords detected)
+- `requirements_result.triggered: false` in `.loop-state.json`
+- Loop starts directly at Step 2 (Generation)
+- Developer infers requirements from scratch (existing behavior)
+- No `requirements/requirements-handoff.json` produced
+
+### TC-13: Requirements Phase Failure (Pause)
+
+**Input**: User requests "gather requirements" but requirements skill returns Fail (e.g., user stories without acceptance criteria and user insists on proceeding).
+
+**Expected**:
+- Requirements phase produces `requirements-handoff.json` with `conclusion: "Fail"`
+- Orchestrator pauses loop with `status: "paused"`
+- `next_action: "manual_intervention"`
+- Does NOT proceed to architect or generation — requirements are prerequisites
+- User can fix requirements issues and resume
+
+### TC-14: Change Impact Analysis Mid-Loop
+
+**Input**: After architecture and code exist (loop paused or delivered), user requests "add export to CSV feature and analyze the impact".
+
+**Expected**:
+- Orchestrator detects change impact intent → routes to requirements skill in change_impact_only scope
+- Requirements skill produces `requirements/change-impact/CHANGE-001.md`
+- Forward trace identifies affected files with `@req` annotations
+- Backward trace verifies existing requirements not broken
+- `requirements-handoff.json` updated with new FR-005 in `change_impact_reports[]`
+- RTM updated: FR-005 status `Planned`
+- Orchestrator can route to developer to implement the change, then to reviewer to verify

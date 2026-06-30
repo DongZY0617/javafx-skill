@@ -24,7 +24,8 @@
     },
     "report_version": {
       "type": "string",
-      "const": "1.0"
+      "const": "1.2",
+      "description": "Report format version. Incremented when the report schema structure changes (e.g., adding Track D visual regression in v1.2). This tracks the report format, not the SKILL.md version, though they are kept in sync."
     },
     "generated_at": {
       "type": "string",
@@ -34,7 +35,7 @@
     "test_mode": {
       "type": "string",
       "enum": ["full", "targeted", "selective"],
-      "description": "full = all 3 dimensions; targeted = Round 2+ fix-affected only; selective = user-requested subset"
+      "description": "full = all 4 dimensions (executed in parallel by default); targeted = Round 2+ fix-affected only; selective = user-requested subset. Execution mode (parallel vs sequential fallback) is recorded in parallel_execution field"
     },
     "round": {
       "type": "integer",
@@ -71,7 +72,9 @@
               "required": ["conclusion", "issues"],
               "properties": {
                 "conclusion": { "type": "string", "enum": ["Pass", "Conditional Pass", "Fail", "Skipped"] },
-                "issues": { "type": "integer", "minimum": 0 }
+                "issues": { "type": "integer", "minimum": 0 },
+                "duration_ms": { "type": "integer", "minimum": 0, "description": "Wall-clock duration of this parallel track" },
+                "status": { "type": "string", "enum": ["completed", "skipped", "timeout", "error"], "description": "Track execution status" }
               }
             },
             "security": {
@@ -79,7 +82,9 @@
               "required": ["conclusion", "issues"],
               "properties": {
                 "conclusion": { "type": "string", "enum": ["Pass", "Conditional Pass", "Fail", "Skipped"] },
-                "issues": { "type": "integer", "minimum": 0 }
+                "issues": { "type": "integer", "minimum": 0 },
+                "duration_ms": { "type": "integer", "minimum": 0, "description": "Wall-clock duration of this parallel track" },
+                "status": { "type": "string", "enum": ["completed", "skipped", "timeout", "error"], "description": "Track execution status" }
               }
             },
             "accessibility": {
@@ -87,7 +92,23 @@
               "required": ["conclusion", "issues"],
               "properties": {
                 "conclusion": { "type": "string", "enum": ["Pass", "Conditional Pass", "Fail", "Skipped"] },
-                "issues": { "type": "integer", "minimum": 0 }
+                "issues": { "type": "integer", "minimum": 0 },
+                "duration_ms": { "type": "integer", "minimum": 0, "description": "Wall-clock duration of this parallel track" },
+                "status": { "type": "string", "enum": ["completed", "skipped", "timeout", "error"], "description": "Track execution status" }
+              }
+            },
+            "visual_regression": {
+              "type": "object",
+              "required": ["conclusion", "issues"],
+              "properties": {
+                "conclusion": { "type": "string", "enum": ["Pass", "Conditional Pass", "Fail", "Skipped"] },
+                "issues": { "type": "integer", "minimum": 0 },
+                "snapshots_compared": { "type": "integer", "minimum": 0 },
+                "snapshots_passed": { "type": "integer", "minimum": 0 },
+                "snapshots_regressed": { "type": "integer", "minimum": 0 },
+                "snapshots_baseline_created": { "type": "integer", "minimum": 0 },
+                "duration_ms": { "type": "integer", "minimum": 0, "description": "Wall-clock duration of this parallel track" },
+                "status": { "type": "string", "enum": ["completed", "skipped", "timeout", "error"], "description": "Track execution status" }
               }
             }
           }
@@ -257,6 +278,126 @@
         }
       }
     },
+    "visual_regression_results": {
+      "type": "object",
+      "description": "Visual regression testing results. Omitted if visual regression testing was skipped.",
+      "required": ["baseline_mode", "total_snapshots", "result"],
+      "properties": {
+        "baseline_mode": {
+          "type": "string",
+          "enum": ["compare", "create", "update"],
+          "description": "compare = normal regression check; create = first run, no baselines exist; update = vr_update_baselines enabled"
+        },
+        "total_snapshots": { "type": "integer", "minimum": 0 },
+        "snapshots_passed": { "type": "integer", "minimum": 0 },
+        "snapshots_regressed": { "type": "integer", "minimum": 0 },
+        "snapshots_baseline_created": { "type": "integer", "minimum": 0 },
+        "pixel_tolerance": { "type": "integer", "minimum": 0, "maximum": 255, "description": "Per-channel RGB tolerance used for comparison" },
+        "diff_threshold": { "type": "number", "minimum": 0, "maximum": 1, "description": "Diff ratio threshold (e.g., 0.02 for 2%)" },
+        "rendering_mode": { "type": "string", "enum": ["monocle", "glass", "native"], "description": "Rendering pipeline used for screenshot capture" },
+        "snapshot_results": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["snapshot_id", "view", "state", "diff_ratio", "result"],
+            "properties": {
+              "snapshot_id": { "type": "string", "description": "e.g., 'main-view/default'" },
+              "view": { "type": "string" },
+              "state": { "type": "string" },
+              "diff_ratio": { "type": "number", "minimum": 0, "maximum": 1, "description": "0.0 = identical, 1.0 = completely different" },
+              "diff_pixels": { "type": "integer", "minimum": 0 },
+              "comparable_pixels": { "type": "integer", "minimum": 0 },
+              "diff_image_path": { "type": "string", "description": "Path to diff visualization image (relative to project root)" },
+              "baseline_path": { "type": "string", "description": "Path to baseline PNG" },
+              "result": { "type": "string", "enum": ["Pass", "Minor", "Major", "Critical", "Baseline Created", "Baseline Updated"] },
+              "ignore_regions_count": { "type": "integer", "minimum": 0 }
+            }
+          }
+        },
+        "result": { "type": "string", "enum": ["Pass", "Minor", "Major", "Critical", "Skipped"] }
+      }
+    },
+    "parallel_execution": {
+      "type": "object",
+      "description": "Parallel execution metadata for the four testing tracks. Present when tester runs in parallel mode (default).",
+      "required": ["execution_mode", "tracks"],
+      "properties": {
+        "execution_mode": {
+          "type": "string",
+          "enum": ["parallel", "sequential"],
+          "description": "parallel = all 4 tracks dispatched simultaneously (default); sequential = fallback for resource-constrained environments (.loop-config.json tester_parallel: false)"
+        },
+        "wall_clock_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Total wall-clock time from first track start to last track completion. In parallel mode, this is less than the sum of individual track durations."
+        },
+        "sum_of_track_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Sum of individual track durations. In parallel mode, wall_clock_ms < sum_of_track_ms (speedup). In sequential mode, wall_clock_ms ≈ sum_of_track_ms."
+        },
+        "speedup_factor": {
+          "type": "number",
+          "minimum": 1,
+          "description": "sum_of_track_ms / wall_clock_ms. ~4.0 for ideal 4-way parallelism; 1.0 for sequential."
+        },
+        "tracks": {
+          "type": "object",
+          "required": ["performance", "security", "accessibility", "visual_regression"],
+          "properties": {
+            "performance": {
+              "type": "object",
+              "required": ["start_time", "end_time", "duration_ms", "conclusion", "status"],
+              "properties": {
+                "start_time": { "type": "string", "format": "date-time" },
+                "end_time": { "type": "string", "format": "date-time" },
+                "duration_ms": { "type": "integer", "minimum": 0 },
+                "conclusion": { "type": "string", "enum": ["Pass", "Conditional Pass", "Fail", "Skipped"] },
+                "status": { "type": "string", "enum": ["completed", "skipped", "timeout", "error"] },
+                "error_message": { "type": "string", "description": "Present only when status is timeout or error" }
+              }
+            },
+            "security": {
+              "type": "object",
+              "required": ["start_time", "end_time", "duration_ms", "conclusion", "status"],
+              "properties": {
+                "start_time": { "type": "string", "format": "date-time" },
+                "end_time": { "type": "string", "format": "date-time" },
+                "duration_ms": { "type": "integer", "minimum": 0 },
+                "conclusion": { "type": "string", "enum": ["Pass", "Conditional Pass", "Fail", "Skipped"] },
+                "status": { "type": "string", "enum": ["completed", "skipped", "timeout", "error"] },
+                "error_message": { "type": "string", "description": "Present only when status is timeout or error" }
+              }
+            },
+            "accessibility": {
+              "type": "object",
+              "required": ["start_time", "end_time", "duration_ms", "conclusion", "status"],
+              "properties": {
+                "start_time": { "type": "string", "format": "date-time" },
+                "end_time": { "type": "string", "format": "date-time" },
+                "duration_ms": { "type": "integer", "minimum": 0 },
+                "conclusion": { "type": "string", "enum": ["Pass", "Conditional Pass", "Fail", "Skipped"] },
+                "status": { "type": "string", "enum": ["completed", "skipped", "timeout", "error"] },
+                "error_message": { "type": "string", "description": "Present only when status is timeout or error" }
+              }
+            },
+            "visual_regression": {
+              "type": "object",
+              "required": ["start_time", "end_time", "duration_ms", "conclusion", "status"],
+              "properties": {
+                "start_time": { "type": "string", "format": "date-time" },
+                "end_time": { "type": "string", "format": "date-time" },
+                "duration_ms": { "type": "integer", "minimum": 0 },
+                "conclusion": { "type": "string", "enum": ["Pass", "Conditional Pass", "Fail", "Skipped"] },
+                "status": { "type": "string", "enum": ["completed", "skipped", "timeout", "error"] },
+                "error_message": { "type": "string", "description": "Present only when status is timeout or error" }
+              }
+            }
+          }
+        }
+      }
+    },
     "issues": {
       "type": "array",
       "description": "List of all issues found, sorted by severity descending, then by dimension (Performance → Security → Accessibility)",
@@ -268,7 +409,7 @@
           "severity": { "type": "string", "enum": ["Critical", "Major", "Minor", "Info"] },
           "dimension": {
             "type": "string",
-            "enum": ["Performance Testing", "Security Testing", "Accessibility Testing"]
+            "enum": ["Performance Testing", "Security Testing", "Accessibility Testing", "Visual Regression Testing"]
           },
           "title": { "type": "string" },
           "description": { "type": "string" },
@@ -327,6 +468,75 @@
         "next_action": {
           "type": "string",
           "enum": ["fixing", "incremental_test", "passed", "paused"]
+        },
+        "tester_perf_result": {
+          "type": ["object", "null"],
+          "description": "Track A (Performance) isolated result. Written only by the performance track. Null if track not executed.",
+          "properties": {
+            "conclusion": { "type": "string", "enum": ["Pass", "Conditional Pass", "Fail", "Skipped"] },
+            "critical": { "type": "integer", "minimum": 0 },
+            "major": { "type": "integer", "minimum": 0 },
+            "minor": { "type": "integer", "minimum": 0 },
+            "info": { "type": "integer", "minimum": 0 },
+            "fix_handoff_count": { "type": "integer", "minimum": 0 },
+            "duration_ms": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "tester_sec_result": {
+          "type": ["object", "null"],
+          "description": "Track B (Security) isolated result. Written only by the security track. Null if track not executed.",
+          "properties": {
+            "conclusion": { "type": "string", "enum": ["Pass", "Conditional Pass", "Fail", "Skipped"] },
+            "critical": { "type": "integer", "minimum": 0 },
+            "major": { "type": "integer", "minimum": 0 },
+            "minor": { "type": "integer", "minimum": 0 },
+            "info": { "type": "integer", "minimum": 0 },
+            "fix_handoff_count": { "type": "integer", "minimum": 0 },
+            "duration_ms": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "tester_a11y_result": {
+          "type": ["object", "null"],
+          "description": "Track C (Accessibility) isolated result. Written only by the accessibility track. Null if track not executed.",
+          "properties": {
+            "conclusion": { "type": "string", "enum": ["Pass", "Conditional Pass", "Fail", "Skipped"] },
+            "critical": { "type": "integer", "minimum": 0 },
+            "major": { "type": "integer", "minimum": 0 },
+            "minor": { "type": "integer", "minimum": 0 },
+            "info": { "type": "integer", "minimum": 0 },
+            "fix_handoff_count": { "type": "integer", "minimum": 0 },
+            "duration_ms": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "tester_vr_result": {
+          "type": ["object", "null"],
+          "description": "Track D (Visual Regression) isolated result. Written only by the visual regression track. Null if track not executed or visual_regression config is false.",
+          "properties": {
+            "conclusion": { "type": "string", "enum": ["Pass", "Conditional Pass", "Fail", "Skipped"] },
+            "critical": { "type": "integer", "minimum": 0 },
+            "major": { "type": "integer", "minimum": 0 },
+            "minor": { "type": "integer", "minimum": 0 },
+            "info": { "type": "integer", "minimum": 0 },
+            "fix_handoff_count": { "type": "integer", "minimum": 0 },
+            "duration_ms": { "type": "integer", "minimum": 0 },
+            "snapshots_compared": { "type": "integer", "minimum": 0 },
+            "snapshots_passed": { "type": "integer", "minimum": 0 },
+            "snapshots_regressed": { "type": "integer", "minimum": 0 },
+            "snapshots_baseline_created": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "tester_result": {
+          "type": ["object", "null"],
+          "description": "Aggregated tester result computed from the four track fields. This is what the Test Gate reads.",
+          "properties": {
+            "conclusion": { "type": "string", "enum": ["Pass", "Conditional Pass", "Fail"] },
+            "critical": { "type": "integer", "minimum": 0 },
+            "major": { "type": "integer", "minimum": 0 },
+            "minor": { "type": "integer", "minimum": 0 },
+            "info": { "type": "integer", "minimum": 0 },
+            "pass_rate": { "type": "number", "minimum": 0, "maximum": 1 },
+            "fix_handoff_count": { "type": "integer", "minimum": 0 }
+          }
         }
       }
     }

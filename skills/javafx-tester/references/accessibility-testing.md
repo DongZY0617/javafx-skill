@@ -251,3 +251,43 @@ When contrast fails, cross-reference:
 | All content accessible at 320px | Pass | No action |
 | Some content clipped but still accessible | Minor | Adjust layout constraints |
 | Critical content inaccessible at 320px | Major | Use responsive layout (AnchorPane constraints, FlowPane) |
+
+## 6. WCAG 2.1 AA Mapping for JavaFX
+
+This section provides a consolidated mapping between WCAG 2.1 AA success criteria and the concrete JavaFX API features that satisfy them, together with the test method used to verify each. Use this table as the authoritative cross-reference when reporting accessibility findings: every accessibility defect should cite both the WCAG criterion and the JavaFX mechanism that failed.
+
+| WCAG Criterion | JavaFX Implementation | Test Method |
+|----------------|-----------------------|-------------|
+| 1.1.1 Non-text Content | `AccessibleText` / `AccessibleRole` on `ImageView` and icon-only controls | Verify `accessibleText` set on all `Image`/`ImageView` and on `Button`/`Label` that use only graphic content; scan FXML for `ImageView` nodes lacking `accessibleText` (see section 3.3) |
+| 1.3.1 Info and Relationships | `AccessibleAttribute.PARENT` / `CHILDREN` exposed via `AccessibleAttribute` enumeration; container roles (`ACCESSIBLE_PARENT`) preserve tree structure | Verify the accessible tree structure matches the visual hierarchy: query `Node.queryAccessibleAttribute(AccessibleAttribute.PARENT)` / `CHILDREN` and assert the parent/child relationships mirror the scene graph; verify `Label`/`TextField` pairing via `labelFor` is reflected in the accessible tree |
+| 1.4.3 Contrast (Minimum) | CSS `-fx-text-fill` and `-fx-background-color` color values | Verify contrast ratio >= 4.5:1 for normal text and >= 3.0:1 for large text using the calculation in section 2.1; parse CSS and FXML inline styles for color pairs (see section 2.2) |
+| 2.1.1 Keyboard | `setOnKeyPressed` / `setOnKeyTyped` handlers, `KeyCodeCombination`, `Mnemonics` | Verify all actions exposed via mouse are also reachable via keyboard; press Tab/Enter/Space/Shift+F10 and confirm equivalent behavior; confirm no mouse-only interaction paths exist (see section 1.3) |
+| 2.4.3 Focus Order | `focusTraversable` property + custom traversal via `KeyEvent` handling or `TraversalEngine` | Verify Tab order is logical: Tab from the first focusable control and record the visited sequence; confirm it follows reading order (top-to-bottom, left-to-right) and that non-interactive nodes have `focusTraversable=false` (see section 1.1) |
+| 3.3.2 Labels or Instructions | `Label.labelFor` property binding the `Label` to its associated input control | Verify every `TextField`, `ComboBox`, `TextArea`, `PasswordField`, `ChoiceBox`, `Spinner`, and `DatePicker` has an associated `Label` with `labelFor` set (or an `accessibleText` fallback); scan FXML for inputs lacking `labelFor` binding |
+| 4.1.2 Name, Role, Value | `AccessibleRole` (role) + `AccessibleText` (name) + value-exposing attributes (`AccessibleAttribute.VALUE`, `TEXT`, `SELECTED`, etc.) | Verify the screen reader announces the correct name, role, and current value for each control: enable the platform screen reader (NVDA/VoiceOver/Orca) and traverse the UI; alternatively assert `accessibleRole`, `accessibleText`, and `queryAccessibleAttribute(VALUE)` programmatically |
+
+### 6.1 Using the Mapping in Reports
+
+When the tester emits an accessibility finding, it should reference the WCAG criterion number (e.g., "WCAG 1.4.3") in addition to the JavaFX-specific detail. This allows the finding to be aggregated into a standards-compliance dashboard alongside web and mobile findings, and lets the reviewer cross-reference the static accessibility rules that map to the same criterion.
+
+## 7. Screen Reader Compatibility Matrix
+
+JavaFX relies on the platform's native accessibility bridge (Windows: UI Automation / MSAA; macOS: NSAccessibility; Linux: ATK/AT-SPI). Compatibility varies by screen reader and operating system. The matrix below records the known support level and issues for each combination, to be used when interpreting screen-reader test results.
+
+| Screen Reader | OS | JavaFX Support | Known Issues |
+|---------------|----|----------------|--------------|
+| NVDA | Windows | Good via `AccessibleRole` and `AccessibleText` | `TableView` cell reading requires `accessibleText` on cells; without it NVDA announces only the row index, not cell content. Custom cell factories must set `accessibleText` per cell. Live region announcements require `ACCESSIBLE_STATUS_BAR` role. |
+| VoiceOver | macOS | Good | Tab key traversal differs from Windows: VoiceOver intercepts Tab for its own navigation; use `VO+Right Arrow` for element traversal. `AccessibleText` is read correctly but `accessibleHelp` is announced only after a delay. ComboBox expansion is not always announced — wrap with `ACCESSIBLE_COMBO_BOX` role explicitly. |
+| Orca | Linux | Limited | Requires the `-Djavafx.accessible=true` JVM flag to enable the ATK bridge; without it Orca sees no accessible tree at all. Even with the flag, custom controls are frequently invisible to Orca; `AccessibleRole` mappings are incomplete for some JavaFX controls (e.g., `Spinner`, `Pagination`). |
+
+### 7.1 Test Guidance per Reader
+
+- **NVDA (Windows)**: Primary test target. Use NVDA's element list (`Insert+F7`) to verify all controls appear with correct name/role. Run the focus-order test from section 1.1 while NVDA is active to confirm spoken order matches Tab order.
+- **VoiceOver (macOS)**: Use `VO+A` to read the entire window top-to-bottom and confirm content order matches the visual reading order. Note the Tab-traversal difference and document expected keyboard shortcuts accordingly.
+- **Orca (Linux)**: Always launch the JVM with `-Djavafx.accessible=true`. Treat Orca failures with caution — some are platform-bridge gaps rather than application defects; cross-check the same control with NVDA/VoiceOver before marking Critical.
+
+### 7.2 Cross-References
+
+When a screen-reader compatibility issue is rooted in missing JavaFX accessibility properties rather than the bridge itself, cross-reference:
+- `../javafx-code-reviewer/references/accessibility-guide.md` -- AccessibleRole / AccessibleText (static checks for missing properties)
+- `../javafx-code-reviewer/references/css-compliance.md` -- Color Contrast (static CSS check backing criterion 1.4.3)

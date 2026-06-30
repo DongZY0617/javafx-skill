@@ -4,12 +4,17 @@
   "title": "JavaFX Deployer Report",
   "description": "JSON schema for the javafx-deployer deployment report output",
   "type": "object",
-  "required": ["report_type", "project_info", "deploy_scope", "conclusion", "artifacts", "loop_state"],
+  "required": ["report_type", "report_version", "project_info", "deploy_scope", "conclusion", "artifacts", "loop_state"],
   "properties": {
     "report_type": {
       "type": "string",
       "const": "deployer",
       "description": "Fixed identifier for deployer reports"
+    },
+    "report_version": {
+      "type": "string",
+      "const": "1.1",
+      "description": "Report format version. Incremented when the report schema structure changes. This tracks the report format, kept in sync with the SKILL.md version."
     },
     "project_info": {
       "type": "object",
@@ -30,13 +35,13 @@
       "properties": {
         "mode": {
           "type": "string",
-          "enum": ["Full Deployment", "CI/CD Only", "Release Only", "Signing Only", "Monitoring Only"]
+          "enum": ["Full Deployment", "CI/CD Only", "Release Only", "Signing Only", "Monitoring Only", "Distribution Only", "Rollback Only"]
         },
         "dimensions": {
           "type": "array",
           "items": {
             "type": "string",
-            "enum": ["ci_cd", "release", "signing", "auto_update", "monitoring"]
+            "enum": ["ci_cd", "release", "signing", "auto_update", "monitoring", "distribution", "rollback"]
           }
         }
       }
@@ -174,6 +179,52 @@
         }
       }
     },
+    "distribution": {
+      "type": "object",
+      "description": "Distribution channel configuration",
+      "properties": {
+        "channels": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["msix", "microsoft-store", "mac-app-store", "snap", "flatpak"]
+          }
+        },
+        "configs": {
+          "type": "object",
+          "properties": {
+            "msix_manifest": { "type": "string", "description": "Path to AppxManifest.xml" },
+            "appinstaller": { "type": "string", "description": "Path to .appinstaller file" },
+            "snap_craft": { "type": "string", "description": "Path to snapcraft.yaml" },
+            "flatpak_manifest": { "type": "string", "description": "Path to Flatpak manifest JSON" },
+            "macos_entitlements": { "type": "string", "description": "Path to entitlements.plist" }
+          }
+        },
+        "store_build_flag": { "type": "string", "description": "Maven flag to disable in-app updates for store builds" },
+        "in_app_update_disabled": { "type": "boolean", "description": "Whether UpdateChecker is disabled for store builds" }
+      }
+    },
+    "rollback": {
+      "type": "object",
+      "description": "Rollback strategy configuration",
+      "properties": {
+        "state_class": { "type": "string", "description": "Path to RollbackState.java" },
+        "rollback_state_file": { "type": "string", "description": "Path to rollback-state.json" },
+        "health_check_job": { "type": "string", "description": "CI/CD job name for post-release health check" },
+        "runbook": { "type": "string", "description": "Path to rollback-runbook.md" },
+        "grace_period_hours": { "type": "integer", "description": "Grace period for crash counting after update" },
+        "crash_threshold": { "type": "integer", "description": "Crash count that triggers automatic rollback" },
+        "rollback_enabled": { "type": "boolean", "description": "Whether automatic rollback is active" },
+        "manifest_fields": {
+          "type": "object",
+          "properties": {
+            "pinned_version": { "type": ["string", "null"] },
+            "pinned_reason": { "type": "string" },
+            "rollback_version": { "type": "string" }
+          }
+        }
+      }
+    },
     "artifacts": {
       "type": "array",
       "items": {
@@ -212,7 +263,7 @@
         "properties": {
           "type": {
             "type": "string",
-            "enum": ["missing_secret", "missing_certificate", "platform_gap", "yaml_invalid", "compile_error"]
+            "enum": ["missing_secret", "missing_certificate", "platform_gap", "yaml_invalid", "compile_error", "store_submission_error", "rollback_config_missing", "store_build_conflict"]
           },
           "message": { "type": "string" },
           "severity": { "type": "string", "enum": ["Info", "Minor", "Major"] }

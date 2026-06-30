@@ -113,9 +113,12 @@
               "Memory Leak Risks",
               "Performance",
               "Deep Compliance Audit",
-              "Database Access Safety"
+              "Database Access Security",
+              "Requirements Coverage",
+              "Refactoring Verification",
+              "Static Analysis Tool Findings"
             ],
-            "description": "Review dimension this issue belongs to"
+            "description": "Review dimension this issue belongs to. The ten dimensions mirror the ten review dimensions defined in SKILL.md."
           },
           "title": { "type": "string" },
           "description": { "type": "string" },

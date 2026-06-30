@@ -56,6 +56,16 @@ When a user request matches both `javafx-designer` ("design / prototype / theme 
 - **Standalone build mode**: Developer can run independently without designer — it uses its own built-in templates for FXML and CSS. Designer is only needed when the user wants custom UI design before code generation
 - **Ambiguity fallback**: When the intent cannot be clearly determined, confirm with the user whether they want design-only or design+build
 
+### Trigger Resolution with javafx-architect
+
+When the user request contains ambiguous keywords that could trigger either designer or architect:
+
+- **`prototype` → designer**: When the user says "create a prototype", "FXML prototype", or "UI prototype", trigger designer (UI/visual prototype)
+- **`prototype validation` → architect**: When the user says "prototype validation", "validate the architecture", or "technical prototype", trigger architect (technical feasibility validation)
+- **`design` → depends on context**: "system design" / "architecture design" → architect; "UI design" / "visual design" / "theme design" → designer
+- **`layout` → designer**: When the user says "layout", "responsive layout", or "grid layout", trigger designer
+- **Sequential execution (architect → design)**: When the user says "design the architecture and create the UI", first trigger architect for system design, then trigger designer for UI design
+
 ## Design Dimensions
 
 | Dimension | Reference Document | Input Sources | Output Artifacts |
@@ -71,13 +81,14 @@ When a user request matches both `javafx-designer` ("design / prototype / theme 
 ### Step 1: Requirement Analysis & Design Scope
 
 1. **Parse user request**: Extract the application type (CRUD, dashboard, wizard, dialog-heavy, single-window, multi-window), target audience, and design preferences
-2. **Identify screens**: From the user description, enumerate all screens/views the application needs (e.g., main window, settings dialog, about dialog, login screen)
-3. **Determine design scope**: Based on the request, determine which dimensions to activate:
+2. **Check for architecture handoff** (optional): If `architecture/architecture-handoff.json` exists (produced by `javafx-architect`), consume it to align design decisions with architectural constraints — use the architecture pattern, module decomposition, and technology stack as design context. If absent, proceed with standalone design decisions
+3. **Identify screens**: From the user description, enumerate all screens/views the application needs (e.g., main window, settings dialog, about dialog, login screen)
+4. **Determine design scope**: Based on the request, determine which dimensions to activate:
    - **Full Design** (default): All 5 dimensions — FXML prototypes, CSS themes, interaction flow, responsive layout, icon config
    - **Prototype Only**: Only FXML prototype generation — for quick layout mockups
    - **Theme Only**: Only CSS theme system — for restyling existing projects
    - **Flow Only**: Only interaction flow diagram — for planning user journeys
-4. **Declare design scope**: Annotate the design scope in the report header
+5. **Declare design scope**: Annotate the design scope in the report header
 
 ### Step 2: Interaction Flow Design
 
@@ -208,6 +219,11 @@ graph TD
 3. **Design handoff summary**: Produce a `design-handoff.json` file that `javafx-developer` consumes:
    ```json
    {
+     "design_version": "1.0",
+     "project": "[project-name]",
+     "created_at": "2026-06-30T10:00:00Z",
+     "architecture_pattern": "MVVM + Service Layer",
+     "scope": "full",
      "screens": [
        {
          "name": "main-view",
@@ -225,7 +241,14 @@ graph TD
        "library": "ikonli-materialdesign-pack",
        "version": "12.3.1"
      },
-     "interaction_flow": "design/flow/interaction-flow.mmd"
+     "interaction_flow": "design/flow/interaction-flow.mmd",
+     "conclusion": "Pass",
+     "developer_instructions": {
+       "fx_id_consistency": "FXML fx:id values (newMenuItem, openMenuItem, tableView, statusLabel) must match @FXML field names in MainController exactly",
+       "css_resource_paths": "Copy light-theme.css and dark-theme.css to src/main/resources/css/",
+       "icon_dependencies": ["org.kordamp.ikonli:ikonli-javafx:12.3.1", "org.kordamp.ikonli:ikonli-materialdesign-pack:12.3.1"],
+       "theme_manager_setup": "Initialize ThemeManager in MainApplication.start() and bind stylesheet switching to a theme toggle control"
+     }
    }
    ```
 
@@ -306,6 +329,20 @@ In `.loop-state.json`:
   }
 }
 ```
+
+### Serialization Triggers
+
+Designer writes `design_result` to `.loop-state.json` at the following points:
+
+| Trigger | Writer | Action |
+|---------|--------|--------|
+| Design phase starts | Designer | Write partial `design_result` with `triggered: true`, `status: "designing"`, `dimensions` list |
+| Each screen prototype completed | Designer | Update `design_result.screens_designed` count and `artifacts` array (incremental write) |
+| Theme generation completed | Designer | Update `design_result.artifacts` with CSS file paths |
+| Design phase completes | Designer | Write full `design_result` with `dimensions`, `screens_designed`, `artifacts`, `handoff_file`, `timestamp` |
+| Design phase fails | Designer | Write `design_result` with `conclusion: "Fail"`, `errors` array |
+
+**Partial vs Full state**: During design, partial writes are allowed (incremental `screens_designed` and `artifacts`). The orchestrator treats `design_result` as authoritative only when `status` transitions from `"designing"` to `"complete"` (or `"failed"`).
 
 ## Reference Documents
 

@@ -91,6 +91,18 @@
                 }
               }
             },
+            "static_analysis": {
+              "type": "object",
+              "required": ["conclusion", "issues"],
+              "properties": {
+                "conclusion": { "type": "string", "enum": ["Pass", "Conditional Pass", "Fail", "Skipped"] },
+                "issues": { "type": "integer", "minimum": 0 },
+                "findings_file": {
+                  "type": "string",
+                  "description": "Path to the unified static analysis findings file (target/static-analysis-findings.json), present if tools ran"
+                }
+              }
+            },
             "runtime": {
               "type": "object",
               "required": ["conclusion", "issues"],
@@ -127,7 +139,7 @@
     },
     "issues": {
       "type": "array",
-      "description": "List of all issues found, sorted by severity descending (Critical -> Major -> Minor -> Info), then by verification dimension (Compile -> Runtime -> Test -> Packaging)",
+      "description": "List of all issues found, sorted by severity descending (Critical -> Major -> Minor -> Info), then by verification dimension (Compile -> Static Analysis -> Runtime -> Test -> Packaging)",
       "items": {
         "type": "object",
         "required": [
@@ -149,8 +161,8 @@
           },
           "dimension": {
             "type": "string",
-            "enum": ["Compile Verification", "Runtime Verification", "Test Verification", "Packaging Verification"],
-            "description": "Verification dimension that detected this issue"
+            "enum": ["Compile Verification", "Static Analysis Verification", "Runtime Verification", "Test Verification", "Packaging Verification"],
+            "description": "Verification dimension that detected this issue. The five dimensions mirror the five verification dimensions defined in SKILL.md."
           },
           "title": { "type": "string" },
           "description": { "type": "string" },

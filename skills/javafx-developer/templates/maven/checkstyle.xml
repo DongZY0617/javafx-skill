@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE module PUBLIC
+    "-//Checkstyle//DTD Checkstyle Configuration 1.3//EN"
+    "https://checkstyle.org/dtds/configuration_1_3.dtd">
+
+<!--
+  Checkstyle configuration for JavaFX projects.
+  Tailored for JavaFX desktop apps: relaxed on JavaFX-specific patterns,
+  strict on security and maintainability.
+-->
+<module name="Checker">
+    <property name="charset" value="UTF-8"/>
+    <property name="severity" value="warning"/>
+    <property name="fileExtensions" value="java, properties, xml, fxml"/>
+
+    <!-- File-level checks -->
+    <module name="FileTabCharacter">
+        <property name="eachLine" value="true"/>
+    </module>
+    <module name="LineLength">
+        <property name="max" value="150"/>
+        <property name="ignorePattern" value="^package.*|^import.*|a href|href|http://|https://|ftp://"/>
+    </module>
+    <module name="FileLength">
+        <property name="max" value="800"/>
+    </module>
+
+    <module name="TreeWalker">
+        <!-- Naming conventions -->
+        <module name="ConstantName"/>
+        <module name="LocalFinalVariableName"/>
+        <module name="LocalVariableName"/>
+        <module name="MemberName"/>
+        <module name="MethodName"/>
+        <module name="PackageName"/>
+        <module name="ParameterName"/>
+        <module name="StaticVariableName"/>
+        <module name="TypeName"/>
+
+        <!-- Imports -->
+        <module name="AvoidStarImport"/>
+        <module name="UnusedImports"/>
+        <module name="RedundantImport"/>
+        <module name="ImportOrder">
+            <property name="groups" value="java,javax,jakarta,org,com"/>
+            <property name="ordered" value="true"/>
+            <property name="separated" value="true"/>
+            <property name="option" value="above"/>
+        </module>
+
+        <!-- Code structure -->
+        <module name="MethodLength">
+            <property name="max" value="80"/>
+        </module>
+        <module name="ParameterNumber">
+            <property name="max" value="7"/>
+        </module>
+        <module name="ExecutableStatementCount">
+            <property name="max" value="50"/>
+            <property name="tokens" value="CTOR_DEF, METHOD_DEF, INSTANCE_INIT, STATIC_INIT"/>
+        </module>
+
+        <!-- Complexity -->
+        <module name="CyclomaticComplexity">
+            <property name="max" value="15"/>
+        </module>
+        <module name="JavaNCSS">
+            <property name="methodMaximum" value="50"/>
+            <property name="classMaximum" value="400"/>
+        </module>
+
+        <!-- Common coding problems -->
+        <module name="EmptyBlock">
+            <property name="tokens" value="LITERAL_WHILE, LITERAL_IF, LITERAL_FOR, LITERAL_SWITCH, LITERAL_TRY, LITERAL_CATCH"/>
+        </module>
+        <module name="EmptyStatement"/>
+        <module name="EqualsHashCode"/>
+        <module name="SimplifyBooleanExpression"/>
+        <module name="SimplifyBooleanReturn"/>
+        <module name="StringLiteralEquality"/>
+        <module name="NestedIfDepth">
+            <property name="max" value="3"/>
+        </module>
+        <module name="NestedTryDepth">
+            <property name="max" value="2"/>
+        </module>
+        <module name="NestedForDepth">
+            <property name="max" value="2"/>
+        </module>
+        <module name="DeclarationOrder"/>
+        <module name="MultipleVariableDeclarations"/>
+        <module name="OneStatementPerLine"/>
+
+        <!-- Whitespace -->
+        <module name="WhitespaceAround"/>
+        <module name="GenericWhitespace"/>
+        <module name="MethodParamPad"/>
+        <module name="NoWhitespaceAfter"/>
+        <module name="NoWhitespaceBefore"/>
+        <module name="OperatorWrap"/>
+        <module name="ParenPad"/>
+        <module name="TypecastParenPad"/>
+
+        <!-- Modifiers -->
+        <module name="ModifierOrder"/>
+        <module name="RedundantModifier"/>
+
+        <!-- Design -->
+        <module name="FinalClass"/>
+        <module name="HideUtilityClassConstructor"/>
+        <module name="InterfaceIsType"/>
+        <module name="VisibilityModifier">
+            <property name="packageAllowed" value="true"/>
+            <property name="protectedAllowed" value="true"/>
+        </module>
+
+        <!-- JavaFX-specific suppressions -->
+        <!-- FXML controllers use @FXML on package-private fields — allow this -->
+        <module name="SuppressionCommentFilter">
+            <property name="offCommentFormat" value="CHECKSTYLE:OFF"/>
+            <property name="onCommentFormat" value="CHECKSTYLE:ON"/>
+        </module>
+    </module>
+
+    <!-- Suppressions for generated/test code -->
+    <module name="SuppressionFilter">
+        <property name="file" value="${project.basedir}/checkstyle-suppressions.xml"/>
+        <property name="optional" value="true"/>
+    </module>
+</module>

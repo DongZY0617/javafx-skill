@@ -168,3 +168,172 @@ This document is the criteria for CSS compliance within the "Deep Compliance Aud
 }
 /* In Java: scene.getStylesheets().setAll("/css/dark-theme.css"); */
 ```
+
+---
+
+## Check Item 4: Looked-up Colors and Variable Resolution
+
+**Focus**: Whether looked-up color variables are declared in the correct scope and order, whether references resolve deterministically, and whether circular color references exist.
+
+### Variable Resolution Order
+
+JavaFX resolves a looked-up color reference by walking a well-defined lookup chain. A reference to `-fx-my-color` on a node is resolved against, in order:
+
+1. **Inline style** on the node itself (`node.setStyle("-fx-my-color: #abc;")`) — highest precedence.
+2. **Stylesheet rule** matching the node (e.g., `.button { -fx-my-color: #abc; }`) — the most recently added stylesheet wins; within a stylesheet, later rules of equal specificity win.
+3. **Inherited looked-up color** from the node's parent — looked-up colors cascade down the scene graph, so a value set on `.root` is visible to every descendant.
+4. **Modena (JavaFX 8+) default** — the built-in user agent stylesheet defines the baseline palette (e.g., `-fx-base`, `-fx-accent`, `-fx-background`). Caspian is the legacy default for JavaFX 2.x.
+
+The first definition found in this chain wins; later levels are not consulted for that node. This is why a color declared in `.root` is overridden by an inline style or a more specific stylesheet rule.
+
+### Common Pitfall: Reference Before Declaration Across Stylesheets
+
+When multiple stylesheets are loaded, a looked-up color referenced in an earlier stylesheet but declared in a later one will not resolve:
+
+```css
+/* app.css — loaded FIRST */
+.button {
+    -fx-background-color: -fx-primary-color;  /* -fx-primary-color not yet defined here */
+}
+
+/* theme.css — loaded SECOND */
+.root {
+    -fx-primary-color: #2196f3;  /* declared too late for app.css's reference */
+}
+```
+
+Resolution is order-sensitive because each stylesheet is parsed and applied as it is added to the scene's stylesheet list. The reference in `app.css` is evaluated against the lookup chain at the time `app.css` is applied; `theme.css` has not yet contributed its `.root` definition, so `-fx-primary-color` falls back to its Modena default (or `null`).
+
+**Detection**: The reviewer should flag any looked-up color that is referenced in a stylesheet but defined only in a stylesheet that is loaded later in `scene.getStylesheets()`. The tester can confirm at runtime by printing `node.getScene().getStylesheets()` order and checking each reference's declaration location.
+
+**Fix**: Either (a) load the declaration stylesheet first, or (b) move all `.root` looked-up color declarations into a single base stylesheet loaded before any component stylesheets.
+
+### Detecting Circular Color References
+
+A circular reference occurs when looked-up colors form a cycle: `-fx-a` references `-fx-b`, which references `-fx-a` (directly or transitively). JavaFX does not detect this at parse time; at runtime the cycle produces either a stack overflow in the color resolver or, more commonly, a silently transparent/black fallback with no error.
+
+```css
+/* Circular: -fx-a -> -fx-b -> -fx-a */
+.root {
+    -fx-a: -fx-b;
+    -fx-b: -fx-a;
+}
+.button {
+    -fx-background-color: -fx-a;  /* resolves to nothing — circular */
+}
+```
+
+**Detection algorithm** (reviewer static check):
+1. Parse each stylesheet's `.root` block into a map of `{color-name -> value-token}`.
+2. Build a directed graph: for each declaration whose value is itself a looked-up color reference (token matches `-fx-*` and is not a literal color/derivation), add an edge `name -> referenced-name`.
+3. Run a cycle detection (DFS) on this graph. Any back-edge indicates a circular reference.
+
+A self-reference (`-fx-a: -fx-a;`) is the trivial 1-cycle and should be flagged identically.
+
+> **Note**: JavaFX color derivation functions (`derive(-fx-base, 50%)`, `ladder(-fx-base, ...)`) are NOT circular even though they reference another color — they terminate because they consume the referenced color as an input to a pure function. Only direct name-to-name cycles are defects.
+
+### Best Practice: Declare All Custom Colors in .root at the Top
+
+To avoid resolution-order and scope issues entirely:
+
+```css
+/* GOOD: all custom looked-up colors declared once, at the top, in .root */
+.root {
+    -fx-primary-color: #2196f3;
+    -fx-accent-color: #ff9800;
+    -fx-bg-color: #ffffff;
+    -fx-text-color: #333333;
+    -fx-error-color: #f44336;
+    -fx-success-color: #4caf50;
+}
+
+/* Component rules only reference, never declare, looked-up colors */
+.button-primary {
+    -fx-background-color: -fx-primary-color;
+    -fx-text-fill: -fx-text-color;
+}
+```
+
+**Rules**:
+- Declare every custom looked-up color exactly once, in the `.root` block of a single base stylesheet loaded first.
+- Component stylesheets should only reference looked-up colors, never declare new ones at `.root` scope (they may override on a specific node, but never redefine the global value).
+- Keep declaration order deterministic: base/theme stylesheet first, component stylesheets after.
+
+**Severity Baseline**: Major
+- De-escalation condition: Circular reference exists but is unreachable (the referencing rule matches no node in the running scene) → Minor.
+- Escalation condition: Circular or unresolved reference affects a visible, default-styled control → Critical (the control renders with broken/transparent colors).
+
+---
+
+## Check Item 5: SelectBinding vs ObjectBinding Performance
+
+**Focus**: Whether the chosen binding type (SelectBinding vs ObjectBinding vs `Bindings.createObjectBinding`) is appropriate for the property chain depth and lifecycle, and whether SelectBinding listener chains are leaked.
+
+> **Context**: Although this check concerns Java code (not CSS), it is grouped under CSS Compliance because the most common trigger is CSS-driven theming where property values are bound to looked-up colors or theme properties. A leaky binding here often manifests as the same memory-growth symptoms as a CSS leak.
+
+### When to Use SelectBinding vs ObjectBinding
+
+JavaFX offers several binding strategies for deriving a value from one or more properties:
+
+- **`SelectBinding`** (`Bindings.selectXXX(root, "child", "grandchild", ...)`): Use for **deep property chains** where the intermediate nodes can change. SelectBinding re-evaluates the chain reactively: if `root.getChild()` is replaced, it re-attaches its listeners to the new child and continues tracking `grandchild`. This is the only built-in binding that survives intermediate-node replacement.
+- **`ObjectBinding` / `Bindings.createObjectBinding(supplier, dependencies...)`**: Use for **computed values** that depend on a known, fixed set of properties. The dependencies are listed explicitly; if any changes, the supplier is re-invoked. Intermediate nodes are assumed stable — if a dependency is replaced rather than mutated, the binding will NOT track the new node.
+- **`Bindings.createObjectBinding` (one-shot)**: Use when the computation is a pure function of the current values and you do not need ongoing reactivity across a changing structure. Compute once (or on explicit invalidation), then discard the binding.
+
+**Decision rule**:
+- Deep chain (≥ 2 levels) where intermediate nodes can be swapped → `SelectBinding`.
+- Flat computation over stable properties → `ObjectBinding` / `createObjectBinding`.
+- One-shot derived value → `createObjectBinding` with no long-lived reference.
+
+### Performance Comparison
+
+SelectBinding is more powerful but more expensive:
+
+- A `SelectBinding` over an N-level chain installs up to N listeners (one per level). Each time an intermediate node changes, it must detach from the old sub-chain and attach to the new one — an O(depth) operation per structural change.
+- An `ObjectBinding` installs exactly one listener per declared dependency (constant), and never re-attaches. It is cheaper both to create and to maintain.
+- For a deep chain that is structurally stable (intermediates never replaced), `ObjectBinding` is strictly faster; `SelectBinding`'s re-attachment machinery is pure overhead.
+
+**Recommendation**: Do not default to `SelectBinding` for everything. If the intermediate nodes are stable for the binding's lifetime, prefer `ObjectBinding` with the leaf properties listed as dependencies.
+
+### Common Memory Leak: SelectBinding Without dispose()
+
+This is the most frequent binding-related leak in JavaFX applications:
+
+```java
+// LEAK: SelectBinding on a root that is later replaced/removed,
+//       but the binding is never disposed.
+StringBinding name = Bindings.selectString(
+    viewModel.currentCustomerProperty(), "contact", "name");
+nameLabel.textProperty().bind(name);
+// ... later: viewModel.setCurrentCustomer(otherCustomer);
+// The old SelectBinding's listener chain is still attached to the
+// OLD customer's contact.name until GC — and if the old customer
+// is retained elsewhere, the listeners keep it alive.
+```
+
+The listener chain created by `SelectBinding` is attached to live nodes. When the root property changes (`currentCustomer` is replaced), SelectBinding detaches from the old chain and re-attaches to the new one — but only if the SelectBinding itself is still alive and being read. If the binding has been abandoned (no strong reference held, but not explicitly `unbind()`/`dispose()`'d) while its listeners are still attached to nodes reachable from elsewhere, those nodes are kept alive through the listener chain — a classic leak.
+
+**Detection**:
+- Static (reviewer): Flag any `Bindings.selectXXX(...)` result that is not (a) stored in a field that is `unbind()`/`dispose()`'d in a `@Cleanup`/`stop()`/`close()` method, or (b) bound to a `Control` property whose lifecycle exactly matches the binding's intended lifetime.
+- Runtime (tester): Confirm via heap dump — the leaked old customer appears in the dominator tree retained through a `SelectBinding` listener.
+
+### Recommendation Summary
+
+| Scenario | Recommended Binding | Cleanup Required |
+|----------|--------------------|------------------|
+| Deep reactive chain, intermediate nodes can change | `SelectBinding` | Yes — `unbind()` + null the field when the owning view closes; or wrap in a `Disposable` |
+| Computed value over stable properties | `Bindings.createObjectBinding(supplier, dep1, dep2)` | Optional — GC-able once dependencies are unreachable |
+| One-shot derived value (compute once, display) | `Bindings.createObjectBinding(supplier)` (no deps, evaluate immediately) | No — discard reference after reading `.get()` |
+| String/number formatting of a single property | `Bindings.format` / `Bindings.convert` | Optional — bound to label lifecycle |
+
+**Best practice**: For reactive chains, use `SelectBinding` but always pair it with explicit disposal. For one-shot computations, use `Bindings.createObjectBinding` and let it be GC'd. Never leave a `SelectBinding` referenced only by a weak/soft path while its listener chain is attached to live nodes.
+
+**Severity Baseline**: Major
+- De-escalation condition: SelectBinding chain is shallow (1 level, equivalent to a direct binding) → Minor.
+- Escalation condition: SelectBinding on a root property that is replaced frequently (e.g., per-navigation) and never disposed → Critical (cumulative leak).
+
+### Cross-References
+
+When a binding leak is suspected or confirmed, cross-reference:
+- `../javafx-tester/references/performance-testing.md` section 3.2 (Memory Growth Trend) — to confirm the leak at runtime.
+- `../javafx-tester/references/performance-testing.md` section 7.4 (Identifying Memory Leaks via GC Frequency) — to detect the leak via GC log trends.
+- `memory-leak-risks.md` -- Binding Release (the static rule backing this check item).

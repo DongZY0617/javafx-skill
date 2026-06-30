@@ -36,8 +36,7 @@ public class UserViewModel {
 
     /** Save action (delegated to the Service layer) */
     public void save() {
-        // TODO: delegate to the Service layer for persistence
-        System.out.println("Save: " + getName());
+        // TODO: delegate to UserService.save(this.toModel()) for persistence
     }
 
     /** Load data from a model */

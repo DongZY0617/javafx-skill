@@ -3,6 +3,7 @@
 ## Test Summary
 
 - **Test Mode**: [Full Testing / Targeted Dimension Testing / Selective Testing]
+- **Execution Mode**: [Parallel / Sequential (fallback)]
 - **Test Scope**: [List of test dimensions executed]
 - **Project**: [Project Name]
 - **Environment**: JDK [version] / Maven [version] / JavaFX [version] / OS [platform]
@@ -21,6 +22,7 @@
 | Performance Testing | 5 | [N] | [N] | [N] | [N%] |
 | Security Testing | 8 | [N] | [N] | [N] | [N%] |
 | Accessibility Testing | 7 | [N] | [N] | [N] | [N%] |
+| Visual Regression Testing | 7 | [N] | [N] | [N] | [N%] |
 | **Total** | **[N]** | **[N]** | **[N]** | **[N]** | **[N%]** |
 
 ---
@@ -128,14 +130,55 @@
 
 ---
 
+## Visual Regression Results
+
+> [Skipped — TestFX/Monocle not available / Completed]
+
+- **Baseline Mode**: [Compare / Create (first run) / Update (vr_update_baselines enabled)]
+- **Rendering Mode**: [Monocle (headless) / Glass / Native]
+- **Pixel Tolerance**: [N] (per-channel RGB)
+- **Diff Threshold**: [N]% (e.g., 2%)
+- **Total Snapshots**: [N] (Passed: [N] / Regressed: [N] / Baseline Created: [N])
+
+### Snapshot Comparison Results
+
+| Snapshot ID | View | State | Diff Ratio | Diff Pixels | Result | Diff Image |
+|-------------|------|-------|-----------|-------------|--------|------------|
+| main-view/default | MainView | default | [N.NN]% | [N] | [Pass/Minor/Major/Critical] | [path/to/diff.png] |
+| login-dialog/empty | LoginDialog | empty | [N.NN]% | [N] | [Pass/Baseline Created] | [— / path] |
+| ... | ... | ... | ... | ... | ... | ... |
+
+### Regression Details
+
+> For each regression (diff ratio > threshold), describe the visual change and root cause analysis.
+
+#### REGRESSION-001: [Snapshot ID]
+
+- **Severity**: [Critical / Major / Minor]
+- **Snapshot**: [view/state]
+- **Diff Ratio**: [N.NN]% ([N] / [N] pixels differ)
+- **Diff Image**: [path/to/vr-diffs/{view}/{state}-diff.png]
+- **Root Cause Analysis**: [Layout shift / Color change / Text change / Missing element / Entire view different]
+- **Description**: [Detailed description of the visual change]
+- **Likely Cause File**: [path/to/file.fxml / file.css / file.java]
+- **Fix Handoff**:
+  - `target_file`: [path/to/file]
+  - `target_lines`: [start-end]
+  - `fix_type`: [replace / insert / delete]
+  - `fix_priority`: [N]
+  - `code_fingerprint`: [sha256...]
+  - `anchor_pattern`: [context signature]
+
+---
+
 ## Issue List
 
-> Sorted by severity descending (Critical → Major → Minor → Info), then by test dimension (Performance → Security → Accessibility).
+> Sorted by severity descending (Critical → Major → Minor → Info), then by test dimension (Performance → Security → Accessibility → Visual Regression).
 
 ### ISSUE-001: [Issue Title]
 
 - **Severity**: [Critical / Major / Minor / Info]
-- **Dimension**: [Performance Testing / Security Testing / Accessibility Testing]
+- **Dimension**: [Performance Testing / Security Testing / Accessibility Testing / Visual Regression Testing]
 - **Test Check Item**: [Specific check item that detected this issue]
 - **File**: [path/to/file.java]
 - **Lines**: [start-end]
@@ -183,9 +226,32 @@
 {
   "current_round": [N],
   "convergence_trend": [[N], [N], ...],
-  "next_action": "fixing | incremental_test | passed | paused"
+  "next_action": "fixing | incremental_test | passed | paused",
+  "tester_perf_result": { "conclusion": "Pass/Fail/Skipped", "critical": [N], "major": [N], "minor": [N], "duration_ms": [N] },
+  "tester_sec_result": { "conclusion": "Pass/Fail/Skipped", "critical": [N], "major": [N], "minor": [N], "duration_ms": [N] },
+  "tester_a11y_result": { "conclusion": "Pass/Fail/Skipped", "critical": [N], "major": [N], "minor": [N], "duration_ms": [N] },
+  "tester_vr_result": { "conclusion": "Pass/Fail/Skipped", "critical": [N], "major": [N], "minor": [N], "duration_ms": [N], "snapshots_compared": [N], "snapshots_passed": [N], "snapshots_regressed": [N] },
+  "tester_result": { "conclusion": "Pass/Conditional Pass/Fail", "pass_rate": [N.NN], "fix_handoff_count": [N] }
 }
 ```
+
+---
+
+## Parallel Execution
+
+> Present when `tester_parallel: true` (default). Omitted in sequential fallback mode.
+
+| Track | Start Time | End Time | Duration (ms) | Status | Conclusion |
+|-------|------------|----------|---------------|--------|------------|
+| Performance | [timestamp] | [timestamp] | [N] | [completed/skipped/timeout/error] | [Pass/Fail/Skipped] |
+| Security | [timestamp] | [timestamp] | [N] | [completed/skipped/timeout/error] | [Pass/Fail/Skipped] |
+| Accessibility | [timestamp] | [timestamp] | [N] | [completed/skipped/timeout/error] | [Pass/Fail/Skipped] |
+| Visual Regression | [timestamp] | [timestamp] | [N] | [completed/skipped/timeout/error] | [Pass/Fail/Skipped] |
+
+- **Execution Mode**: [Parallel / Sequential]
+- **Wall Clock Time**: [N] ms
+- **Sum of Track Times**: [N] ms
+- **Speedup Factor**: [N.NN]x
 
 ---
 
@@ -197,4 +263,6 @@ The JSON output format mirrors this Markdown report structure. See `report-schem
 - `performance_metrics`: All timing and memory metrics
 - `security_findings`: CVE list and fuzz test results
 - `accessibility_results`: Contrast ratios and coverage metrics
+- `visual_regression_results`: Per-snapshot diff ratios, diff image paths, baseline status
+- `parallel_execution`: Per-track timing, status, and speedup metadata (4 tracks)
 - `fix_handoffs[]`: Standalone fix handoff array (consistent with reviewer and runner)

@@ -12,7 +12,7 @@ license: Apache-2.0
 compatibility: Requires JDK 17+. Supports JavaFX 17/21/24/25/26.
 metadata:
   author: DongZY0617
-  version: "1.0"
+  version: "1.1"
 triggers:
   - architecture
   - system design
@@ -22,11 +22,18 @@ triggers:
   - feasibility
   - prototype validation
   - module decomposition
+  - threat modeling
+  - STRIDE
+  - security analysis
+  - attack surface
 depends_on: []
-consumes_from: []
+consumes_from:
+  - javafx-requirements (optional)
 produces_for:
   - javafx-developer
   - javafx-designer
+  - javafx-tester (threat_model.traceability_matrix for security testing)
+  - javafx-code-reviewer (database_schema for database integration review)
 ---
 
 # JavaFX Architect
@@ -39,10 +46,12 @@ Use this skill when:
 - The user asks to "design the architecture" or "plan the system design" for a JavaFX application
 - The user asks to select a technology stack / architecture pattern / database / third-party libraries
 - The user asks to generate UML class diagrams / sequence diagrams / deployment diagrams
+- The user asks to design database schema / ER diagram / data model / migration plan
 - The user asks to create Architecture Decision Records (ADR)
 - The user asks to evaluate feasibility of a technical approach
 - The user asks to build a technical prototype / proof of concept for a key path
 - The user asks to plan module structure / package layout / layering strategy
+- The user asks to perform threat modeling / security analysis / STRIDE analysis / attack surface assessment
 
 ### Trigger Resolution with javafx-developer
 
@@ -68,25 +77,34 @@ When a user request matches both `javafx-architect` ("architecture / system desi
 |-----------|-------------------|---------------|------------------|
 | System Design | `system-design.md` | Requirements, constraints, non-functional requirements | Technology selection matrix, architecture pattern recommendation, module decomposition, layering strategy |
 | UML Generation | `uml-generation.md` | Requirements, user stories, domain model | `architecture/uml/class-diagram.puml`, `architecture/uml/sequence-diagram.puml`, `architecture/uml/deployment-diagram.puml` |
+| Database Schema Design | `database-design.md` | System design (database selection), domain model | `architecture/uml/er-diagram.puml`, migration files, `database_schema` in handoff JSON |
 | ADR Management | `adr-management.md` | Technology decisions, trade-off analysis | `architecture/adr/ADR-XXX-title.md` (one per decision) |
+| Threat Modeling | `threat-modeling.md` | System design (attack surfaces), technology stack (network, database, WebView) | `architecture/uml/threat-model-dfd.puml`, `threat_model` in handoff JSON, Security ADRs |
 | Prototype Validation | (inline in SKILL.md) | Key technical risks, uncertain technology choices | `architecture/prototype/` directory with proof-of-concept code |
 
 ## Workflow
 
 ### Step 1: Requirements Analysis & Architecture Scope
 
-1. **Parse user request**: Extract the application domain, scale requirements, performance constraints, security requirements, team size, and technology preferences
-2. **Identify key concerns**: From the requirements, determine which architectural concerns are most critical:
+1. **Check for requirements handoff**: If `requirements/requirements-handoff.json` exists (produced by `javafx-requirements`), consume it as the primary requirements source:
+   - Read `stakeholders[]` to understand who the system serves and their goals
+   - Read `user_stories[]` to identify key use cases for UML sequence diagrams
+   - Read `non_functional_requirements[]` to constrain technology selection (e.g., performance NFRs drive database choice, security NFRs drive authentication approach)
+   - Read `traceability_matrix[]` to understand requirement IDs (FR-xxx, NFR-xxx) for referencing in ADRs
+   - If no handoff exists, proceed with requirement inference from the user request (existing behavior)
+2. **Parse user request**: Extract the application domain, scale requirements, performance constraints, security requirements, team size, and technology preferences
+3. **Identify key concerns**: From the requirements (handoff or inferred), determine which architectural concerns are most critical:
    - **Complexity**: Is this a simple CRUD app, a multi-module enterprise app, or a real-time data-driven app?
    - **Performance**: Are there latency-sensitive operations, large data volumes, or real-time streaming needs?
    - **Security**: Are there authentication, authorization, encryption, or compliance requirements?
    - **Integration**: Does the app need to connect to external services, databases, or legacy systems?
-3. **Determine architecture scope**: Based on the request, determine which dimensions to activate:
-   - **Full Architecture** (default): All 4 dimensions — system design, UML, ADR, prototype validation
+4. **Determine architecture scope**: Based on the request, determine which dimensions to activate:
+   - **Full Architecture** (default): All 5 dimensions — system design, UML, database schema (conditional), ADR, threat modeling (conditional), prototype validation
    - **System Design Only**: Only technology selection and module decomposition — for straightforward projects
    - **UML Only**: Only diagram generation — for documenting existing architecture
    - **ADR Only**: Only decision records — for capturing architectural decisions
-4. **Declare architecture scope**: Annotate the architecture scope in the report header
+   - **Threat Modeling Only**: Only STRIDE analysis — for security assessment of existing architecture
+5. **Declare architecture scope**: Annotate the architecture scope in the report header
 
 ### Step 2: System Design
 
@@ -222,6 +240,45 @@ App --> AS : HTTPS (authentication)
 
 4. **Output**: Write all PlantUML files to `architecture/uml/`
 
+### Step 3.5: Database Schema Design
+
+> **Conditional step**: Only executed if the system design (Step 2) selected a database (SQLite, H2, PostgreSQL, MySQL). If `technology_stack.database` is `"none"` (file-based or API-only app), skip this step entirely.
+
+If a database was selected in Step 2, design the complete database schema. See `references/database-design.md` for detailed conventions, ER diagram syntax, indexing strategy, and migration planning.
+
+1. **Generate ER diagram**: Create an entity-relationship diagram using PlantUML IE (Crow's Foot) notation:
+   - File: `architecture/uml/er-diagram.puml`
+   - Show all tables with columns, types, constraints (PK, FK, UNIQUE, NOT NULL)
+   - Show all relationships with cardinality (one-to-many, many-to-many via junction tables)
+   - Follow the PlantUML entity syntax in `references/database-design.md` § 2.1
+
+2. **Define schema conventions**: Apply the naming and type conventions from `references/database-design.md`:
+   - Table names: snake_case, singular (e.g., `user`, `order_item`)
+   - Standard audit columns: `id` (PK), `created_at`, `updated_at`, `deleted_at` (if soft delete)
+   - Data type mapping: Java types ↔ SQL types (e.g., `BigDecimal` ↔ `DECIMAL`, `Long` ↔ `BIGINT`)
+   - Constraint design: NOT NULL, UNIQUE, CHECK for enum-like values, FK with ON DELETE/UPDATE actions
+
+3. **Design indexing strategy**: For each table, identify columns that need indexes:
+   - All foreign key columns must be indexed
+   - Frequently queried columns (WHERE, JOIN, ORDER BY) should be indexed
+   - Composite index column order: equality → high selectivity → sort
+   - Low-cardinality columns (≤ 10 distinct values) should not be indexed
+
+4. **Plan database migrations**: Select a migration tool (Flyway recommended for Spring Boot + JavaFX):
+   - Define migration file path: `src/main/resources/db/migration/`
+   - Establish naming convention: `V{major}.{minor}.{patch}__{description}.sql`
+   - Create initial migration files for all tables, indexes, and constraints
+   - Follow forward-only, one-change-per-file, idempotent-with-IF-NOT-EXISTS principles
+
+5. **Compile database_schema**: Assemble the `database_schema` section of `architecture-handoff.json` (see Step 6):
+   - `database_type`, `orm`, `migration_tool`, `er_diagram` path, `migration_path`
+   - `tables[]` with full column definitions, indexes, foreign keys
+   - `seed_data[]` if initial data is required
+
+6. **Output**: Write ER diagram to `architecture/uml/er-diagram.puml` and include `database_schema` in the handoff JSON (Step 6)
+
+> **Database design checklist** (see `references/database-design.md` § 7): All tables have audit columns, all FKs indexed, monetary values use DECIMAL, naming conventions followed, migration tool selected, `database_schema` in handoff.
+
 ### Step 4: ADR Management
 
 1. **Identify decisions**: From the system design phase, extract all significant technology and architecture decisions that warrant formal documentation
@@ -263,6 +320,47 @@ JavaFX application layer.
 4. **ADR versioning**: When a decision is superseded, mark the old ADR as `Superseded by ADR-XXX` and create a new ADR referencing the old one
 5. **ADR traceability**: Maintain an `architecture/adr/README.md` index file listing all ADRs with their status
 
+### Step 4.5: Threat Modeling (STRIDE)
+
+> **Conditional step**: Only executed if the project has network communication, database, WebView, file I/O, or the user explicitly requests threat modeling. Skip if the project is a standalone offline app with no external interactions. See `references/threat-modeling.md` § 7 for full conditional execution rules.
+
+If threat modeling is applicable, perform STRIDE analysis on the architecture. See `references/threat-modeling.md` for the complete methodology.
+
+1. **Identify attack surfaces**: Enumerate all entry points where untrusted data enters or crosses trust boundaries:
+   - User input fields (TextField, TextArea, ComboBox)
+   - File import/export (FileChooser)
+   - Local database (SQL injection)
+   - Network API calls (HTTP responses)
+   - WebView content (XSS, malicious JS)
+   - Auto-update manifest (forged version, malicious URL)
+   - Preferences/config files (tampered on disk)
+   - FXML loading, command-line args, drag-and-drop, clipboard, serialization
+2. **Generate Data Flow Diagram (DFD)**: Create a PlantUML DFD showing trust boundaries and data flows:
+   - File: `architecture/uml/threat-model-dfd.puml`
+   - Show all trust boundaries (User, Application, External)
+   - Show data flows crossing each boundary
+   - Follow the PlantUML DFD syntax in `references/threat-modeling.md` § 2.2
+3. **Apply STRIDE**: For each attack surface, identify threats across all six STRIDE categories (Spoofing, Tampering, Repudiation, Information Disclosure, Denial of Service, Elevation of Privilege):
+   - Use the baseline threat catalog in `references/threat-modeling.md` § 3.3 as a starting point
+   - Add project-specific threats based on the architecture design
+   - Assign each threat a unique ID (TM-XXX format)
+   - Rate each threat by likelihood × impact → risk rating (Critical/High/Medium/Low)
+4. **Design mitigations**: For each identified threat, define a mitigation:
+   - Critical/High threats must have mitigations designed before implementation
+   - Create Security ADRs for Critical/High threats (e.g., `ADR-SEC-001-https-certificate-pinning.md`)
+   - Medium threats are documented as developer instructions
+   - Low threats are recorded for future improvement
+5. **Build threat-to-test traceability matrix**: Map each threat to at least one security test case:
+   - Each threat gets a `test_case_id` (SEC-TM-XXX format) that `javafx-tester` will execute
+   - Mark coverage status: covered, partially_covered, not_covered, not_applicable
+   - List any uncovered threats in `uncovered_threats[]`
+6. **Compile threat_model**: Assemble the `threat_model` section of `architecture-handoff.json` (see Step 6):
+   - `methodology`, `dfd_diagram` path, `attack_surfaces[]`, `threats[]`
+   - `security_adrs[]`, `traceability_matrix[]`, `uncovered_threats[]`, `summary`
+7. **Output**: Write DFD to `architecture/uml/threat-model-dfd.puml`, Security ADRs to `architecture/adr/`, and include `threat_model` in the handoff JSON (Step 6)
+
+> **Threat modeling checklist** (see `references/threat-modeling.md` § 8): Attack surface complete, DFD generated, STRIDE applied to each surface, all threats have IDs and risk ratings, Critical/High threats have mitigations and ADRs, all threats map to test cases, `threat_model` in handoff JSON.
+
 ### Step 5: Prototype Validation
 
 For key technical risks identified in Step 2, generate proof-of-concept prototype code:
@@ -285,9 +383,9 @@ For key technical risks identified in Step 2, generate proof-of-concept prototyp
 ```json
 {
   "project": "project-name",
-  "architect_version": "1.0",
+  "architect_version": "1.1",
   "created_at": "2026-06-30T10:00:00Z",
-  "scope": "full | system_design_only | uml_only | adr_only",
+  "scope": "full | system_design_only | uml_only | adr_only | threat_modeling_only",
   "system_design": {
     "architecture_pattern": "MVVM + Service Layer",
     "javafx_version": "25",
@@ -309,8 +407,37 @@ For key technical risks identified in Step 2, generate proof-of-concept prototyp
   "uml_artifacts": [
     "architecture/uml/class-diagram.puml",
     "architecture/uml/sequence-diagram.puml",
-    "architecture/uml/deployment-diagram.puml"
+    "architecture/uml/deployment-diagram.puml",
+    "architecture/uml/er-diagram.puml"
   ],
+  "database_schema": {
+    "database_type": "SQLite",
+    "orm": "JDBC (lightweight)",
+    "migration_tool": "Flyway",
+    "er_diagram": "architecture/uml/er-diagram.puml",
+    "migration_path": "src/main/resources/db/migration",
+    "tables": [
+      {
+        "name": "user",
+        "description": "Application users with authentication credentials",
+        "columns": [
+          { "name": "id", "type": "BIGINT", "nullable": false, "primary_key": true, "auto_increment": true, "description": "Primary key" },
+          { "name": "username", "type": "VARCHAR(50)", "nullable": false, "unique": true, "description": "Login username" },
+          { "name": "password_hash", "type": "VARCHAR(255)", "nullable": false, "description": "BCrypt hashed password" },
+          { "name": "email", "type": "VARCHAR(100)", "nullable": false, "unique": true, "description": "User email" },
+          { "name": "status", "type": "VARCHAR(20)", "nullable": false, "default": "'ACTIVE'", "check": "status IN ('ACTIVE', 'INACTIVE', 'LOCKED')", "description": "Account status" },
+          { "name": "created_at", "type": "TIMESTAMP", "nullable": false, "default": "CURRENT_TIMESTAMP" },
+          { "name": "updated_at", "type": "TIMESTAMP", "nullable": false, "default": "CURRENT_TIMESTAMP" }
+        ],
+        "indexes": [
+          { "name": "uk_user_username", "columns": ["username"], "unique": true },
+          { "name": "uk_user_email", "columns": ["email"], "unique": true }
+        ],
+        "foreign_keys": []
+      }
+    ],
+    "seed_data": []
+  },
   "adr_files": [
     "architecture/adr/ADR-001-use-mvvm-architecture.md",
     "architecture/adr/ADR-002-use-sqlite-database.md",
@@ -319,6 +446,51 @@ For key technical risks identified in Step 2, generate proof-of-concept prototyp
   "prototype_results": [
     { "risk": "TableView performance with 10K rows", "result": "passed", "detail": "Virtualized rendering handles 10K rows at 60fps" }
   ],
+  "threat_model": {
+    "methodology": "STRIDE",
+    "dfd_diagram": "architecture/uml/threat-model-dfd.puml",
+    "attack_surfaces": [
+      { "name": "User input fields", "trust_boundary": "UI → Controller", "untrusted_source": "User-typed text" },
+      { "name": "Auto-update manifest", "trust_boundary": "Remote → App", "untrusted_source": "JSON manifest from update server" }
+    ],
+    "threats": [
+      {
+        "threat_id": "TM-001",
+        "stride_category": "Spoofing",
+        "attack_surface": "Auto-update manifest",
+        "description": "Attacker serves forged update manifest via MITM",
+        "affected_component": "UpdateChecker.checkForUpdate()",
+        "risk_rating": "High",
+        "likelihood": "Medium",
+        "impact": "Critical",
+        "mitigation": "HTTPS + certificate pinning + SHA-256 checksum verification",
+        "residual_risk": "Low"
+      }
+    ],
+    "security_adrs": [
+      "architecture/adr/ADR-SEC-001-https-certificate-pinning.md"
+    ],
+    "traceability_matrix": [
+      {
+        "threat_id": "TM-001",
+        "test_case_id": "SEC-TM-001",
+        "test_description": "Fuzz update manifest with forged JSON",
+        "coverage_status": "covered"
+      }
+    ],
+    "uncovered_threats": [],
+    "summary": {
+      "total_threats": 12,
+      "critical": 1,
+      "high": 3,
+      "medium": 5,
+      "low": 3,
+      "covered": 10,
+      "partially_covered": 1,
+      "not_covered": 1,
+      "not_applicable": 0
+    }
+  },
   "developer_instructions": {
     "package_structure": "com.example.app.{module}",
     "layering_rule": "Presentation → Application → Domain → Infrastructure (no upward dependencies)",
@@ -347,9 +519,11 @@ The architect produces an `architecture-handoff.json` file that `javafx-develope
 | `system_design.modules[]` | array | Module decomposition with package paths and responsibilities |
 | `system_design.layers[]` | array | Layering strategy (ordered list) |
 | `system_design.technology_stack` | object | Technology selection for each category |
-| `uml_artifacts[]` | array | List of PlantUML file paths |
+| `uml_artifacts[]` | array | List of PlantUML file paths (includes `er-diagram.puml` if database is used) |
+| `database_schema` | object | Complete database schema definition (conditional — present only if database is used). Contains `database_type`, `orm`, `migration_tool`, `er_diagram` path, `migration_path`, `tables[]` (with columns, indexes, foreign_keys), `seed_data[]` |
 | `adr_files[]` | array | List of ADR file paths |
 | `prototype_results[]` | array | Prototype validation results with risk, result, detail |
+| `threat_model` | object | STRIDE threat model (conditional — present only if threat modeling is executed). Contains `methodology`, `dfd_diagram` path, `attack_surfaces[]`, `threats[]` (with stride_category, risk_rating, mitigation, residual_risk), `security_adrs[]`, `traceability_matrix[]` (threat → test case mapping), `uncovered_threats[]`, `summary` (severity and coverage counts) |
 | `developer_instructions.package_structure` | string | Package naming pattern |
 | `developer_instructions.layering_rule` | string | Layer dependency rules |
 | `developer_instructions.naming_convention` | string | Class naming patterns |
@@ -403,6 +577,9 @@ The architect contributes to `.loop-state.json`:
     "modules_designed": 4,
     "uml_diagrams": 3,
     "adr_count": 5,
+    "threat_model": true,
+    "threats_identified": 12,
+    "threats_covered": 10,
     "prototype_validations": 2,
     "handoff_file": "architecture/architecture-handoff.json",
     "conclusion": "Pass | Pass with warnings | Fail",
@@ -421,11 +598,14 @@ The architect contributes to `.loop-state.json`:
 - `references/system-design.md` — Architecture patterns, technology selection criteria, module decomposition strategies
 - `references/uml-generation.md` — PlantUML syntax, diagram types, naming conventions, best practices
 - `references/adr-management.md` — ADR template, versioning rules, traceability, superseding process
+- `references/database-design.md` — ER diagram generation, schema conventions, indexing strategy, migration planning (Flyway/Liquibase), database_schema handoff protocol
+- `references/threat-modeling.md` — STRIDE threat modeling methodology, attack surface identification, DFD generation, threat catalog, mitigation design, threat-to-test traceability matrix, threat_model handoff protocol
 
 ## Relationship to Other Skills
 
 - **javafx-developer**: Consumes `architecture-handoff.json` in Step 4 — uses module structure, layering rules, and technology stack to guide code generation
 - **javafx-designer**: Can run after architect to design UI within the architectural constraints (module boundaries, layering)
+- **javafx-tester**: Consumes `threat_model.traceability_matrix` from the handoff JSON — each threat ID maps to a security test case that the tester executes in Track B (Security Testing). The tester validates that mitigations are implemented and effective
 - **javafx-orchestrator**: Manages the architect phase as an optional pre-generation step in the loop state machine
 
 ## EVALUATE.md

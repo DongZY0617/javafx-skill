@@ -179,3 +179,88 @@ If the application uses a database (JPA/Hibernate/JDBC), specifically test:
 | Passwords stored as `String` (immutable, cannot clear) | Minor | Use `char[]` for passwords |
 | API keys stored as static final constants | Minor | Acceptable, but consider environment variables |
 | Sensitive data in static fields (never garbage collected) | Major | Avoid static storage for sensitive data |
+
+## 5. Threat Model Cross-Reference (STRIDE Traceability)
+
+> **Conditional section**: Only executed if `architecture/architecture-handoff.json` exists and contains a `threat_model` section. If no threat model is present, this section is skipped and the tester proceeds with the standard security checks (§1-§4).
+
+### 5.1 Consuming the Threat Model
+
+When the architect has performed STRIDE threat modeling, the tester consumes the `threat_model.traceability_matrix` from `architecture-handoff.json` to execute threat-specific security tests. This ensures that every identified threat has corresponding test coverage.
+
+**Read the threat model**:
+```json
+// From architecture-handoff.json
+{
+  "threat_model": {
+    "traceability_matrix": [
+      {
+        "threat_id": "TM-001",
+        "test_case_id": "SEC-TM-001",
+        "test_description": "Fuzz update manifest with forged JSON",
+        "test_type": "fuzz",
+        "coverage_status": "covered"
+      }
+    ]
+  }
+}
+```
+
+### 5.2 Executing Threat-Specific Tests
+
+For each entry in the `traceability_matrix` with `coverage_status: "covered"` or `"partially_covered"`, execute the corresponding security test:
+
+| `test_type` | Execution Method | Example |
+|-------------|-----------------|---------|
+| `fuzz` | Inject crafted inputs at the identified attack surface | Fuzz the update manifest URL with forged JSON payloads |
+| `static` | Scan source code or configuration files for the vulnerability | Scan preference files for plaintext credentials |
+| `dynamic` | Launch the app and attempt the attack at runtime | Attempt to load FXML with `<fx:script>` tag |
+| `dependency` | Run OWASP Dependency-Check for the identified component | Scan dependencies for known CVEs in the update library |
+
+### 5.3 Test Result Mapping
+
+Each threat-specific test result is recorded with a reference to the original threat ID:
+
+```json
+{
+  "threat_test_results": [
+    {
+      "threat_id": "TM-001",
+      "test_case_id": "SEC-TM-001",
+      "test_type": "fuzz",
+      "result": "pass",
+      "detail": "App rejected forged manifest — HTTPS certificate validation prevented MITM",
+      "severity": "Pass"
+    },
+    {
+      "threat_id": "TM-I-01",
+      "test_case_id": "SEC-TM-002",
+      "test_type": "static",
+      "result": "fail",
+      "detail": "Password found in plaintext in preferences.xml — encryption not applied",
+      "severity": "Critical"
+    }
+  ]
+}
+```
+
+### 5.4 Coverage Gap Reporting
+
+After executing all threat-specific tests, the tester reports:
+
+1. **Covered threats**: Number of threats that had tests executed and passed
+2. **Failed threat tests**: Threats where the test was executed but the vulnerability was confirmed (test failed → mitigation not effective)
+3. **Untested threats**: Threats with `coverage_status: "not_covered"` in the traceability matrix — these are flagged as warnings
+4. **Coverage percentage**: `covered_threats / total_threats × 100%`
+
+### 5.5 Integration with Standard Security Checks
+
+The threat model cross-reference (§5) runs **in addition to** the standard security checks (§1-§4), not as a replacement:
+
+- **§1 Dependency Scan**: Always runs (catches CVEs regardless of threat model)
+- **§2 Input Fuzzing**: Always runs (catches injection vulnerabilities in all input fields)
+- **§3 WebView Security**: Always runs if WebView is present
+- **§4 Sensitive Data Exposure**: Always runs (catches plaintext credentials regardless of threat model)
+- **§5 Threat Model Cross-Reference**: Runs only if threat model exists (validates architect-identified threats specifically)
+
+The threat model cross-reference results are merged into the `tester_sec_result` field alongside the standard security check results.

@@ -4,16 +4,19 @@ description: |
   JavaFX deployment and DevOps skill that generates CI/CD pipeline configurations
   (GitHub Actions / GitLab CI), automates release management (versioning, changelog,
   artifact upload), configures code signing and notarization (Windows / macOS),
-  implements auto-update mechanisms, and sets up runtime monitoring (logging, crash
-  reporting, performance metrics). Acts as a post-delivery phase after javafx-runner
-  packaging verification passes. Triggered when the user asks to "set up CI/CD",
-  "configure deployment", "automate release", "sign my application", or "set up
-  auto-update".
+  implements auto-update mechanisms with rollback support, sets up runtime monitoring
+  (logging, crash reporting, performance metrics), generates distribution channel
+  configurations (MSIX / Microsoft Store, Mac App Store, Snap / Flatpak), and
+  implements post-release rollback strategy (version pinning, health checks, automatic
+  rollback, Runbook). Acts as a post-delivery phase after javafx-runner packaging
+  verification passes. Triggered when the user asks to "set up CI/CD", "configure
+  deployment", "automate release", "sign my application", "set up auto-update",
+  "publish to store", or "set up rollback strategy".
 license: Apache-2.0
 compatibility: Requires JDK 17+. Supports JavaFX 17/21/24/25/26.
 metadata:
   author: DongZY0617
-  version: "1.0"
+  version: "1.1"
 triggers:
   - deploy
   - package
@@ -23,11 +26,18 @@ triggers:
   - release
   - dmg
   - msi
+  - msix
+  - app store
+  - snap
+  - flatpak
+  - rollback
 depends_on:
   - javafx-developer
 consumes_from:
   - javafx-developer (source code, build artifacts)
-produces_for: []
+  - javafx-runner (packaging verification results, optional)
+produces_for:
+  - user (deploy-handoff.json for deployment/ops consumption)
 ---
 
 # JavaFX Deployer
@@ -41,6 +51,8 @@ Use this skill when:
 - The user asks to "automate release" / "generate release notes" / "upload artifacts" / "publish a release"
 - The user asks to "sign my application" / "code signing" / "notarize" / "Windows signing" / "macOS notarization"
 - The user asks to "set up auto-update" / "automatic updates" / "check for updates"
+- The user asks to "publish to store" / "Microsoft Store" / "Mac App Store" / "Snap" / "Flatpak" / "MSIX"
+- The user asks to "set up rollback" / "rollback strategy" / "version pinning" / "health check"
 - The user asks to "set up monitoring" / "crash reporting" / "log collection" / "performance metrics"
 - The user asks to "deploy my JavaFX app" / "prepare for production" / "ship my application"
 - After `javafx-runner` packaging verification passes, the user asks to "deploy it" or "set up CI/CD"
@@ -64,6 +76,8 @@ When a user request matches both `javafx-runner` ("verify packaging / try packag
 | Code Signing & Notarization | `code-signing.md` | Target platform, signing identity, certificates | Signing config, notarization script, keychain setup guide |
 | Auto-Update | `auto-update.md` | Update server URL, version format, update strategy | Update checker Java class, update config JSON, server-side manifest template |
 | Runtime Monitoring | `runtime-monitoring.md` | Logging framework, crash report destination, metrics | `logback.xml`, crash handler Java class, metrics config |
+| Distribution Channels | `distribution-channels.md` | Target stores, platform, packaging format | MSIX manifest, Snap `snapcraft.yaml`, Flatpak manifest, store submission guide |
+| Rollback Strategy | `rollback-strategy.md` | Update manifest, crash report endpoint, rollback version | Rollback state file, health check CI/CD job, rollback Runbook |
 
 ## Workflow
 
@@ -80,11 +94,13 @@ When a user request matches both `javafx-runner` ("verify packaging / try packag
    - What installer formats were generated (.exe, .msi, .dmg, .deb, .rpm)
    - Any packaging warnings or issues
 4. **Determine deployment scope**: Based on the request, determine which dimensions to activate:
-   - **Full Deployment** (default): All 5 dimensions — CI/CD pipeline, release management, code signing, auto-update, runtime monitoring
+   - **Full Deployment** (default): All 7 dimensions — CI/CD pipeline, release management, code signing, auto-update, runtime monitoring, distribution channels, rollback strategy
    - **CI/CD Only**: Only pipeline configuration — for setting up automated builds
    - **Release Only**: Only release management — for preparing a specific release
    - **Signing Only**: Only code signing and notarization — for signing existing artifacts
    - **Monitoring Only**: Only runtime monitoring — for adding logging and crash reporting
+   - **Distribution Only**: Only distribution channel configs — for store packaging
+   - **Rollback Only**: Only rollback strategy — for post-release safety net
 5. **Declare deployment scope**: Annotate the deployment scope in the report header
 
 ### Step 2: CI/CD Pipeline Generation
@@ -195,7 +211,85 @@ When a user request matches both `javafx-runner` ("verify packaging / try packag
 4. **Integration**: Provide integration code snippets for `App.java` to wire up logging, crash handler, and metrics collector
 5. **Output**: Write `logback.xml` to `src/main/resources/`, `CrashHandler.java` and `MetricsCollector.java` to `src/main/java/`
 
-### Step 7: Deployment Report Generation
+### Step 7: Distribution Channel Configuration
+
+> **Conditional step**: Only executed if the user requests store distribution or the deployment scope includes "Distribution". Skip if only direct download is used.
+
+If store distribution is requested, generate platform-specific distribution channel configurations. See `references/distribution-channels.md` for detailed setup instructions.
+
+1. **Determine target channels**: Based on user request and target platforms:
+   - **Windows**: MSIX / Microsoft Store, or `.appinstaller` for side-loading
+   - **macOS**: Mac App Store (PKG with sandbox entitlements)
+   - **Linux**: Snap (Snap Store) and/or Flatpak (Flathub)
+
+2. **Generate MSIX configuration** (if Windows Store target):
+   - `jpackage --type msix` command with `--win-upgrade-uuid` and `--app-version`
+   - Custom `AppxManifest.xml` with `runFullTrust` capability and visual assets
+   - `.appinstaller` file for side-loading with auto-update settings
+   - Microsoft Partner Center submission guide
+
+3. **Generate Mac App Store configuration** (if macOS Store target):
+   - `entitlements.plist` with App Sandbox capabilities (network.client, files.user-selected.read-write)
+   - `jpackage --type app-image` + `codesign` + `productbuild` command sequence
+   - Signing identity guidance ("3rd Party Mac Developer Application" vs "Developer ID Application")
+   - App Store Connect submission guide via `altool` or Transporter
+
+4. **Generate Snap configuration** (if Linux Snap target):
+   - `snapcraft.yaml` with app definition, plugs (desktop, network, home, opengl), and stage-packages (OpenJDK, libgl)
+   - Desktop file and icon packaging
+   - Snap Store registration and publishing commands
+
+5. **Generate Flatpak configuration** (if Linux Flatpak target):
+   - `com.example.MyApp.json` manifest with runtime (org.gnome.Platform), finish-args (sockets, filesystem, network), and modules (OpenJDK + app)
+   - Launcher script (`myapp.sh`) with Java module path configuration
+   - Flathub publishing commands
+
+6. **Generate store-specific CI/CD steps**: Add store build and publish jobs to the CI/CD workflow (MSIX build on Windows runner, Snap build via `snapcore/action-build`, etc.)
+
+7. **Disable in-app UpdateChecker for store builds**: Generate a build flag `-Dstore.distribution=true` and conditional check in `App.java` to skip update checks for store-distributed builds (stores handle updates)
+
+8. **Output**: Write distribution configs to `packaging/msix/AppxManifest.xml`, `packaging/snap/snapcraft.yaml`, `packaging/flatpak/com.example.MyApp.json`, `packaging/macos/entitlements.plist`
+
+### Step 8: Rollback Strategy Implementation
+
+> **Conditional step**: Only executed if the user requests rollback support or the deployment scope includes "Rollback". Skip if only store distribution is used (stores handle rollback natively).
+
+If rollback strategy is requested, implement version pinning, post-release health checks, and automatic rollback. See `references/rollback-strategy.md` for detailed implementation.
+
+1. **Extend update manifest**: Add rollback fields to the manifest template:
+   - `pinned_version` (nullable) — halts rollout of bad version
+   - `pinned_reason` — human-readable explanation
+   - `rollback_enabled` — whether automatic rollback is active
+   - `rollback_version` — target version for automatic rollback
+
+2. **Generate rollback state file**: Create a `RollbackState.java` class that:
+   - Tracks `updated_at`, `previous_version`, `current_version`, `crash_count`
+   - Provides `isWithinGracePeriod()` (default 24h) and `shouldAttemptRollback()` (with loop guard)
+   - Saves/loads from `~/.myapp/rollback-state.json`
+
+3. **Extend CrashHandler**: Modify the `CrashHandler.java` (from Step 6) to:
+   - Increment `crash_count` on each uncaught exception within the grace period
+   - Trigger automatic rollback when `crash_count >= crash_threshold` (default: 3)
+   - Download and launch the rollback installer silently or with confirmation dialog
+
+4. **Generate health check CI/CD job**: Add a `post-release-health-check` job to the release workflow that:
+   - Runs at 1h, 6h, and 24h after release
+   - Checks crash count, crash rate, launch success rate via API
+   - Auto-pins previous version if metrics exceed thresholds
+   - Sends alert to the operations team
+
+5. **Generate rollback Runbook**: Create `docs/rollback-runbook.md` with:
+   - Pin previous version procedure (update manifest `pinned_version`)
+   - Force rollback procedure (set `minimum_version` to rollback target)
+   - Store-managed rollback procedures (Partner Center, App Store Connect, Snap Store)
+   - Post-rollback verification checklist
+
+6. **Update update-config.json**: Add rollback configuration fields:
+   - `rollback_enabled`, `rollback_grace_period_hours`, `rollback_crash_threshold`, `rollback_silent`
+
+7. **Output**: Write `RollbackState.java` to `src/main/java/`, health check job to release workflow, Runbook to `docs/rollback-runbook.md`
+
+### Step 9: Deployment Report Generation
 
 1. **Generate deployment report**: Following the report template (see `report-templates/deploy-report.md`), produce a structured deployment report including:
    - Deployment scope and dimensions activated
@@ -231,12 +325,32 @@ When a user request matches both `javafx-runner` ("verify packaging / try packag
        "manifest_template": "docs/update-manifest-template.json"
      },
      "monitoring": {
-       "logback_config": "src/main/resources/logback.xml",
-       "crash_handler": "src/main/java/com/example/CrashHandler.java",
-       "metrics_collector": "src/main/java/com/example/MetricsCollector.java"
-     }
-   }
-   ```
+      "logback_config": "src/main/resources/logback.xml",
+      "crash_handler": "src/main/java/com/example/CrashHandler.java",
+      "metrics_collector": "src/main/java/com/example/MetricsCollector.java"
+    },
+    "distribution": {
+      "channels": ["msix", "snap", "flatpak"],
+      "configs": {
+        "msix": "packaging/msix/AppxManifest.xml",
+        "snap": "packaging/snap/snapcraft.yaml",
+        "flatpak": "packaging/flatpak/com.example.MyApp.json",
+        "macos_entitlements": "packaging/macos/entitlements.plist"
+      },
+      "store_build_flag": "-Dstore.distribution=true",
+      "in_app_update_disabled": true
+    },
+    "rollback": {
+      "state_class": "src/main/java/com/example/RollbackState.java",
+      "rollback_state_file": "~/.myapp/rollback-state.json",
+      "health_check_job": "post-release-health-check",
+      "runbook": "docs/rollback-runbook.md",
+      "grace_period_hours": 24,
+      "crash_threshold": 3,
+      "rollback_enabled": true
+    }
+  }
+  ```
 
 ## Deployment Artifacts Structure
 
@@ -254,13 +368,24 @@ scripts/
     └── notarize-macos.sh        # macOS notarization script
 src/main/java/com/example/
     ├── UpdateChecker.java       # Auto-update checker
-    ├── CrashHandler.java        # Uncaught exception handler
-    └── MetricsCollector.java    # Performance metrics collector
+    ├── CrashHandler.java        # Uncaught exception handler (with rollback trigger)
+    ├── MetricsCollector.java    # Performance metrics collector
+    └── RollbackState.java       # Rollback state tracking (conditional)
 src/main/resources/
     ├── logback.xml              # Logging configuration
-    └── update-config.json       # Auto-update configuration
+    └── update-config.json       # Auto-update + rollback configuration
+packaging/
+    ├── msix/
+    │   └── AppxManifest.xml     # MSIX manifest (conditional)
+    ├── snap/
+    │   └── snapcraft.yaml       # Snap configuration (conditional)
+    ├── flatpak/
+    │   └── com.example.MyApp.json  # Flatpak manifest (conditional)
+    └── macos/
+        └── entitlements.plist   # Mac App Store entitlements (conditional)
 docs/
-    └── update-manifest-template.json  # Server-side update manifest template
+    ├── update-manifest-template.json  # Server-side update manifest template
+    └── rollback-runbook.md            # Manual rollback Runbook (conditional)
 deploy-report.md                 # Deployment report (Markdown)
 deploy-report.json               # Deployment report (JSON)
 deploy-handoff.json              # Handoff file documenting configuration
@@ -312,7 +437,7 @@ In `.loop-state.json`:
   "status": "deploying",
   "deploy_result": {
     "triggered": true,
-    "dimensions": ["ci_cd", "release", "signing", "auto_update", "monitoring"],
+    "dimensions": ["ci_cd", "release", "signing", "auto_update", "monitoring", "distribution", "rollback"],
     "platforms": ["windows", "macos", "linux"],
     "ci_cd_platform": "github-actions",
     "artifacts": [".github/workflows/build.yml", "scripts/sign-windows.sh", ...],
@@ -331,8 +456,10 @@ For in-depth guidance, refer to these documents in the `references/` directory:
 - `references/ci-cd-pipeline.md` — CI/CD pipeline generation rules, GitHub Actions and GitLab CI configuration, build matrix setup, Maven cache, artifact upload
 - `references/release-management.md` — Version management, semantic versioning, conventional commits changelog, GitHub/GitLab release creation, artifact upload
 - `references/code-signing.md` — Windows code signing (signtool, WiX), macOS notarization (notarytool, stapler), certificate management, CI/CD secret integration
-- `references/auto-update.md` — Update strategy selection, update checker implementation, manifest format, version comparison, download and install flow
+- `references/auto-update.md` — Update strategy selection, update checker implementation, manifest format, version comparison, download and install flow, version pinning and rollback integration
 - `references/runtime-monitoring.md` — Logback configuration, crash reporting (UncaughtExceptionHandler), performance metrics, JMX exposure
+- `references/distribution-channels.md` — MSIX/Microsoft Store packaging, Mac App Store submission, Snap/Flatpak manifests, multi-channel strategy, store-specific CI/CD integration
+- `references/rollback-strategy.md` — Version pinning, automatic rollback state machine, post-release health check CI/CD job, manual rollback Runbook, loop guard
 
 ## Relationship to Other Skills
 
@@ -341,7 +468,7 @@ For in-depth guidance, refer to these documents in the `references/` directory:
 | `javafx-runner` | **Upstream provider**: Runner verifies packaging works. Deployer reads runner's packaging results to understand which platforms and installer formats are verified. Deployer does NOT re-execute packaging — it generates CI/CD configs that will execute packaging in the pipeline |
 | `javafx-docgen` | **Predecessor in loop**: DocGen generates documentation before Deployer runs. Deployer may reference the generated changelog in release management |
 | `javafx-orchestrator` | **Coordinator**: Orchestrator triggers Deployer as an optional post-delivery phase. Orchestrator manages the delivered → deploying → shipped transition |
-| `javafx-developer` | **Code integration**: Deployer generates Java classes (UpdateChecker, CrashHandler, MetricsCollector) that the developer's App.java needs to integrate. Deployer provides integration code snippets |
+| `javafx-developer` | **Code integration**: Deployer generates Java classes (UpdateChecker, CrashHandler, MetricsCollector, RollbackState) that the developer's App.java needs to integrate. Deployer provides integration code snippets |
 | `javafx-designer` | **No direct interaction**: Designer produces UI design artifacts. Deployer handles deployment infrastructure |
 | `javafx-code-reviewer` | **No direct interaction**: Reviewer reviews code quality. Deployer's generated Java code would be reviewed if the loop re-enters review |
 

@@ -191,3 +191,128 @@ Rendered output:
 ```
 
 Unresolvable references (target class not in the project) are rendered as plain text and flagged with a warning in the docgen report. Anchor names are derived by lowercasing the simple class name; method references append a hash fragment of the method signature.
+
+## Javadoc HTML Generation
+
+In addition to the Markdown API reference, DocGen can generate standard Javadoc HTML output using the JDK's built-in `javadoc` tool. This produces the familiar framed Javadoc site with full cross-linking, search, and syntax-highlighted source views.
+
+### When to Generate HTML
+
+HTML generation is controlled by `.loop-config.json`:
+
+```json
+{
+  "doc_javadoc_html": true
+}
+```
+
+| Setting | Behavior |
+|---------|----------|
+| `true` | Generate both Markdown (`docs/api-reference.md`) and HTML (`docs/api-reference-html/`) |
+| `false` (default) | Generate Markdown only |
+| Not set | Default to `false` (Markdown only) |
+
+### Maven Javadoc Plugin Configuration
+
+Generate HTML Javadoc using the Maven Javadoc plugin:
+
+```bash
+mvn javadoc:javadoc -DdestDir=api-reference-html -DoutputDirectory=docs
+```
+
+Or with explicit options for better output:
+
+```xml
+<plugin>
+  <groupId>org.apache.maven.plugins</groupId>
+  <artifactId>maven-javadoc-plugin</artifactId>
+  <version>3.6.3</version>
+  <configuration>
+    <outputDirectory>${project.basedir}/docs</outputDirectory>
+    <destDir>api-reference-html</destDir>
+    <show>public</show>
+    <nohelp>true</nohelp>
+    <doclint>none</doclint>
+    <additionalOptions>
+      <additionalOption>-html5</additionalOption>
+      <additionalOption>--allow-script-in-comments</additionalOption>
+    </additionalOptions>
+  </configuration>
+</plugin>
+```
+
+### JDK 17+ Module-Aware Javadoc
+
+For modular JavaFX projects (`module-info.java` present), the `javadoc` tool automatically resolves module dependencies. Ensure the module path includes the JavaFX SDK:
+
+```bash
+mvn javadoc:javadoc \
+  -DdestDir=api-reference-html \
+  -DoutputDirectory=docs \
+  --module-path "${JAVAFX_HOME}/lib"
+```
+
+### Output Structure
+
+When HTML generation is enabled, the output directory includes:
+
+```
+docs/
+├── api-reference.md              # Markdown API reference (always generated)
+├── api-reference.json            # Structured data (always generated)
+└── api-reference-html/           # Javadoc HTML site (conditional)
+    ├── index.html                # Main entry point with frameset
+    ├── overview-summary.html     # Package overview
+    ├── allclasses-index.html     # All classes index
+    ├── member-search-index.js    # Search index
+    ├── com/
+    │   └── example/
+    │       └── app/
+    │           ├── package-summary.html
+    │           ├── package-tree.html
+    │           └── UserService.html
+    └── ...
+```
+
+### Validation
+
+After generating HTML Javadoc, verify:
+
+1. **`index.html` exists** in `docs/api-reference-html/`
+2. **No Javadoc errors**: Check Maven output for `javadoc: error` messages — errors indicate malformed Javadoc comments that need fixing
+3. **Package coverage**: All public packages from `module-info.java` (or source tree) have `package-summary.html` pages
+4. **Class coverage**: All public classes have individual HTML pages
+5. **Cross-links**: `{@link}` references resolve to actual HTML pages (no broken links)
+
+### Coverage Reporting
+
+The HTML Javadoc coverage is reported alongside the Markdown coverage in `docgen-report.json`:
+
+```json
+{
+  "coverage": {
+    "api": {
+      "total_classes": 25,
+      "classes_with_javadoc": 20,
+      "coverage_percent": 80.0
+    },
+    "api_html": {
+      "generated": true,
+      "output_dir": "docs/api-reference-html/",
+      "javadoc_errors": 0,
+      "javadoc_warnings": 3
+    }
+  }
+}
+```
+
+### Relationship to Markdown API Reference
+
+The HTML and Markdown outputs serve different purposes:
+
+| Output | Purpose | Audience |
+|--------|---------|----------|
+| `api-reference.md` | Quick reference in version control, IDE preview | Developers browsing in GitHub/IDE |
+| `api-reference-html/` | Full searchable Javadoc site with cross-linking | Developers needing detailed API navigation |
+
+Both outputs are generated from the same source Javadoc comments — they are different presentations of the same data. The Markdown output is always generated; the HTML output is optional (controlled by `doc_javadoc_html` config).

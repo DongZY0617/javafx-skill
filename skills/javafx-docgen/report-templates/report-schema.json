@@ -22,7 +22,7 @@
     },
     "report_version": {
       "type": "string",
-      "const": "1.0"
+      "const": "1.1"
     },
     "generated_at": {
       "type": "string",
@@ -47,6 +47,15 @@
       "enum": ["post-loop", "standalone"],
       "description": "post-loop = triggered after quality gate passes; standalone = user-requested independently"
     },
+    "doc_gate_mode": {
+      "type": "string",
+      "enum": ["blocking", "non-blocking"],
+      "description": "blocking = documentation failures block delivery; non-blocking = documentation failures do not block (default)"
+    },
+    "javadoc_html_generated": {
+      "type": "boolean",
+      "description": "Whether Javadoc HTML was generated (controlled by doc_javadoc_html config)"
+    },
     "conclusion": {
       "type": "string",
       "enum": ["Pass", "Pass with warnings", "Fail"],
@@ -60,7 +69,7 @@
         "properties": {
           "document_type": {
             "type": "string",
-            "enum": ["api-reference", "api-reference-json", "user-manual", "architecture", "changelog", "readme", "docgen-report"]
+            "enum": ["api-reference", "api-reference-json", "api-reference-html", "user-manual", "architecture", "changelog", "readme", "docgen-report"]
           },
           "file_path": { "type": "string" },
           "status": { "type": "string", "enum": ["generated", "skipped", "failed"] },
@@ -86,6 +95,20 @@
             "total_fields": { "type": "integer", "minimum": 0 },
             "fields_with_javadoc": { "type": "integer", "minimum": 0 },
             "field_coverage_percent": { "type": "number", "minimum": 0, "maximum": 100 }
+          }
+        },
+        "api_html": {
+          "type": "object",
+          "description": "Javadoc HTML generation results (present only when javadoc_html_generated is true)",
+          "required": ["generated", "output_dir"],
+          "properties": {
+            "generated": { "type": "boolean" },
+            "output_dir": { "type": "string" },
+            "javadoc_errors": { "type": "integer", "minimum": 0 },
+            "javadoc_warnings": { "type": "integer", "minimum": 0 },
+            "index_html_exists": { "type": "boolean" },
+            "packages_documented": { "type": "integer", "minimum": 0 },
+            "classes_documented": { "type": "integer", "minimum": 0 }
           }
         },
         "user_manual": {
@@ -133,7 +156,9 @@
         "reviewer_conclusion": { "type": "string", "enum": ["Pass"] },
         "runner_conclusion": { "type": "string", "enum": ["Pass"] },
         "tester_conclusion": { "type": "string", "enum": ["Pass", "Skipped"] },
-        "docgen_conclusion": { "type": "string", "enum": ["Pass", "Pass with warnings", "Fail"] }
+        "docgen_conclusion": { "type": "string", "enum": ["Pass", "Pass with warnings", "Fail"] },
+        "gate_blocked": { "type": "boolean", "description": "True when doc_gate_mode is blocking and DocGen failed, preventing delivery" },
+        "next_action": { "type": "string", "enum": ["delivered", "fix_documentation", "standalone_complete"] }
       }
     }
   }

@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  PMD ruleset for JavaFX projects.
+  Focuses on high-value rules: security, performance, design, and correctness.
+  Relaxed on JavaFX-specific patterns (FXML controllers with @FXML injection).
+-->
+<ruleset xmlns="http://pmd.sourceforge.net/ruleset/2.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://pmd.sourceforge.net/ruleset/2.0.0
+                             https://pmd.sourceforge.io/ruleset_2_0_0.xsd"
+         name="javafx-custom-ruleset">
+
+    <description>PMD ruleset tailored for JavaFX desktop applications</description>
+
+    <!-- === Best Practices === -->
+    <rule ref="category/java/bestpractices.xml">
+        <!-- Exclude: JavaFX Controllers may have unused private fields (injected by FXML) -->
+        <exclude name="UnusedPrivateField"/>
+        <!-- Exclude: FXML controller methods may appear unused (called via reflection by FXMLLoader) -->
+        <exclude name="UnusedPrivateMethod"/>
+    </rule>
+
+    <!-- Allow unused fields annotated with @FXML -->
+    <rule ref="category/java/bestpractices.xml/UnusedPrivateField">
+        <properties>
+            <property name="violationSuppressXPath" value="//FieldDeclaration/Annotation/MarkerAnnotation/Name[@Image='FXML']"/>
+        </properties>
+    </rule>
+
+    <!-- === Code Style === -->
+    <rule ref="category/java/codestyle.xml">
+        <!-- Exclude: JavaFX Property naming convention (ratingProperty, getRating, setRating) -->
+        <exclude name="ConfusingTernary"/>
+        <exclude name="OnlyOneReturn"/>
+    </rule>
+
+    <rule ref="category/java/codestyle.xml/ClassNamingConventions">
+        <properties>
+            <property name="classPrefix" value=""/>
+            <property name="classSuffix" value="Controller|Service|Repository|View|Model|ViewModel|Presenter|Util|Exception"/>
+        </properties>
+    </rule>
+
+    <!-- === Design === -->
+    <rule ref="category/java/design.xml">
+        <exclude name="LawOfDemeter"/>
+        <exclude name="LoosePackageCoupling"/>
+    </rule>
+
+    <rule ref="category/java/design.xml/CognitiveComplexity">
+        <properties>
+            <property name="reportLevel" value="20"/>
+        </properties>
+    </rule>
+
+    <rule ref="category/java/design.xml/TooManyMethods">
+        <properties>
+            <property name="maxmethods" value="20"/>
+        </properties>
+    </rule>
+
+    <rule ref="category/java/design.xml/TooManyFields">
+        <properties>
+            <property name="maxfields" value="25"/>
+        </properties>
+    </rule>
+
+    <!-- === Error Prone === -->
+    <rule ref="category/java/errorprone.xml">
+        <exclude name="BeanMembersShouldSerialize"/>
+    </rule>
+
+    <!-- === Performance === -->
+    <rule ref="category/java/performance.xml"/>
+
+    <!-- === Security === -->
+    <rule ref="category/java/security.xml"/>
+
+    <!-- === Documentation === -->
+    <rule ref="category/java/documentation.xml">
+        <exclude name="CommentRequired"/>
+        <exclude name="CommentSize"/>
+    </rule>
+
+    <rule ref="category/java/documentation.xml/UnusedPrivateField">
+        <properties>
+            <property name="violationSuppressXPath" value="//FieldDeclaration/Annotation/MarkerAnnotation/Name[@Image='FXML']"/>
+        </properties>
+    </rule>
+</ruleset>

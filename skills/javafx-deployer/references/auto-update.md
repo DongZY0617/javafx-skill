@@ -20,6 +20,10 @@ The manifest describes the latest release, the minimum supported version (below 
 {
   "latest_version": "1.4.0",
   "minimum_version": "1.0.0",
+  "pinned_version": null,
+  "pinned_reason": "",
+  "rollback_enabled": true,
+  "rollback_version": "1.3.0",
   "release_notes": "Added dark mode and fixed PDF export crash.",
   "platforms": {
     "windows": { "url": "https://cdn.example.com/myapp/1.4.0/MyApp.msi", "size": 48234496, "sha256": "9f86d081..." },
@@ -28,6 +32,17 @@ The manifest describes the latest release, the minimum supported version (below 
   }
 }
 ```
+
+### Rollback-Specific Fields
+
+| Field | Type | Purpose |
+|-------|------|---------|
+| `pinned_version` | string \| null | When set, halts rollout of versions newer than this. The UpdateChecker will not offer updates above the pinned version. Used to stop a bad version from propagating. |
+| `pinned_reason` | string | Human-readable explanation for why a version is pinned (e.g., "1.4.1 crashes on startup on Windows 11") |
+| `rollback_enabled` | boolean | Whether automatic rollback is active. When `false`, CrashHandler will not trigger automatic rollback even if crash count exceeds threshold. |
+| `rollback_version` | string | The target version to roll back to when automatic rollback triggers. Should be a known-good version. |
+
+When `pinned_version` is set, the UpdateChecker must skip any `latest_version` that is newer than the pinned version, effectively freezing the fleet at the pinned release until the pin is cleared.
 
 ## 3. update-config.json Format
 
@@ -38,7 +53,11 @@ A local configuration file controls update behavior. It ships with the app and m
   "check_on_startup": true,
   "check_interval_hours": 24,
   "manifest_url": "https://cdn.example.com/myapp/update-manifest.json",
-  "allow_skip_version": true
+  "allow_skip_version": true,
+  "rollback_enabled": true,
+  "rollback_grace_period_hours": 24,
+  "rollback_crash_threshold": 3,
+  "rollback_silent": false
 }
 ```
 
@@ -48,6 +67,10 @@ A local configuration file controls update behavior. It ships with the app and m
 | `check_interval_hours` | number | Minimum hours between background checks |
 | `manifest_url` | string | URL of the update manifest |
 | `allow_skip_version` | boolean | Permit the user to skip a specific version |
+| `rollback_enabled` | boolean | Enable automatic rollback on repeated crashes within the grace period |
+| `rollback_grace_period_hours` | number | Window after update during which crash counting triggers rollback (default: 24) |
+| `rollback_crash_threshold` | number | Number of crashes within the grace period that triggers automatic rollback (default: 3) |
+| `rollback_silent` | boolean | If `true`, rollback proceeds without user confirmation dialog; if `false`, shows a confirmation alert |
 
 ## 4. UpdateChecker.java Implementation
 
@@ -70,6 +93,12 @@ public class UpdateChecker {
             HttpRequest.newBuilder(URI.create(manifestUrl)).build(),
             HttpResponse.BodyHandlers.ofString());
         UpdateManifest manifest = parseManifest(resp.body());
+
+        // Version pinning: if pinned_version is set, do not offer updates above it
+        if (manifest.pinned_version != null
+                && compareVersions(manifest.latest_version, manifest.pinned_version) > 0) {
+            return Optional.empty(); // rollout halted at pinned version
+        }
 
         if (compareVersions(manifest.latest_version, currentVersion) <= 0) {
             return Optional.empty(); // up to date
@@ -228,3 +257,130 @@ public class App extends Application {
 ```
 
 The check runs off the JavaFX Application Thread, and any dialog interaction is marshaled back via `Platform.runLater` to keep UI updates thread-safe.
+
+## 9. Version Pinning and Rollback Integration
+
+When rollback support is enabled (see `rollback-strategy.md` for the full design), the auto-update mechanism integrates with the rollback state machine in three ways:
+
+### 9.1 Respecting `pinned_version`
+
+The `UpdateChecker.checkForUpdate()` method already includes the pin check (see Section 4). When the server sets `pinned_version`, no client will be offered an update above that version. This is the primary mechanism for halting a bad rollout without touching individual clients.
+
+### 9.2 CrashHandler Triggering Rollback
+
+The `CrashHandler` (generated in the Runtime Monitoring step) is extended to count crashes within the grace period and trigger rollback when the threshold is exceeded:
+
+```java
+public class CrashHandler implements Thread.UncaughtExceptionHandler {
+    private final RollbackState rollbackState;
+    private final UpdateConfig config;
+
+    @Override
+    public void uncaughtException(Thread t, Throwable e) {
+        writeCrashReport(t, e);
+
+        if (config.rollback_enabled && rollbackState.isWithinGracePeriod()) {
+            rollbackState.incrementCrashCount();
+            if (rollbackState.shouldAttemptRollback()) {
+                triggerRollback();
+            }
+        }
+    }
+
+    private void triggerRollback() {
+        try {
+            UpdateManifest manifest = fetchManifest(config.manifest_url);
+            String rollbackVersion = manifest.rollback_version;
+            UpdateAsset asset = manifest.platforms.get(UpdateChecker.detectPlatform());
+
+            if (config.rollback_silent) {
+                // Silent rollback: download and launch without dialog
+                Path installer = downloadInstaller(asset);
+                launchInstaller(installer);
+            } else {
+                Platform.runLater(() -> {
+                    Alert alert = new Alert(Alert.AlertType.WARNING);
+                    alert.setTitle("Rolling Back");
+                    alert.setHeaderText("Reverting to version " + rollbackVersion);
+                    alert.setContentText("The application has encountered repeated errors "
+                        + "and will roll back to a stable version.");
+                    alert.showAndWait().ifPresent(r -> {
+                        try {
+                            Path installer = downloadInstaller(asset);
+                            launchInstaller(installer);
+                        } catch (Exception ex) {
+                            log.error("Rollback failed", ex);
+                        }
+                    });
+                });
+            }
+        } catch (Exception ex) {
+            log.error("Automatic rollback failed", ex);
+        }
+    }
+}
+```
+
+### 9.3 RollbackState Loop Guard
+
+The `RollbackState.shouldAttemptRollback()` method implements three guard conditions to prevent infinite rollback loops:
+
+```java
+public boolean shouldAttemptRollback() {
+    // Guard 1: already rolled back — never rollback twice
+    if (rollbackTriggered) return false;
+
+    // Guard 2: already running the rollback target version — nothing to do
+    if (currentVersion.equals(rollbackVersion)) return false;
+
+    // Guard 3: crash count exceeds a sanity ceiling (e.g., 10) —
+    // likely a systemic issue, not a bad update; do not loop
+    if (crashCount > ROLLBACK_SANITY_CEILING) return false;
+
+    return crashCount >= crashThreshold;
+}
+```
+
+## 10. Store Distribution Compatibility
+
+When the app is distributed through a store (Microsoft Store, Mac App Store, Snap Store), the store platform handles updates natively. The in-app UpdateChecker must be disabled to avoid conflicts.
+
+### 10.1 Build Flag
+
+Use a Maven property `-Dstore.distribution=true` to produce store-optimized builds:
+
+```bash
+mvn clean package -Dstore.distribution=true
+```
+
+### 10.2 Conditional Update Check
+
+In `App.java`, gate the update check behind the store flag:
+
+```java
+public class App extends Application {
+    private static final boolean STORE_DISTRIBUTION =
+        Boolean.parseBoolean(System.getProperty("store.distribution", "false"));
+
+    @Override
+    public void start(Stage stage) throws Exception {
+        // ... UI setup ...
+
+        if (!STORE_DISTRIBUTION) {
+            UpdateConfig config = UpdateConfig.load();
+            if (config.check_on_startup) {
+                CompletableFuture.runAsync(() -> { /* check for update */ });
+            }
+        }
+        // Store builds: updates are handled by the store platform
+    }
+}
+```
+
+### 10.3 CI/CD Integration
+
+The CI/CD workflow should produce two build variants:
+- **Direct-download build**: Full auto-update support, no store flag
+- **Store build**: `-Dstore.distribution=true`, no UpdateChecker initialization, packaged in store format (MSIX, PKG, Snap)
+
+This dual-build strategy is detailed in `distribution-channels.md`.

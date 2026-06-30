@@ -221,6 +221,12 @@ After refactoring recommendations are applied (by `javafx-developer`), verify be
       "type": "extract_class",
       "smell_ids": ["SMELL-001"],
       "target_file": "src/main/java/com/example/controller/UserController.java",
+      "target_lines": "45-72",
+      "fix_type": "replace",
+      "fix_priority": 1,
+      "code_fingerprint": "a1b2c3d4e5f6789012345678901234567890abcdef1234567890abcdef1234",
+      "anchor_pattern": "public void saveUser(User user) {\\n    if (user.getName() == null || user.getName().isEmpty()) {\\n    // ... validation logic ...\\n    userRepository.save(user);\\n}",
+      "ast_node_signature": "com.example.controller.UserController#saveUser(User)",
       "description": "Extract user validation logic into UserValidator class",
       "new_files": ["src/main/java/com/example/validator/UserValidator.java"],
       "effort": "M",
@@ -280,7 +286,7 @@ The refactorer produces a `refactor-handoff.json` file that `javafx-developer` c
 | `developer_instructions` | object | Apply order and safety constraints |
 | `conclusion` | string | Pass / Pass with warnings / Fail |
 
-> **Refactor handoff uses Fix Handoff format**: Each refactoring action in `refactoring_plan[]` includes `target_file`, `fix_type` (always `replace` or `insert`), and `ast_node_signature` — making it compatible with the developer's Fix Consumption Protocol (Step 3 Location Matching).
+> **Refactor handoff uses unified Fix Handoff format**: Each refactoring action in `refactoring_plan[]` includes the seven unified Fix Handoff fields — `target_file`, `target_lines`, `fix_type` (`replace` / `insert` / `delete`), `fix_priority` (integer, 1 = highest), `code_fingerprint` (SHA-256), `anchor_pattern`, and `ast_node_signature` — making it directly compatible with the developer's Fix Consumption Protocol (Step 5.5). The developer recognizes these fields and activates Fix Consumption mode without conversion. Field names for `smell_catalog` and `refactoring_plan` (smell_id, lines, detail, refactor_id, type, before_snippet, after_snippet, behavior_equivalence_check) are aligned with `report-schema.json` for full consistency between the report and handoff artifacts.
 
 ## Dual Output Format (Markdown + JSON)
 

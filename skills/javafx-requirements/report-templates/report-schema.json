@@ -1,0 +1,120 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://javafx-skill.dev/schemas/requirements-report.json",
+  "title": "javafx-requirements Report Schema",
+  "description": "JSON schema for the requirements engineering report produced by javafx-requirements skill",
+  "type": "object",
+  "required": ["project", "requirements_version", "created_at", "scope", "summary", "conclusion"],
+  "properties": {
+    "project": {
+      "type": "string",
+      "description": "Project name"
+    },
+    "requirements_version": {
+      "type": "string",
+      "description": "Requirements specification version",
+      "example": "1.0"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp of report generation"
+    },
+    "scope": {
+      "type": "string",
+      "enum": ["full", "user_stories_only", "nfr_only", "change_impact_only"],
+      "description": "Requirements engineering scope"
+    },
+    "summary": {
+      "type": "object",
+      "required": ["stakeholders", "user_stories", "nfrs", "traceability"],
+      "properties": {
+        "stakeholders": {
+          "type": "object",
+          "properties": {
+            "count": { "type": "integer" },
+            "by_priority": {
+              "type": "object",
+              "properties": {
+                "high": { "type": "integer" },
+                "medium": { "type": "integer" },
+                "low": { "type": "integer" }
+              }
+            }
+          }
+        },
+        "user_stories": {
+          "type": "object",
+          "properties": {
+            "epic_count": { "type": "integer" },
+            "story_count": { "type": "integer" },
+            "acceptance_criteria_count": { "type": "integer" },
+            "by_priority": {
+              "type": "object",
+              "properties": {
+                "must": { "type": "integer" },
+                "should": { "type": "integer" },
+                "could": { "type": "integer" }
+              }
+            }
+          }
+        },
+        "nfrs": {
+          "type": "object",
+          "properties": {
+            "count": { "type": "integer" },
+            "by_category": {
+              "type": "object",
+              "properties": {
+                "performance": { "type": "integer" },
+                "security": { "type": "integer" },
+                "compatibility": { "type": "integer" },
+                "usability": { "type": "integer" },
+                "reliability": { "type": "integer" },
+                "maintainability": { "type": "integer" }
+              }
+            }
+          }
+        },
+        "traceability": {
+          "type": "object",
+          "properties": {
+            "total_requirements": { "type": "integer" },
+            "planned": { "type": "integer" },
+            "verified": { "type": "integer" }
+          }
+        }
+      }
+    },
+    "change_impact_reports": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "change_id": { "type": "string" },
+          "description": { "type": "string" },
+          "severity": { "type": "string", "enum": ["low", "medium", "high"] },
+          "date": { "type": "string", "format": "date-time" }
+        }
+      }
+    },
+    "artifacts": {
+      "type": "object",
+      "properties": {
+        "handoff_file": { "type": "string" },
+        "stakeholders_md": { "type": "string" },
+        "user_stories_md": { "type": "string" },
+        "nfr_md": { "type": "string" },
+        "change_impact_dir": { "type": "string" }
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "conclusion": {
+      "type": "string",
+      "enum": ["Pass", "Pass with warnings", "Fail"]
+    }
+  }
+}

@@ -12,7 +12,7 @@ license: Apache-2.0
 compatibility: Requires JDK 17+. Supports JavaFX 17/21/24/25/26.
 metadata:
   author: DongZY0617
-  version: "1.0"
+  version: "1.1"
 triggers:
   - document
   - docs
@@ -21,11 +21,18 @@ triggers:
   - README
   - changelog
   - architecture doc
+  - javadoc
+  - javadoc html
 depends_on:
   - javafx-developer
 consumes_from:
   - javafx-developer (source code, requirements)
-produces_for: []
+  - javafx-code-reviewer (review report, optional)
+  - javafx-runner (verification report, optional)
+  - javafx-tester (test report, optional)
+produces_for:
+  - user (documentation deliverables: API reference, user manual, architecture doc, changelog, README)
+  - javafx-orchestrator (docgen_result in loop state)
 ---
 
 # JavaFX DocGen
@@ -98,6 +105,13 @@ Generate a structured API reference document by aggregating Javadoc comments fro
 5. **Output**: `docs/api-reference.md` (Markdown) and `docs/api-reference.json` (structured data)
 
 > See `references/javadoc-generation.md` for detailed extraction rules and formatting guidelines.
+
+6. **Javadoc HTML generation** (conditional): If `.loop-config.json` has `"doc_javadoc_html": true`, also generate standard Javadoc HTML:
+   - Execute `mvn javadoc:javadoc` with output directory `docs/api-reference-html/`
+   - Produces a full searchable Javadoc site with cross-linking and source views
+   - Validate: `index.html` exists, no Javadoc errors, all public packages have summary pages
+   - Output: `docs/api-reference-html/` directory with full Javadoc HTML site
+   - See `references/javadoc-generation.md` § "Javadoc HTML Generation" for Maven plugin configuration and validation rules
 
 ### Step 3: User Manual Generation
 
@@ -265,15 +279,40 @@ This skill participates in the loop as the **delivery phase** skill, triggered a
 
 ### Quality Gate (Documentation Gate)
 
-The documentation gate is evaluated **after** the Test Gate passes:
+The documentation gate is evaluated **after** the Test Gate passes. The gate mode is configurable via `.loop-config.json`:
 
-| DocGen Conclusion | Overall | Action |
-|-------------------|---------|--------|
-| Pass | Delivered | Documentation generated, project delivered |
-| Pass with warnings | Delivered | Documentation generated with gaps (e.g., missing Javadoc), recorded for future improvement |
-| Fail | Delivered (docs skipped) | Documentation generation failed, but code quality is verified — deliver without docs, log the failure |
+| Config Setting | Gate Mode | Behavior |
+|----------------|-----------|----------|
+| `"doc_gate_mode": "blocking"` | Blocking | Documentation failures **block delivery** — project stays in `"delivered"` state until docs pass or are explicitly skipped |
+| `"doc_gate_mode": "non-blocking"` (default) | Non-blocking | Documentation failures **do not block delivery** — project is delivered even if docs fail, failure is logged |
+| Not set | Non-blocking | Default to non-blocking (backward-compatible behavior) |
 
-> **Documentation Gate never blocks delivery**: Unlike the Combined Gate and Test Gate, the Documentation Gate does not block delivery. If documentation generation fails, the project is still delivered (code quality is already verified). The failure is logged for future improvement.
+#### Gate Evaluation Matrix
+
+| DocGen Conclusion | Blocking Mode | Non-Blocking Mode |
+|-------------------|---------------|-------------------|
+| Pass | Delivered | Delivered |
+| Pass with warnings | Delivered | Delivered |
+| Fail | **Blocked** (not delivered — fix docs and re-run) | Delivered (docs skipped, failure logged) |
+
+#### Blocking Mode Details
+
+When `doc_gate_mode: "blocking"` is set:
+
+1. If DocGen fails, the loop state remains `"passed"` (not `"delivered"`) and `next_action` is `"fix_documentation"`
+2. The user must resolve documentation issues (e.g., add missing Javadoc) and re-run DocGen
+3. The user can explicitly skip documentation by setting `"docgen": false` in `.loop-config.json` — this bypasses the gate entirely
+4. The orchestrator treats a failed blocking gate as a hard stop — no further phases (deployer) are triggered until the gate passes or is explicitly skipped
+
+#### Non-Blocking Mode Details (Default)
+
+When `doc_gate_mode: "non-blocking"` (or not set):
+
+1. If DocGen fails, the project is still delivered (code quality is already verified by Combined Gate + Test Gate)
+2. The failure is logged in `docgen_result.conclusion: "Fail"` with details
+3. The orchestrator proceeds to the next phase (deployer) if applicable
+
+> **Backward compatibility**: The default non-blocking mode preserves the existing behavior where the Documentation Gate never blocks delivery. Projects that require documentation completeness before delivery must explicitly set `"doc_gate_mode": "blocking"`.
 
 ## Constraints
 

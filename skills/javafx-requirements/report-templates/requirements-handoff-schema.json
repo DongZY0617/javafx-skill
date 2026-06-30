@@ -1,0 +1,155 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://javafx-skill.dev/schemas/requirements-handoff.json",
+  "title": "Requirements Handoff JSON (requirements-handoff.json)",
+  "description": "Independent validation schema for the requirements-handoff.json file produced by javafx-requirements. This file is consumed by javafx-architect (Step 1) and javafx-developer (Step 1). Unlike requirements-report.json (which is a summary), this handoff carries the full detailed requirements data for downstream consumption.",
+  "type": "object",
+  "required": [
+    "project",
+    "requirements_version",
+    "created_at",
+    "scope",
+    "stakeholders",
+    "user_stories",
+    "non_functional_requirements",
+    "traceability_matrix",
+    "developer_instructions",
+    "conclusion"
+  ],
+  "properties": {
+    "project": { "type": "string", "description": "Project name" },
+    "requirements_version": {
+      "type": "string",
+      "const": "1.0",
+      "description": "Requirements skill version — must match SKILL.md metadata.version"
+    },
+    "created_at": { "type": "string", "format": "date-time" },
+    "scope": {
+      "type": "string",
+      "enum": ["full", "user_stories_only", "nfr_only", "change_impact_only"],
+      "description": "Requirements engineering scope. 'full' = all dimensions; 'user_stories_only' = skip NFRs and stakeholder analysis; 'nfr_only' = only quantify NFRs; 'change_impact_only' = only analyze change impact."
+    },
+    "stakeholders": {
+      "type": "array",
+      "description": "Identified stakeholders with goals and influence. May be minimal when scope is nfr_only or change_impact_only.",
+      "items": {
+        "type": "object",
+        "required": ["id", "role", "goals", "priority", "influence"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^SH-\\d{3}$" },
+          "role": { "type": "string" },
+          "goals": { "type": "array", "items": { "type": "string" } },
+          "priority": { "type": "string", "enum": ["high", "medium", "low"] },
+          "influence": { "type": "string", "enum": ["high", "medium", "low"] }
+        }
+      }
+    },
+    "user_stories": {
+      "type": "array",
+      "description": "User stories with INVEST check and acceptance criteria. May be empty when scope is nfr_only or change_impact_only.",
+      "items": {
+        "type": "object",
+        "required": ["id", "req_id", "as_a", "i_want_to", "so_that", "priority", "invest_check", "acceptance_criteria"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^US-\\d{3}$" },
+          "req_id": { "type": "string", "pattern": "^FR-\\d{3}$" },
+          "epic": { "type": "string", "description": "Epic grouping (optional)" },
+          "as_a": { "type": "string" },
+          "i_want_to": { "type": "string" },
+          "so_that": { "type": "string" },
+          "priority": { "type": "string", "enum": ["High", "Medium", "Low"] },
+          "estimate_points": { "type": "integer", "minimum": 1 },
+          "invest_check": {
+            "type": "object",
+            "required": ["independent", "negotiable", "valuable", "estimable", "small", "testable"],
+            "properties": {
+              "independent": { "type": "boolean" },
+              "negotiable": { "type": "boolean" },
+              "valuable": { "type": "boolean" },
+              "estimable": { "type": "boolean" },
+              "small": { "type": "boolean" },
+              "testable": { "type": "boolean" }
+            }
+          },
+          "acceptance_criteria": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": ["id", "given", "when", "then"],
+              "properties": {
+                "id": { "type": "string", "pattern": "^AC-\\d{3}\\.\\d+$" },
+                "given": { "type": "string" },
+                "when": { "type": "string" },
+                "then": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "non_functional_requirements": {
+      "type": "array",
+      "description": "Quantified NFRs with measurable targets and verification methods. May be empty when scope is user_stories_only or change_impact_only.",
+      "items": {
+        "type": "object",
+        "required": ["id", "category", "description", "target", "measurement", "verification", "priority"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^NFR-[A-Z]+-\\d{3}$" },
+          "category": { "type": "string", "enum": ["Performance", "Reliability", "Security", "Usability", "Compatibility", "Maintainability"] },
+          "description": { "type": "string" },
+          "target": { "type": "string", "description": "Measurable target (e.g., '<= 3 seconds')" },
+          "measurement": { "type": "string", "description": "How to measure (e.g., 'Time from Application.launch() to primaryStage.show()')" },
+          "verification": { "type": "string", "description": "Verification method (e.g., 'tester#performanceTesting')" },
+          "priority": { "type": "string", "enum": ["Must", "Should", "Could"] }
+        }
+      }
+    },
+    "traceability_matrix": {
+      "type": "array",
+      "description": "RTM seed mapping requirement IDs to verification methods. Consumed by javafx-code-reviewer for Requirements Coverage dimension.",
+      "items": {
+        "type": "object",
+        "required": ["req_id", "description", "acceptance_criteria", "verification_method", "status"],
+        "properties": {
+          "req_id": { "type": "string", "pattern": "^(FR|NFR-[A-Z]+)-\\d{3}$" },
+          "source_stakeholder": { "type": "string", "pattern": "^SH-\\d{3}$" },
+          "description": { "type": "string" },
+          "acceptance_criteria": { "type": "array", "items": { "type": "string" } },
+          "verification_method": { "type": "string", "description": "Test method that verifies this requirement (e.g., 'UserControllerTest#testCreateUser_FR_001')" },
+          "status": { "type": "string", "enum": ["Planned", "In Progress", "Verified", "Modified", "Removed"] }
+        }
+      }
+    },
+    "change_impact_reports": {
+      "type": "array",
+      "description": "Change impact analysis reports. Populated only when scope is change_impact_only or when a mid-project change is requested.",
+      "items": {
+        "type": "object",
+        "required": ["change_id", "change_description", "impact_rating", "affected_components"],
+        "properties": {
+          "change_id": { "type": "string", "pattern": "^CHANGE-\\d{3}$" },
+          "change_description": { "type": "string" },
+          "impact_rating": { "type": "string", "enum": ["Low", "Medium", "High"] },
+          "affected_components": { "type": "array", "items": { "type": "string" } },
+          "report_file": { "type": "string", "description": "Path to the detailed change impact markdown report" }
+        }
+      }
+    },
+    "developer_instructions": {
+      "type": "object",
+      "required": ["req_id_convention", "annotation_format", "test_naming_convention", "key_constraints"],
+      "properties": {
+        "requirements_md_source": { "type": "string", "description": "Source files for requirements.md generation" },
+        "req_id_convention": { "type": "string", "description": "ID convention (e.g., 'FR-xxx for functional, NFR-{CATEGORY}-xxx for non-functional')" },
+        "annotation_format": { "type": "string", "description": "Code annotation format (e.g., '@req FR-001')" },
+        "test_naming_convention": { "type": "string", "description": "Test method naming pattern (e.g., 'test{Behavior}_{REQ_ID}()')" },
+        "key_constraints": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "conclusion": {
+      "type": "string",
+      "enum": ["Pass", "Pass with warnings", "Fail"]
+    }
+  }
+}

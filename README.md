@@ -1,192 +1,277 @@
-# JavaFX Skills
+# JavaFX Skill Set
 
-> A JavaFX skill collection for AI agents — covering project development (`javafx-developer`), professional code review (`javafx-code-reviewer`), and runtime verification (`javafx-runner`), from project scaffolding to quality assurance.
+A closed-loop JavaFX desktop application development skill set covering the full lifecycle: from requirements engineering to architecture design, UI design, code generation, code review, runtime verification, deep testing, refactoring, documentation, deployment, and rollback.
 
-## What is this?
+## Overview
 
-This is an [Agent Skill](https://agentskills.io) collection that teaches AI agents how to build, review, and verify JavaFX desktop applications. It provides three complementary skills covering the full development lifecycle:
+This skill set consists of **11 skills** coordinated by `javafx-orchestrator`, forming a complete development loop:
 
-- **javafx-developer** — Build JavaFX applications, from project scaffolding to cross-platform packaging.
-- **javafx-code-reviewer** — Review JavaFX code against official specifications and best practices.
-- **javafx-runner** — Verify JavaFX projects by executing compile, run, and package commands dynamically.
+```
+Requirements → Architect → Designer → Developer → Reviewer ∥ Runner → Tester → Refactorer → DocGen → Deployer → Shipped
+                                                                              ↑________ Fix Handoff ________↓
+```
 
-Together they form a closed loop: **generate → review → verify → fix**, ensuring continuous code quality from static analysis to runtime validation.
+- **Compatibility**: Requires JDK 17+. Supports JavaFX 17 / 21 / 24 / 25 / 26.
+- **License**: Apache-2.0
+- **Author**: DongZY0617
 
 ## Skills
 
-### javafx-developer
+| # | Skill | Version | Role | Key Triggers |
+|---|-------|---------|------|--------------|
+| 1 | `javafx-requirements` | 1.0 | Requirements engineering — stakeholders, user stories, acceptance criteria, NFRs, traceability | requirements, user stories, acceptance criteria, stakeholder analysis |
+| 2 | `javafx-architect` | 1.1 | Architecture design — tech selection, UML, ADR, database schema, STRIDE threat modeling, prototype validation | architecture, system design, UML, ADR, threat modeling, STRIDE |
+| 3 | `javafx-designer` | 1.0 | UI/UX visual design — FXML prototypes, CSS themes, interaction flows, responsive layout, icon config | design, prototype, UI design, theme, CSS theme, interaction flow |
+| 4 | `javafx-developer` | 1.1 | Code generation — project scaffolding, FXML, MVC/MVVM, data binding, CSS, packaging, networking, custom controls | create, generate, build, scaffold, implement, JavaFX app |
+| 5 | `javafx-code-reviewer` | 1.1 | Static code review — 10 dimensions: structure, thread safety, FXML, memory, performance, compliance, security, database, requirements, refactoring | review, audit, check, compliance, code quality |
+| 6 | `javafx-runner` | 1.1 | Runtime verification — compile, run, package, smoke test, headless CI verification | verify, compile, run, package, deploy verification |
+| 7 | `javafx-tester` | 1.2 | Deep testing — 4 parallel tracks: performance, security, accessibility, visual regression | test, performance test, security test, accessibility test, visual regression |
+| 8 | `javafx-refactorer` | 1.0 | Code refactoring — code smell detection, refactoring recommendations, technical debt management | refactor, clean up, eliminate code smells, reduce technical debt |
+| 9 | `javafx-docgen` | 1.1 | Documentation generation — API reference, user manual, architecture doc, changelog, README, Javadoc HTML | document, docs, API reference, user manual, changelog, javadoc |
+| 10 | `javafx-deployer` | 1.1 | Deployment & DevOps — CI/CD, release, signing, auto-update, monitoring, distribution channels, rollback | deploy, CI/CD, release, sign, auto-update, MSIX, Snap, Flatpak, rollback |
+| 11 | `javafx-orchestrator` | 1.0 | Closed-loop orchestration — state machine, quality gates, fix handoff, routing, state recovery | orchestrate, full loop, run the cycle, coordinate skills |
 
-Build JavaFX desktop applications — from project scaffolding to cross-platform packaging.
+## Skill Dependency Graph
 
-- **Project Setup**: Maven/Gradle configuration, JavaFX version matrix, JDK compatibility
-- **Architecture Patterns**: MVC, MVVM, and MVP with complete code examples, anti-patterns
-- **FXML UI Design**: Layout templates, controller patterns, CSS theming (light/dark)
-- **Data Binding**: Property types, binding modes, form validation patterns
-- **Spring Boot Integration**: Startup class splitting, DI mechanism, MyBatis + SQLite integration
-- **Third-Party Libraries**: ControlsFX, MaterialFX, RichTextFX, Ikonli integration guides
-- **Packaging & Deployment**: jpackage, jlink, CI/CD integration
-- **Code Templates**: Ready-to-use templates for pom.xml, module-info.java, controllers, models, FXML, CSS
+```
+javafx-orchestrator (coordinates all)
+    │
+    ├── javafx-requirements (optional, pre-architect)
+    │       └── produces: requirements-handoff.json
+    │             ↓ consumed by: architect, developer
+    │
+    ├── javafx-architect (optional, pre-generation)
+    │       └── produces: architecture-handoff.json
+    │             ↓ consumed by: developer, designer, tester (threat_model)
+    │
+    ├── javafx-designer (optional, pre-generation)
+    │       └── produces: design artifacts (FXML prototypes, CSS themes)
+    │             ↓ consumed by: developer
+    │
+    ├── javafx-developer (core)
+    │       └── produces: source code
+    │             ↓ consumed by: code-reviewer, runner, tester, docgen, deployer
+    │
+    ├── javafx-code-reviewer ──┐ (parallel, static review)
+    │       └── produces: fix handoff report → developer
+    │
+    ├── javafx-runner ─────────┘ (parallel, dynamic verification)
+    │       └── produces: fix handoff report → developer
+    │
+    ├── javafx-tester (after Combined Gate passes)
+    │       └── produces: fix handoff report → developer
+    │             ↓ 4 tracks: Performance ∥ Security ∥ Accessibility ∥ Visual Regression
+    │
+    ├── javafx-refactorer (optional, after Test Gate)
+    │       └── produces: refactor-handoff.json → developer
+    │
+    ├── javafx-docgen (after Test Gate)
+    │       └── produces: API reference, user manual, architecture doc, changelog, README
+    │
+    └── javafx-deployer (optional, post-delivery)
+            └── produces: CI/CD configs, signing scripts, auto-update, distribution, rollback
+```
 
-### javafx-code-reviewer
+## Quick Start
 
-Review JavaFX code against official specifications and best practices.
+### Option 1: Full Closed-Loop (Recommended for New Projects)
 
-- **Code Structure Review**: Architecture layering, responsibility division, modular configuration
-- **UI Thread Safety**: FX thread updates, background task handling, Platform.runLater correctness
-- **FXML Standards**: fx:id matching, controller mapping, resource paths, event binding
-- **Memory Leak Risks**: Listener removal, Binding disposal, static references, resource cleanup
-- **Performance Analysis**: Virtualization, batch updates, throttling, CSS efficiency, lazy loading
-- **Deep Compliance Audit**: Naming conventions, security rules, Spring Boot pitfalls, version compatibility
-- **Structured Report**: Categorized findings with severity levels, code locations, and optimization suggestions
+Trigger the orchestrator to run the complete development cycle:
 
-### javafx-runner
+```
+Orchestrate a full loop for my JavaFX inventory management application.
+It should have a TableView for inventory, a form for adding items,
+and SQLite database storage.
+```
 
-Verify JavaFX projects by executing compile, run, and package commands dynamically.
+The orchestrator will execute: requirements → architect → designer → developer → reviewer ∥ runner → tester → docgen → deployer.
 
-- **Compile Verification**: Syntax compilation, dependency resolution, module configuration, FXML controller resolution
-- **Runtime Verification**: Application startup, FXML load, CSS parse, module runtime reflection, thread safety runtime validation
-- **Packaging Verification**: JAR build, module path integrity, jpackage toolchain, installer generation, upgrade UUID
-- **Headless Support**: CI environment verification via Monocle framework without a display
-- **Compile Failure Short-Circuit**: Skips runtime and packaging verification when compilation fails
-- **Structured Report**: Verification findings with fix handoff fields compatible with javafx-code-reviewer
+### Option 2: Generate and Review (Common Workflow)
 
-## Skill Structure
+```
+Create a JavaFX application with a login form and dashboard.
+Then review and verify the generated code.
+```
+
+This triggers developer → code-reviewer ∥ runner in sequence.
+
+### Option 3: Individual Skill (Standalone)
+
+Each skill can run independently:
+
+```
+# Architecture only
+Design the architecture for a JavaFX app with REST API and SQLite database. Include threat modeling.
+
+# Code review only
+Review my JavaFX code for thread safety and memory leaks.
+
+# Testing only
+Run performance and security tests on my JavaFX application.
+
+# Deployment only
+Set up CI/CD with GitHub Actions, Windows code signing, and auto-update for my JavaFX app.
+```
+
+## Loop Configuration
+
+Create a `.loop-config.json` in your project root to customize the loop:
+
+```json
+{
+  "architect": true,
+  "designer": true,
+  "deep_testing": true,
+  "refactoring": false,
+  "docgen": true,
+  "doc_gate_mode": "non-blocking",
+  "doc_javadoc_html": false,
+  "deployer": false,
+  "max_fix_iterations": 3,
+  "parallel_mode": true,
+  "vr_update_baselines": false
+}
+```
+
+| Config | Default | Description |
+|--------|---------|-------------|
+| `architect` | `true` | Run architecture design phase before code generation |
+| `designer` | `true` | Run UI design phase before code generation |
+| `deep_testing` | `true` | Run deep testing (performance, security, a11y, visual regression) after Combined Gate |
+| `refactoring` | `false` | Run refactoring phase after Test Gate passes |
+| `docgen` | `true` | Run documentation generation after Test Gate |
+| `doc_gate_mode` | `"non-blocking"` | Documentation gate: `"non-blocking"` (default) or `"blocking"` |
+| `doc_javadoc_html` | `false` | Generate Javadoc HTML site in addition to Markdown API reference |
+| `deployer` | `false` | Run deployment configuration after DocGen |
+| `max_fix_iterations` | `3` | Maximum fix-and-re-review cycles before manual intervention |
+| `parallel_mode` | `true` | Run code-reviewer and runner in parallel |
+| `vr_update_baselines` | `false` | Update visual regression baseline images (use `-Dupdate.baselines=true` alternatively) |
+
+## Quality Gates
+
+The loop implements three quality gates:
+
+| Gate | Stage | Blocking | Description |
+|------|-------|----------|-------------|
+| **Combined Gate** | After reviewer ∥ runner | Yes | Code must pass static review AND runtime verification before proceeding |
+| **Test Gate** | After tester | Yes | Deep testing (performance, security, a11y, visual regression) must pass |
+| **Documentation Gate** | After docgen | Configurable | Documentation generation — blocking or non-blocking (configurable via `doc_gate_mode`) |
+
+## Fix Handoff Protocol
+
+When reviewer, runner, or tester identifies issues, they produce a **Fix Handoff Report** that flows back to the developer:
+
+```
+[Issue Found] → Fix Handoff Report → Developer (Fix Consumption Mode) → Re-generate → Re-review/verify
+```
+
+The loop supports up to `max_fix_iterations` (default: 3) cycles before escalating to manual intervention.
+
+## Project Structure
 
 ```
 javafx-skill/
-├── README.md
-├── README.zh-CN.md
-├── LICENSE
-├── .gitignore
-└── skills/
-    ├── javafx-developer/                  # Development skill (Chinese)
-    │   ├── SKILL.md                          # Skill entry point (Chinese)
-    │   ├── EVALUATE.md                       # Evaluation test cases
-    │   ├── references/                       # In-depth reference docs
-    │   │   ├── architecture-patterns.md      # MVC/MVVM/MVP patterns
-    │   │   ├── css-best-practices.md         # CSS theming guide
-    │   │   ├── data-binding-patterns.md      # Property binding guide
-    │   │   ├── packaging-deployment.md       # jpackage/jlink guide
-    │   │   ├── project-setup.md             # Maven/Gradle setup
-    │   │   ├── spring-boot-integration.md    # Spring Boot + JavaFX guide
-    │   │   └── third-party-libraries.md      # Library integration
-    │   └── templates/                        # Reusable code templates
-    │       ├── controller/                   # Controller templates
-    │       ├── css/                          # Light/dark theme CSS
-    │       ├── fxml/                         # FXML layout templates
-    │       ├── gradle/                       # Gradle build template
-    │       ├── maven/                        # Maven POM + module-info
-    │       ├── model/                        # Observable model template
-    │       ├── presenter/                    # MVP Presenter/View templates
-    │       ├── service/                      # Service/Repository templates
-    │       ├── viewmodel/                    # ViewModel template (MVVM)
-    │       └── packaging/                    # jpackage config
-    ├── javafx-developer-en/               # Development skill (English)
-    │   ├── SKILL.md                          # Skill entry point (English)
-    │   ├── EVALUATE.md                       # Evaluation test cases
-    │   ├── references/                       # Independent reference docs
-    │   └── templates/                        # Independent code templates
-    ├── javafx-code-reviewer/              # Code review skill (Chinese)
-    │   ├── SKILL.md                          # Skill entry point (Chinese)
-    │   ├── EVALUATE.md                       # Evaluation test cases
-    │   ├── references/                       # Review dimension docs
-    │   │   ├── structure-review.md           # Code structure rules
-    │   │   ├── thread-safety-rules.md        # UI thread safety rules
-    │   │   ├── fxml-standards.md             # FXML usage standards
-    │   │   ├── memory-management.md          # Memory management rules
-    │   │   ├── performance-guide.md          # Performance optimization guide
-    │   │   ├── binding-compliance.md         # Data binding compliance
-    │   │   └── security-checklist.md         # Security compliance checklist
-    │   └── report-templates/                 # Review report templates
-    │       └── review-report.md              # Report template
-    └── javafx-code-reviewer-en/           # Code review skill (English)
-        ├── SKILL.md                          # Skill entry point (English)
-        ├── EVALUATE.md                       # Evaluation test cases
-        ├── references/                       # Independent reference docs
-        └── report-templates/                 # Independent report templates
-            └── review-report.md              # Report template
-    ├── javafx-runner/                       # Runtime verification skill (Chinese)
-    │   ├── SKILL.md                          # Skill entry point (Chinese)
-    │   ├── EVALUATE.md                       # Evaluation test cases
-    │   ├── references/                       # Verification dimension docs
-    │   │   ├── compile-verification.md       # Compile verification rules
-    │   │   ├── runtime-verification.md       # Runtime verification rules
-    │   │   ├── packaging-verification.md     # Packaging verification rules
-    │   │   └── environment-setup.md          # Environment detection & Monocle
-    │   └── report-templates/                 # Verification report templates
-    │       └── verification-report.md        # Report template
-    └── javafx-runner-en/                  # Runtime verification skill (English)
-        ├── SKILL.md                          # Skill entry point (English)
-        ├── EVALUATE.md                       # Evaluation test cases
-        ├── references/                       # Independent reference docs
-        └── report-templates/                 # Independent report templates
-            └── verification-report.md        # Report template
-```
-
-## Installation
-
-### javafx-developer (Chinese)
-```bash
-npx skills add https://github.com/DongZY0617/javafx-skill --skill javafx-developer
-```
-
-### javafx-developer (English)
-```bash
-npx skills add https://github.com/DongZY0617/javafx-skill --skill javafx-developer-en
-```
-
-### javafx-code-reviewer (Chinese)
-```bash
-npx skills add https://github.com/DongZY0617/javafx-skill --skill javafx-code-reviewer
-```
-
-### javafx-code-reviewer (English)
-```bash
-npx skills add https://github.com/DongZY0617/javafx-skill --skill javafx-code-reviewer-en
-```
-
-### javafx-runner (Chinese)
-```bash
-npx skills add https://github.com/DongZY0617/javafx-skill --skill javafx-runner
-```
-
-### javafx-runner (English)
-```bash
-npx skills add https://github.com/DongZY0617/javafx-skill --skill javafx-runner-en
+├── README.md                          # This file
+├── skills/
+│   ├── javafx-requirements/
+│   │   ├── SKILL.md                   # Skill definition
+│   │   ├── EVALUATE.md                # 12 test cases
+│   │   ├── references/                # 4 reference docs
+│   │   ├── templates/                 # Requirement templates
+│   │   └── report-templates/          # Report schema
+│   ├── javafx-architect/
+│   │   ├── SKILL.md
+│   │   ├── EVALUATE.md                # 25 test cases
+│   │   ├── references/                # 5 reference docs
+│   │   └── report-templates/
+│   ├── javafx-designer/
+│   │   ├── SKILL.md
+│   │   ├── EVALUATE.md                # 15 test cases
+│   │   ├── references/                # 5 reference docs
+│   │   └── report-templates/
+│   ├── javafx-developer/
+│   │   ├── SKILL.md
+│   │   ├── EVALUATE.md                # 16 test cases
+│   │   ├── references/                # 13 reference docs
+│   │   ├── templates/                 # 13 template directories (incl. maven/pom.xml with JaCoCo)
+│   │   └── report-templates/          # Report schema
+│   ├── javafx-code-reviewer/
+│   │   ├── SKILL.md
+│   │   ├── EVALUATE.md                # 14 test cases
+│   │   ├── references/                # 11 reference docs
+│   │   └── report-templates/
+│   ├── javafx-runner/
+│   │   ├── SKILL.md
+│   │   ├── EVALUATE.md                # 18 test cases
+│   │   ├── references/                # 7 reference docs
+│   │   └── report-templates/
+│   ├── javafx-tester/
+│   │   ├── SKILL.md
+│   │   ├── EVALUATE.md                # 23 test cases
+│   │   ├── references/                # 4 reference docs
+│   │   └── report-templates/
+│   ├── javafx-refactorer/
+│   │   ├── SKILL.md
+│   │   ├── EVALUATE.md                # 15 test cases
+│   │   ├── references/                # 3 reference docs
+│   │   └── report-templates/
+│   ├── javafx-docgen/
+│   │   ├── SKILL.md
+│   │   ├── EVALUATE.md                # 18 test cases
+│   │   ├── references/                # 5 reference docs
+│   │   └── report-templates/
+│   ├── javafx-deployer/
+│   │   ├── SKILL.md
+│   │   ├── EVALUATE.md                # 20 test cases
+│   │   ├── references/                # 7 reference docs
+│   │   └── report-templates/
+│   └── javafx-orchestrator/
+│       ├── SKILL.md
+│       ├── EVALUATE.md                # 14 test cases
+│       └── templates/                 # Loop dashboard HTML
 ```
 
 ## Technology Stack
 
-| Component | Version | Purpose |
-|-----------|---------|---------|
-| JavaFX | 17 LTS / 21 LTS / 25 LTS | UI framework |
-| JDK | 17+ | Runtime environment |
-| Maven / Gradle | Latest | Build tools |
-| Spring Boot | 3.2+ | DI container (optional) |
-| MyBatis | 3.0+ | ORM (optional) |
+- **Language**: Java (JDK 17+)
+- **Framework**: JavaFX 17 / 21 / 24 / 25 / 26
+- **Build Tool**: Maven (default), Gradle (supported)
+- **Architecture**: MVC / MVVM + Service Layer
+- **Database**: SQLite (default), H2, PostgreSQL (supported)
+- **ORM**: MyBatis (default), JPA/Hibernate (supported)
+- **UI Libraries**: ControlsFX, MaterialFX, RichTextFX, Ikonli
+- **Networking**: Retrofit (retrofit-spring-boot-starter)
+- **Static Analysis**: SpotBugs, PMD, Checkstyle
+- **Testing**: TestFX 4.0.18, Monocle (jdk-17+21), JMH (optional)
+- **Packaging**: jpackage, jlink
+- **CI/CD**: GitHub Actions, GitLab CI
+- **Distribution**: MSIX/Microsoft Store, Mac App Store, Snap, Flatpak
 
-## Key Highlights
+## Evaluation
 
-### Spring Boot + JavaFX Integration
+Each skill includes an `EVALUATE.md` file with acceptance test cases:
 
-The javafx-developer skill documents the critical pitfall of Spring Boot + JavaFX integration: **the main class must NOT directly extend `Application`**, otherwise JVM uses the JavaFX launcher which fails in classpath mode. The solution is to split into two classes — a Spring Boot launcher + a JavaFX entry class.
+- **Positive samples**: Real-world scenarios verifying output completeness
+- **Negative samples**: Constraint violations verifying robustness
+- **Boundary cases**: Partial scopes, standalone mode, platform-specific scenarios
 
-### Complete Template Library
+Total: **190 evaluation test cases** across 11 skills.
 
-The javafx-developer skill includes production-ready templates for common JavaFX patterns: base/main/dialog controllers, observable models, viewmodels, presenters, service layer, FXML layouts, light/dark themes, Maven/Gradle build configs, and jpackage deployment config.
+## Loop State Machine
 
-### Specification-Sourced Code Review
+The orchestrator manages loop state via `.loop-state.json`:
 
-The javafx-code-reviewer skill shares the same constraint system as javafx-developer, ensuring **"generate compliant, review consistent"** — review standards are sourced from the same specification baseline, avoiding contradictions between code generation and code review. It covers six review dimensions (structure, thread safety, FXML standards, memory leaks, performance, compliance) with a four-level severity system (Critical / Major / Minor / Info).
+```
+[Start] → requirements → architecting → designing → generating
+  → reviewing_and_verifying → [Combined Gate]
+  → testing → [Test Gate]
+  → (optional) refactoring
+  → docgen → [Documentation Gate]
+  → (optional) deploying → delivered → (optional) shipped
+```
 
-### Static-to-Dynamic Verification
-
-The javafx-runner skill complements javafx-code-reviewer by moving from static code analysis to dynamic runtime verification. It executes `mvn compile`, `mvn javafx:run`, and `jpackage` to catch issues that pass static review but fail at runtime — such as missing `module-info.java` `opens` declarations that compile cleanly but crash on FXML reflection. Verification reports share the same fix handoff field format as review reports, so javafx-developer can consume both with identical logic.
+States: `requirements` → `architecting` → `designing` → `generating` → `reviewing_and_verifying` → `fixing` → `passed` → `testing` → `refactoring` → `docgen` → `fix_documentation` → `deploying` → `delivered` → `shipped` → `paused`
 
 ## License
 
-Apache License 2.0 — see [LICENSE](LICENSE)
-
-## Contributing
-
-Issues and PRs are welcome! This repository hosts a growing collection of JavaFX skills for the Agent Skills ecosystem, and contributions to expand coverage are encouraged.
+Apache-2.0

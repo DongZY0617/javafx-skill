@@ -1,6 +1,6 @@
 # EVALUATE.md — JavaFX Tester Skill Validation
 
-This document validates that `javafx-tester` correctly identifies performance, security, and accessibility issues in JavaFX projects. Each test case provides a project setup, expected behavior, and pass criteria.
+This document validates that `javafx-tester` correctly identifies performance, security, accessibility, and visual regression issues in JavaFX projects. Each test case provides a project setup, expected behavior, and pass criteria.
 
 ---
 
@@ -276,7 +276,7 @@ public class BrowserController {
 
 ## Test Case 10: All Pass — No Issues
 
-**Scenario**: Well-optimized JavaFX application with proper performance, security, and accessibility.
+**Scenario**: Well-optimized JavaFX application with proper performance, security, accessibility, and visual regression.
 
 **Project setup**:
 - Startup uses lazy loading and background tasks
@@ -284,12 +284,14 @@ public class BrowserController {
 - All controls have `accessibleText` and proper contrast
 - Dependencies are up-to-date (no CVEs)
 - Memory is stable (listeners properly removed)
+- Visual baselines exist for all views and match current rendering
 
 **Expected tester behavior**:
-- All three dimensions: Pass
+- All four dimensions: Pass
 - No issues generated
 - Test conclusion: Pass
 - All performance metrics within thresholds
+- All visual regression snapshots within diff threshold
 
 **Pass criteria**:
 - [ ] Startup time ≤ 3,000ms
@@ -300,6 +302,7 @@ public class BrowserController {
 - [ ] Keyboard navigation: all controls reachable
 - [ ] Color contrast: all elements ≥ 4.5:1
 - [ ] accessibleText coverage: 100%
+- [ ] All visual regression snapshots have diff_ratio < 2%
 - [ ] Test conclusion: Pass
 - [ ] No Fix Handoff entries generated
 
@@ -318,23 +321,28 @@ public class BrowserController {
 - [ ] `fix_priority` field present and is integer ≥ 1
 - [ ] `code_fingerprint` field present and matches `^[a-f0-9]{64}$`
 - [ ] `anchor_pattern` field present and is a string
+- [ ] `ast_node_signature` field present: non-null for Java files (matches `{package}.{Class}#{method(params)}`), null for non-Java files (FXML/CSS/module-info.java)
 - [ ] `corrected_example` field present (for replace/insert) or absent (for delete)
 - [ ] JSON report validates against `report-schema.json`
 
 ---
 
-## Test Case 12: Loop State Serialization
+## Test Case 12: Loop State Serialization (Parallel Track Fields)
 
-**Scenario**: Tester runs in Round 2 of the loop, reads state file, writes result.
+**Scenario**: Tester runs in Round 2 of the loop, reads state file, writes results to four isolated track fields.
 
-**Validation**: Verify Loop State read/write behavior.
+**Validation**: Verify Loop State read/write behavior with parallel track field isolation.
 
 **Pass criteria**:
 - [ ] Tester reads `.loop-state.json` and extracts `current_round` and `last_fix_handoff`
 - [ ] Round 2+ uses targeted testing (only dimensions affected by fixes)
-- [ ] Tester writes only to `rounds[current_round].tester_result` field
-- [ ] Tester does not modify `reviewer_result` or `runner_result`
-- [ ] `next_action` is set to `"fixing"` if tester fails, `"passed"` if tester passes
+- [ ] Performance track writes only to `rounds[current_round].tester_perf_result`
+- [ ] Security track writes only to `rounds[current_round].tester_sec_result`
+- [ ] Accessibility track writes only to `rounds[current_round].tester_a11y_result`
+- [ ] Visual Regression track writes only to `rounds[current_round].tester_vr_result`
+- [ ] No track modifies `reviewer_result`, `runner_result`, or another track's field
+- [ ] Aggregated `tester_result` is computed after all tracks complete (not written by individual tracks)
+- [ ] `next_action` is set to `"fixing"` if aggregated tester_result fails, `"passed"` if it passes
 
 ---
 
@@ -348,3 +356,257 @@ public class BrowserController {
 - [ ] Both reports contain the same issues and Fix Handoffs
 - [ ] `jq .summary.conclusion test-report.json` returns the conclusion
 - [ ] If `.loop-config.json` has `"output_format": "json"`, only JSON is output
+
+---
+
+## Test Case 14: Parallel Execution — All Four Tracks Run Simultaneously
+
+**Scenario**: Full testing mode with `tester_parallel: true` (default). Verify the four dimensions execute concurrently, not sequentially.
+
+**Project setup**: A well-structured JavaFX application with performance, security, accessibility, and visual regression concerns across all four dimensions. TestFX + Monocle dependencies present in `pom.xml`.
+
+**Expected tester behavior**:
+- All four tracks (Performance, Security, Accessibility, Visual Regression) are dispatched simultaneously
+- Each track launches its own app instance or performs static analysis independently
+- `parallel_execution.execution_mode` is `"parallel"` in the JSON report
+- `parallel_execution.wall_clock_ms` < `parallel_execution.sum_of_track_ms` (parallel speedup)
+- `parallel_execution.speedup_factor` > 1.0
+
+**Pass criteria**:
+- [ ] All four tracks have `start_time` values within 1 second of each other
+- [ ] `parallel_execution.tracks.performance.status` is `"completed"`
+- [ ] `parallel_execution.tracks.security.status` is `"completed"`
+- [ ] `parallel_execution.tracks.accessibility.status` is `"completed"`
+- [ ] `parallel_execution.tracks.visual_regression.status` is `"completed"`
+- [ ] `wall_clock_ms` is less than `sum_of_track_ms`
+- [ ] `speedup_factor` is greater than 1.5 (realistic parallel speedup)
+- [ ] Report contains issues from all four dimensions
+
+---
+
+## Test Case 15: Partial Failure — One Track Times Out, Others Continue
+
+**Scenario**: Security track's OWASP Dependency-Check takes longer than 10 minutes (timeout), but Performance and Accessibility tracks complete normally.
+
+**Project setup**: Project with many dependencies causing slow OWASP scan, plus normal performance and accessibility characteristics.
+
+**Expected tester behavior**:
+- Performance track completes normally with `status: "completed"`
+- Security track times out with `status: "timeout"`, `conclusion: "Skipped"`, and `error_message` present
+- Accessibility track completes normally with `status: "completed"`
+- Overall conclusion is `Conditional Pass` (one track skipped, none failed)
+- `tester_sec_result.conclusion` is `"Skipped"` in loop state
+
+**Pass criteria**:
+- [ ] Performance track `status` is `"completed"` and `conclusion` is not `"Skipped"`
+- [ ] Security track `status` is `"timeout"` and `conclusion` is `"Skipped"`
+- [ ] Security track `error_message` field is present and non-empty
+- [ ] Accessibility track `status` is `"completed"` and `conclusion` is not `"Skipped"`
+- [ ] Aggregated `tester_result.conclusion` is `"Conditional Pass"`
+- [ ] Issues from Performance and Accessibility tracks are present in the report
+- [ ] Security track's partial findings (if any were collected before timeout) are included
+
+---
+
+## Test Case 16: Field Isolation — No Cross-Track State Pollution
+
+**Scenario**: Verify that each track writes only to its own state field and does not corrupt another track's results.
+
+**Project setup**: Project with issues in all four dimensions (startup delay, SQL injection, missing accessibleText, visual layout regression).
+
+**Validation**: Inspect `.loop-state.json` after tester completes and verify field integrity.
+
+**Pass criteria**:
+- [ ] `tester_perf_result` contains only performance-related issue counts (critical/major/minor/info)
+- [ ] `tester_sec_result` contains only security-related issue counts
+- [ ] `tester_a11y_result` contains only accessibility-related issue counts
+- [ ] `tester_vr_result` contains only visual regression issue counts plus snapshot metrics
+- [ ] Sum of all four tracks' `critical` counts equals `tester_result.critical`
+- [ ] Sum of all four tracks' `major` counts equals `tester_result.major`
+- [ ] `reviewer_result` and `runner_result` fields are unchanged from before tester ran
+- [ ] Each track's `duration_ms` is recorded and positive
+- [ ] No track's field contains data belonging to another dimension
+
+---
+
+## Test Case 17: Aggregation Gate — Overall Conclusion Computation
+
+**Scenario**: Verify the aggregation gate correctly computes the overall conclusion from four track conclusions.
+
+**Test matrix** (multiple sub-scenarios):
+
+| Perf | Security | A11y | VR | Expected Overall |
+|------|----------|------|----|------------------|
+| Pass | Pass | Pass | Pass | Pass |
+| Pass | Fail | Pass | Pass | Fail |
+| Conditional Pass | Pass | Conditional Pass | Pass | Conditional Pass |
+| Pass | Skipped | Pass | Pass | Conditional Pass |
+| Fail | Fail | Pass | Pass | Fail |
+| Pass | Pass | Pass | Skipped | Conditional Pass |
+| Pass | Pass | Pass | Fail | Fail |
+
+**Pass criteria**:
+- [ ] All seven sub-scenarios produce the expected overall conclusion
+- [ ] When any track is `Fail`, overall is `Fail`
+- [ ] When no track is `Fail` but at least one is `Skipped`, overall is `Conditional Pass`
+- [ ] When no track is `Fail` or `Skipped` but at least one is `Conditional Pass`, overall is `Conditional Pass`
+- [ ] When all tracks are `Pass`, overall is `Pass`
+- [ ] `pass_rate` is computed as `(total checks - failed checks) / total checks` across all four tracks
+
+---
+
+## Test Case 18: Sequential Fallback — tester_parallel: false
+
+**Scenario**: `.loop-config.json` has `"tester_parallel": false`. Verify the tester falls back to sequential execution while maintaining field isolation.
+
+**Project setup**: Same project as Test Case 14, but with `tester_parallel: false` in `.loop-config.json`.
+
+**Expected tester behavior**:
+- Four dimensions execute sequentially (Performance → Security → Accessibility → Visual Regression)
+- `parallel_execution.execution_mode` is `"sequential"` in the JSON report
+- `parallel_execution.wall_clock_ms` ≈ `parallel_execution.sum_of_track_ms` (no speedup)
+- `parallel_execution.speedup_factor` ≈ 1.0
+- Field isolation rules still apply — each dimension writes to its own field
+
+**Pass criteria**:
+- [ ] `parallel_execution.execution_mode` is `"sequential"`
+- [ ] Track start times are sequential (Security starts after Performance ends, Accessibility starts after Security ends, Visual Regression starts after Accessibility ends)
+- [ ] `speedup_factor` is between 0.9 and 1.1 (approximately no speedup)
+- [ ] `tester_perf_result`, `tester_sec_result`, `tester_a11y_result`, `tester_vr_result` are all populated (same as parallel mode)
+- [ ] Aggregated `tester_result` is computed identically to parallel mode
+- [ ] Report content (issues, metrics) is identical regardless of execution mode
+
+---
+
+## Test Case 19: Visual Regression — Layout Shift Detection (Major)
+
+**Scenario**: Developer changes a CSS file to adjust button padding, but the change inadvertently shifts the toolbar layout by 4 pixels.
+
+**Project setup**: Baseline snapshot exists for `main-view/default`. CSS change in `styles.css` modifies `-fx-padding` on `.toolbar-button`, causing a 4px shift across the entire toolbar.
+
+**Expected tester behavior**:
+- Visual Regression Testing dimension: Visual Regression Testing
+- Screenshot captured for `main-view/default` via TestFX + Monocle
+- Pixel comparison against baseline: ~8% diff ratio (Major, 5-15% range)
+- Diff image generated at `target/test-output/vr-diffs/main-view/default-diff.png`
+- Root cause analysis: "Layout shift" (rectangular diff region)
+- Issue generated with Fix Handoff targeting `styles.css`
+- `tester_vr_result.snapshots_regressed` is 1
+
+**Pass criteria**:
+- [ ] Tester captures screenshot via TestFX in headless mode (Monocle)
+- [ ] Diff ratio is calculated and recorded (expected 5-15% range)
+- [ ] Issue severity is Major
+- [ ] Diff image is generated and path is recorded in report
+- [ ] Root cause analysis identifies "Layout shift" pattern
+- [ ] Fix Handoff `target_file` is `styles.css`
+- [ ] `visual_regression_results.baseline_mode` is `"compare"`
+- [ ] `tester_vr_result` field is populated with snapshot metrics
+
+---
+
+## Test Case 20: Visual Regression — First Run Baseline Creation (Pass)
+
+**Scenario**: Project has no existing baseline snapshots. Tester runs for the first time.
+
+**Project setup**: No `src/test/resources/snapshots/` directory exists. TestFX + Monocle dependencies are present.
+
+**Expected tester behavior**:
+- Visual Regression Testing dimension
+- Tester detects no baseline manifest exists
+- Captures screenshots for all identified views/states
+- Saves them as initial baselines in `src/test/resources/snapshots/`
+- Creates `snapshot-manifest.json` with all snapshot metadata
+- No regression issues reported (first run = baseline creation)
+- Result: Pass with note "Baseline Created"
+- `visual_regression_results.baseline_mode` is `"create"`
+- `tester_vr_result.snapshots_baseline_created` > 0
+
+**Pass criteria**:
+- [ ] Tester detects absence of baseline snapshots
+- [ ] Screenshots are captured and saved as PNG files
+- [ ] `snapshot-manifest.json` is created with correct metadata
+- [ ] No regression issues are reported
+- [ ] `visual_regression_results.baseline_mode` is `"create"`
+- [ ] Each `snapshot_results[].result` is `"Baseline Created"`
+- [ ] `tester_vr_result.conclusion` is `"Pass"`
+- [ ] Manifest `capture_config` records rendering mode, window size, etc.
+
+---
+
+## Test Case 21: Visual Regression — Baseline Update Mode (Pass)
+
+**Scenario**: Developer intentionally changes the primary button color from blue to green. Runs tester with `vr_update_baselines: true` to update baselines.
+
+**Project setup**: Baseline snapshots exist. CSS change in `styles.css` updates `-fx-background-color` on `.primary-button` from `#0078d4` to `#107c10`. `.loop-config.json` has `"vr_update_baselines": true`.
+
+**Expected tester behavior**:
+- Visual Regression Testing dimension
+- Tester detects `vr_update_baselines` is enabled
+- Captures new screenshots and overwrites existing baselines
+- Updates manifest `last_updated` and `update_reason` fields
+- No regression issues reported (update mode skips comparison)
+- Result: Pass with note "Baseline Updated"
+- `visual_regression_results.baseline_mode` is `"update"`
+
+**Pass criteria**:
+- [ ] Tester detects `vr_update_baselines: true` in config
+- [ ] New screenshots overwrite existing baseline PNG files
+- [ ] Manifest `last_updated` is updated to current date
+- [ ] Manifest `update_reason` is recorded
+- [ ] No regression issues are reported
+- [ ] `visual_regression_results.baseline_mode` is `"update"`
+- [ ] Each `snapshot_results[].result` is `"Baseline Updated"`
+- [ ] `tester_vr_result.conclusion` is `"Pass"`
+
+---
+
+## Test Case 22: Visual Regression — TestFX/Monocle Not Available (Skipped)
+
+**Scenario**: Project does not have TestFX or Monocle dependencies in `pom.xml`. Visual regression testing cannot run.
+
+**Project setup**: `pom.xml` has no `testfx-core`, `testfx-junit5`, or `openjfx-monocle` dependencies. `.loop-config.json` has `"visual_regression": true` (default).
+
+**Expected tester behavior**:
+- Visual Regression Testing dimension
+- Tester detects missing TestFX/Monocle dependencies
+- Track D is skipped with `status: "skipped"`, `conclusion: "Skipped"`
+- Error note: "TestFX/Monocle dependencies not found in pom.xml. Add testfx-core, testfx-junit5, and openjfx-monocle to enable visual regression testing."
+- Other three tracks (Performance, Security, Accessibility) run normally
+- Overall conclusion is `Conditional Pass` (one track skipped)
+- `tester_vr_result.conclusion` is `"Skipped"`
+
+**Pass criteria**:
+- [ ] Tester detects missing TestFX dependency in `pom.xml`
+- [ ] Track D `status` is `"skipped"` and `conclusion` is `"Skipped"`
+- [ ] Error message is present and mentions missing dependencies
+- [ ] Other three tracks are not affected (all `completed`)
+- [ ] Aggregated `tester_result.conclusion` is `"Conditional Pass"`
+- [ ] `parallel_execution.tracks.visual_regression.status` is `"skipped"`
+
+---
+
+## Test Case 23: Visual Regression — Anti-Flaky Pixel Threshold Verification
+
+**Scenario**: Verify that the pixel tolerance and diff threshold correctly filter out rendering noise while catching real changes.
+
+**Project setup**: Two test scenarios:
+1. **Noise scenario**: Same code, re-captured screenshot — should Pass (diff < 2%)
+2. **Real change scenario**: Font size changed from 14px to 16px — should report regression (diff > 2%)
+
+**Test configuration**: `pixel_tolerance: 3` (per-channel RGB), `diff_threshold: 0.02` (2%)
+
+**Expected tester behavior**:
+- Noise scenario: Diff ratio < 1% (within tolerance, rendering noise) → Pass
+- Real change scenario: Diff ratio > 5% (text size change affects rendering) → Major
+
+**Pass criteria**:
+- [ ] Noise scenario diff ratio is < 1% (tolerance absorbs rendering noise)
+- [ ] Noise scenario result is `Pass` (no false positive)
+- [ ] Real change scenario diff ratio is > 2% (exceeds threshold)
+- [ ] Real change scenario result is `Major` (real regression detected)
+- [ ] Pixel tolerance (3) is applied per-channel (R, G, B independently)
+- [ ] Diff image for noise scenario is mostly original-color (few red pixels)
+- [ ] Diff image for real change scenario shows red pixels in text areas
+- [ ] `visual_regression_results.pixel_tolerance` is recorded as 3
+- [ ] `visual_regression_results.diff_threshold` is recorded as 0.02

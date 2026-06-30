@@ -10,7 +10,7 @@ license: Apache-2.0
 compatibility: Requires JDK 17+. Supports JavaFX 17/21/24/25/26.
 metadata:
   author: DongZY0617
-  version: "1.0"
+  version: "1.1"
 triggers:
   - review
   - audit
@@ -28,7 +28,7 @@ produces_for:
 
 # JavaFX Code Reviewer
 
-You are a professional JavaFX code review expert. This skill performs comprehensive, professional reviews of JavaFX code based on official JavaFX specifications and best practices, covering nine review dimensions: Code Structure, UI Thread Safety, FXML Standards, Memory Leak Risks, Performance, Deep Compliance Audit, Database Access Security, Requirements Coverage, and Refactoring Verification.
+You are a professional JavaFX code review expert. This skill performs comprehensive, professional reviews of JavaFX code based on official JavaFX specifications and best practices, covering ten review dimensions: Code Structure, UI Thread Safety, FXML Standards, Memory Leak Risks, Performance, Deep Compliance Audit, Database Access Security, Requirements Coverage, Refactoring Verification, and Static Analysis Tool Findings.
 
 ## When to Apply
 
@@ -51,11 +51,11 @@ When a user request matches both `javafx-developer` ("create/build/package JavaF
 
 ## Review Dimensions
 
-This skill performs a comprehensive review of JavaFX code across eight dimensions. Each dimension contains several check items, each with explicit pass/fail criteria.
+This skill performs a comprehensive review of JavaFX code across ten dimensions. Each dimension contains several check items, each with explicit pass/fail criteria.
 
 ### 0. Dimension-to-Reference Document Mapping
 
-The correspondence between the nine review dimensions and the `references/` documents is shown below, ensuring that Step 2 "Dimension Scanning" can precisely load the criteria:
+The correspondence between the ten review dimensions and the `references/` documents is shown below, ensuring that Step 2 "Dimension Scanning" can precisely load the criteria:
 
 | Review Dimension | Primary Reference | Supplementary Reference | Corresponding developer Document |
 |------------------|-------------------|-------------------------|----------------------------------|
@@ -68,6 +68,7 @@ The correspondence between the nine review dimensions and the `references/` docu
 | Database Access Security | `security-checklist.md` (SQL injection) | - | `database-integration.md` (common pitfalls) |
 | Requirements Coverage | `requirements-coverage.md` | - | `templates/docs/requirements.md` (RTM template) |
 | Refactoring Verification | `../javafx-refactorer/references/refactoring-patterns.md` | `../javafx-refactorer/SKILL.md` (behavior equivalence check) | `../javafx-refactorer/SKILL.md` (Step 5: Behavior Equivalence Verification) |
+| Static Analysis Tool Findings | (consumes `target/static-analysis-findings.json` from runner) | `../javafx-developer/references/static-analysis-tools.md` (tool config & report parsing) | `../javafx-developer/references/static-analysis-tools.md` |
 
 ### 1. Code Structure
 
@@ -195,6 +196,24 @@ Reviews whether refactoring changes (applied by `javafx-developer` from `javafx-
 
 > **Activation condition**: This dimension is activated when `.loop-state.json` has `refactor_result.triggered: true` AND the developer has applied refactoring changes (indicated by `status: "reviewing_and_verifying"` after a refactoring phase). When not activated, this dimension is skipped entirely.
 
+### 10. Static Analysis Tool Findings
+
+Consumes deterministic static analysis findings from `javafx-runner`'s Static Analysis Verification dimension. This dimension merges tool-detected issues (SpotBugs, PMD, Checkstyle) with the reviewer's own LLM-based review, providing a deterministic baseline that complements semantic analysis. Default severity baseline: Minor (Major for SpotBugs High-priority findings).
+
+**Check Items**:
+- **Findings file consumption**: Whether `target/static-analysis-findings.json` exists (produced by runner's Step 2.5). If the file does not exist, this dimension is skipped with a note: "Static Analysis Tool Findings skipped — no static-analysis-findings.json. Consider running javafx-runner with static analysis enabled."
+- **Deduplication with LLM findings**: For each tool finding, check whether the reviewer's own LLM review (Dimensions 1-9) already identified the same issue at the same location. Tool findings already found by LLM are annotated as "confirmed by {tool}" for higher confidence. Tool findings NOT found by LLM are added as supplementary issues with `source: "spotbugs" | "pmd" | "checkstyle"`
+- **SpotBugs findings triage**: Review each SpotBugs finding for validity — some may be false positives in JavaFX context (e.g., `UWF_NULL_FIELD` on lazy-initialized Properties). Invalid findings are marked `status: "false_positive"` with justification. Valid findings are integrated into the issue list
+- **PMD findings triage**: Review each PMD finding for validity — some may be false positives (e.g., `UnusedPrivateField` on `@FXML`-injected fields if the PMD XPath suppression was not applied). Invalid findings are marked `status: "false_positive"`. Valid findings are integrated
+- **Checkstyle findings triage**: Review each Checkstyle finding — style violations are typically valid, but may be intentionally suppressed via `CHECKSTYLE:OFF` comments. Suppressed findings are marked `status: "suppressed"`
+- **Cross-validation with LLM findings**: Use tool findings to validate the reviewer's own conclusions. If SpotBugs reports `NP_NULL_ON_SOME_PATH` at a location where the reviewer's LLM review flagged an NPE risk (Dimension 2 or 6), the LLM finding is annotated "confirmed by SpotBugs" for higher confidence. Conversely, if the LLM flagged an issue that no tool detected, the LLM finding stands (LLM can find semantic issues tools miss)
+
+> **Typical finding**: SpotBugs reports `NP_NULL_ON_SOME_PATH` on `UserService.findById()` at line 45 — the reviewer's Dimension 2 (UI Thread Safety) or Dimension 6 (Deep Compliance) may have also flagged this as a null-pointer risk. The reviewer annotates the LLM finding as "confirmed by SpotBugs (NP_NULL_ON_SOME_PATH)" and includes the tool finding as supporting evidence.
+
+> **False positive example**: SpotBugs reports `UWF_NULL_FIELD` on a `DoubleProperty rating` field in a custom control — this is a false positive because JavaFX Properties use lazy initialization (null until first access). The reviewer marks this as `status: "false_positive"` with justification: "JavaFX Property lazy initialization pattern — field is intentionally null until ratingProperty() is first called."
+
+> **Relationship to runner**: This dimension depends on `javafx-runner`'s Static Analysis Verification (Step 2.5) having executed and produced `target/static-analysis-findings.json`. If runner did not execute static analysis (e.g., compile failed, or `.loop-config.json` has `static_analysis: false`), this dimension is skipped.
+
 ## Review Workflow
 
 ### Step 1: Code Collection and Context Analysis
@@ -205,13 +224,13 @@ Reviews whether refactoring changes (applied by `javafx-developer` from `javafx-
 4. **Establish relationships**: Identify Controller ↔ FXML ↔ Model correspondences and build the review context graph
 
 **Review scope declaration**: Three review modes are supported, determined by the user request or inferred from context:
-- **Full Review (default)**: Performs a complete nine-dimension scan of all JavaFX-related files in the project. Suitable for pre-release health checks and first-time reviews. Note: Dimension 9 (Refactoring Verification) is only activated when a refactoring has been applied
+- **Full Review (default)**: Performs a complete ten-dimension scan of all JavaFX-related files in the project. Suitable for pre-release health checks and first-time reviews. Note: Dimension 9 (Refactoring Verification) is only activated when a refactoring has been applied; Dimension 10 (Static Analysis Tool Findings) is only activated when `target/static-analysis-findings.json` exists
 - **Incremental Review**: Only reviews user-specified new / modified files and their directly associated files (e.g., if a Controller is modified, its FXML is also reviewed). Suitable for continuous review during iterative development
 - **Targeted Dimension Review**: The user explicitly cares only about certain dimensions (e.g., "only check thread safety"), loading only the corresponding primary reference document for scanning
 
 ### Step 2: Dimension Scanning (Item-by-Item Check)
 
-1. Scan through the eight dimensions sequentially, evaluating each check item as pass / fail
+1. Scan through the ten dimensions sequentially, evaluating each check item as pass / fail
 2. For failed items, record: problem description, code location (filename + line number / code snippet), violated rule item
 3. Load the dimension reference documents from `references/` as criteria (load primary documents per the mapping table, load supplementary documents as needed)
 4. **Incremental mode optimization**: During incremental review, skip dimensions unrelated to the changed files; if only CSS is modified, skip thread safety and memory leak dimensions, executing only FXML standards + deep compliance (CSS portion)
@@ -400,7 +419,7 @@ The following constraints are shared with `javafx-developer`, ensuring that revi
 ### Reviewer's Role in the Loop
 
 `javafx-code-reviewer` occupies the **review** stage of the loop:
-- **Round 1**: Full review — all nine dimensions, all JavaFX files
+- **Round 1**: Full review — all ten dimensions, all JavaFX files
 - **Round 2+**: Incremental review — only dimensions touched by `javafx-developer`'s fixes (identified by `target_file` in the fix handoff)
 
 ### Individual Gate Criteria (Reviewer)
@@ -459,6 +478,8 @@ For in-depth criteria, refer to the following documents in the `references/` dir
 - `references/security-checklist.md` - Security compliance checklist ← developer: security rules
 - `references/css-compliance.md` - CSS compliance rules ← developer: `css-best-practices.md`
 - `references/requirements-coverage.md` - Requirements coverage rules (requirement traceability, @req annotation, orphan code detection) ← developer: `templates/docs/requirements.md` (RTM template)
+
+> **Cross-reference (developer skill)**: Dimension 10 (Static Analysis Tool Findings) cross-references the developer skill's `references/static-analysis-tools.md` — that document defines the SpotBugs/PMD/Checkstyle plugin configuration, JavaFX-tailored rule sets, report parsing formats, unified issue mapping structure, and false positive exclusions. The document lives in the `javafx-developer/references/` directory, not this skill's `references/` directory.
 
 ## Report Templates
 

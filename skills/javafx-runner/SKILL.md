@@ -11,7 +11,7 @@ license: Apache-2.0
 compatibility: Requires JDK 17+. Supports JavaFX 17/21/24/25/26.
 metadata:
   author: DongZY0617
-  version: "1.0"
+  version: "1.1"
 triggers:
   - verify
   - compile
@@ -97,6 +97,7 @@ After each step completes, the result is passed to the next step; runner's verif
 | Verification Dimension | Primary Reference | Check Environment | Corresponding Existing Skill Item |
 |------------------------|-------------------|-------------------|-----------------------------------|
 | Compile Verification | `compile-verification.md` | JDK + Maven/Gradle | developer: Quality checklist - syntax check items |
+| Static Analysis Verification | `static-analysis-tools.md` (developer reference) | JDK + Maven/Gradle + SpotBugs/PMD/Checkstyle | reviewer: Static Analysis Tool Findings dimension (deterministic baseline) |
 | Runtime Verification | `runtime-verification.md` | JDK + JavaFX runtime + possibly a display | reviewer: Thread safety dimension (dynamically verifying static conclusions) |
 | Visual Preview | `visual-preview.md` | JDK + JavaFX runtime + display or Monocle | developer: Output format - UI preview |
 | Packaging Verification | `packaging-verification.md` | JDK + jpackage + platform toolchain | developer: Packaging chapter - jpackage command |
@@ -132,6 +133,38 @@ After each step completes, the result is passed to the next step; runner's verif
 6. **POM change detection**: If `pom.xml` (or `build.gradle`) was modified since the last round (compare timestamp against `last_fix_handoff`), force a full compilation regardless of config — dependency changes may affect all source files
 7. **Compile failure short-circuit**: If compile verification has Critical issues, skip runtime verification and packaging verification (cannot run uncompiled code), noting "subsequent verification skipped due to compile failure" in the report
 
+### Step 2.5: Static Analysis Verification
+
+After compilation succeeds, execute SpotBugs, PMD, and Checkstyle to detect bug patterns, code quality issues, and style violations. This dimension provides deterministic analysis that complements `javafx-code-reviewer`'s LLM-based review.
+
+1. **Check tool configuration**: Verify that the project's `pom.xml` includes the SpotBugs, PMD, and Checkstyle plugin configurations (see `javafx-developer/references/static-analysis-tools.md`). If the plugins are not configured, skip this step with a note: "Static analysis skipped — no SpotBugs/PMD/Checkstyle plugins configured in pom.xml. Consider adding them via javafx-developer template."
+2. **Execute static analysis commands**:
+   - Maven: `mvn spotbugs:check pmd:check checkstyle:check` (runs all three in sequence)
+   - Gradle: `gradle spotbugsMain pmdMain checkstyleMain` (equivalent)
+   - Set a 5-minute timeout for the combined execution
+3. **Parse XML reports**:
+   - SpotBugs: Parse `target/spotbugsXml.xml` — extract `BugInstance` elements with `type`, `priority` (1=High, 2=Medium, 3=Low), `category`, `Class.classname`, `Method.name`, `SourceLine.start`
+   - PMD: Parse `target/pmd.xml` — extract `violation` elements with `rule`, `ruleset`, `priority` (1-5), `beginline`, `file.name`
+   - Checkstyle: Parse `target/checkstyle-result.xml` — extract `error` elements with `source` (rule ID), `severity` (error/warning), `line`, `file.name`
+4. **Map to unified issue structure**: Convert each tool finding to the unified format with `tool`, `rule_id`, `severity`, `category`, `source_file`, `line_number`, `ast_node_signature`, `message`, `fix_suggestion`
+   - **Priority to severity mapping**: SpotBugs 1→Major, 2→Minor, 3→Info; PMD 1-2→Major, 3→Minor, 4-5→Info; Checkstyle error→Minor, warning→Info
+   - Tool findings never map to Critical — Critical is reserved for compilation/runtime issues
+5. **Extract AST signatures**: For each finding in a `.java` file, extract the `ast_node_signature` from the tool's reported class/method context (SpotBugs provides `Class.classname` + `Method.name`; PMD and Checkstyle provide `file.name` + `line` — infer enclosing method from source)
+6. **Write unified findings file**: Output `target/static-analysis-findings.json` containing the merged, deduplicated findings array — this file is consumed by `javafx-code-reviewer` as Dimension 10 (Static Analysis Tool Findings)
+7. **Record in verification report**: Include a "Static Analysis Verification" section in the verification report with per-tool issue counts, top findings, and the unified findings file path
+
+**Check Items**:
+- **SpotBugs execution**: Whether `mvn spotbugs:check` completes without plugin errors (config issues, missing dependencies)
+- **PMD execution**: Whether `mvn pmd:check` completes without plugin errors
+- **Checkstyle execution**: Whether `mvn checkstyle:check` completes without plugin errors
+- **Report generation**: Whether all three XML reports are generated in `target/`
+- **Finding classification**: Whether findings are correctly mapped to severity levels
+- **AST signature extraction**: Whether `ast_node_signature` is extracted for each Java finding
+
+> **Short-circuit**: If compile verification fails, skip static analysis (SpotBugs needs compiled bytecode). Static analysis findings do NOT short-circuit runtime verification — they are recorded as issues but don't block runtime testing.
+
+> **Configuration-aware**: If `.loop-config.json` has `"static_analysis": false`, skip this step entirely. If `"static_analysis_tools": ["spotbugs"]` is specified, run only the listed tools.
+
 ### Step 3: Runtime Verification
 
 1. **Execute run command**:
@@ -160,7 +193,7 @@ After each step completes, the result is passed to the next step; runner's verif
 
 1. Assign a level to each verification failure per the severity classification system
 2. Deduplicate: merge compilation errors and runtime exceptions caused by the same root cause into one issue
-3. Sort: arrange in descending severity order, within the same level sort by verification dimension (compile -> runtime -> packaging)
+3. Sort: arrange in descending severity order, within the same level sort by verification dimension (compile -> static analysis -> runtime -> test -> packaging)
 
 ### Step 6: Generate Verification Report
 
@@ -196,7 +229,23 @@ Execute `mvn compile -q` (incremental, default) or `mvn clean compile -q` (full,
 
 > **Typical failure example**: `module-info.java` is missing `opens com.example.model to javafx.controls`; compilation passes but `PropertyValueFactory` reflection fails at runtime - this issue manifests as a "module opens missing" warning in the compile dimension and as a `LoadException` in the runtime dimension.
 
-### 2. Runtime Verification
+### 2. Static Analysis Verification
+
+Execute SpotBugs, PMD, and Checkstyle to detect bug patterns, code quality issues, and style violations. This dimension provides deterministic analysis that complements `javafx-code-reviewer`'s LLM-based review. See `static-analysis-tools.md` reference (in javafx-developer) for configuration details, rule sets, and report parsing.
+
+**Check Items**:
+- **SpotBugs execution**: Whether `mvn spotbugs:check` completes without plugin errors (config issues, missing dependencies)
+- **PMD execution**: Whether `mvn pmd:check` completes without plugin errors
+- **Checkstyle execution**: Whether `mvn checkstyle:check` completes without plugin errors
+- **Report generation**: Whether all three XML reports are generated in `target/` (`spotbugsXml.xml`, `pmd.xml`, `checkstyle-result.xml`)
+- **Finding classification**: Whether findings are correctly mapped to severity levels (Major/Minor/Info)
+- **Unified findings output**: Whether `target/static-analysis-findings.json` is generated with unified issue structure for reviewer consumption
+
+**Default severity baseline**: Minor (tool findings are code quality issues, not runtime failures — Major for SpotBugs High-priority findings)
+
+> **Short-circuit**: If compile verification fails, skip static analysis (SpotBugs needs compiled bytecode). Static analysis findings do NOT short-circuit runtime verification.
+
+### 3. Runtime Verification
 
 Execute `mvn javafx:run` (or `gradle run`), launch the JavaFX application, and capture startup process and runtime exceptions. Default severity baseline: Critical.
 
@@ -215,7 +264,7 @@ Execute `mvn javafx:run` (or `gradle run`), launch the JavaFX application, and c
 
 > **Typical failure example**: `module-info.java` compiles but is missing `opens com.example.controller to javafx.fxml`; at runtime `FXMLLoader` cannot reflectively instantiate the controller and throws `IllegalAccessException`.
 
-### 3. Test Verification
+### 4. Test Verification
 
 Execute `mvn test` (or `gradle test`), parse test results, and identify test failures and coverage gaps. Default severity baseline: Major.
 
@@ -232,7 +281,7 @@ Execute `mvn test` (or `gradle test`), parse test results, and identify test fai
 
 > **Typical failure example**: `Tests run: 5, Failures: 1, Errors: 0` — a test asserting `TableView` has initial data fails because the Controller's `initialize()` method doesn't load data.
 
-### 4. Packaging Verification
+### 5. Packaging Verification
 
 Execute `mvn package` to generate a JAR, then execute `jpackage` to generate a native installer, verifying the packaging flow and artifact integrity. Default severity baseline: Major.
 
@@ -309,7 +358,7 @@ After verification is complete, output a structured report containing three part
 
 ### [Critical] Issue Title
 - **Problem Description**: Specific description of the verification failure
-- **Verification Dimension**: [Compile Verification / Runtime Verification / Packaging Verification]
+- **Verification Dimension**: [Compile Verification / Static Analysis Verification / Runtime Verification / Test Verification / Packaging Verification]
 - **Code Location**: `file path:line number` (if applicable)
 - **Error Output**:
   ```
@@ -338,7 +387,9 @@ After verification is complete, output a structured report containing three part
 | Dimension | Check Items | Passed | Failed | Skipped | Pass Rate |
 |-----------|-------------|--------|--------|---------|-----------|
 | Compile Verification | 7 | [N] | [N] | [N] | [N%] |
+| Static Analysis Verification | 6 | [N] | [N] | [N] | [N%] |
 | Runtime Verification | 10 | [N] | [N] | [N] | [N%] |
+| Test Verification | 8 | [N] | [N] | [N] | [N%] |
 | Packaging Verification | 8 | [N] | [N] | [N] | [N%] |
 | **Total** | **[N]** | **[N]** | **[N]** | **[N]** | **[N%]** |
 
@@ -508,6 +559,8 @@ For in-depth criteria, refer to the following documents in the `references/` dir
 - `references/test-coverage-gate.md` - JaCoCo coverage threshold rules, pom.xml configuration, report parsing
 - `references/visual-preview.md` - UI screenshot capture methods by JavaFX version and environment
 - `references/environment-setup.md` - Environment detection and Monocle headless configuration
+
+> **Cross-reference (developer skill)**: The Static Analysis Verification dimension cross-references the developer skill's `references/static-analysis-tools.md` — that document defines the SpotBugs/PMD/Checkstyle plugin configuration, JavaFX-tailored rule sets, report parsing formats, and the unified issue mapping structure. The document lives in the `javafx-developer/references/` directory, not this skill's `references/` directory.
 - `EVALUATE.md` - Evaluation test case set, for quantifying skill output quality
 
 > **Cross-reference (developer skill)**: The "Database integration test" check item in the Test Verification dimension cross-references the developer skill's `references/database-integration.md` (section 8 "Common Pitfalls") — that document defines the runtime patterns (UI-thread blocking DB calls, null-handling for primitive Properties, connection-pool leaks, transaction-boundary scope, Flyway migration failures) that the database integration tests must guard against. The document lives in the `javafx-developer/references/` directory, not this skill's `references/` directory.

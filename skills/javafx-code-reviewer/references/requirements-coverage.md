@@ -18,6 +18,11 @@ This dimension requires the following artifacts to exist:
 - Java source files with `@req` annotations in their Javadoc headers
 - Test files with `@req` annotations and `test{Behavior}_{REQ_ID}()` naming convention
 
+**Requirements handoff (enhanced mode)**: If `requirements/requirements-handoff.json` exists (produced by `javafx-requirements`), the reviewer uses the handoff's `traceability_matrix[]` as the **authoritative requirement list** instead of relying solely on `requirements.md`. This provides:
+- A pre-validated RTM seed with stable requirement IDs (FR-xxx, NFR-xxx) that do not change across modifications
+- Stakeholder-to-requirement traceability for impact analysis
+- Change impact reports (`change_impact_reports[]`) that identify recently added/modified/removed requirements — the reviewer can focus verification on these changed requirements
+
 **Skip condition**: If `requirements.md` does not exist in the project, this dimension is skipped with a note: "Requirements Coverage skipped — no requirements.md found. Consider generating one with javafx-developer Step 1."
 
 ## Check Items
@@ -74,7 +79,7 @@ This dimension requires the following artifacts to exist:
 - Any file annotated with `@req INFRA` contains business logic that should be traced to a functional requirement
 
 **Severity Baseline**: Major
-- De-escalation condition: File is a generated/config file (e.g., `module-info.java`, `module-info.java`) → Minor
+- De-escalation condition: File is a generated/config file (e.g., `module-info.java`) → Minor
 - Escalation condition: Multiple untracked files containing significant business logic → Critical
 
 ---

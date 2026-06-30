@@ -1,0 +1,351 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://javafx-skill.dev/schemas/refactor-handoff.json",
+  "title": "JavaFX Refactorer Handoff",
+  "description": "Independent validation schema for the refactor-handoff.json file produced by javafx-refactorer. This schema validates the handoff artifact consumed by javafx-developer in Fix Consumption mode, separate from the refactoring report schema. Field names are aligned with report-templates/report-schema.json, and each refactoring_plan item includes the unified Fix Handoff fields (target_file, target_lines, fix_type, fix_priority, code_fingerprint, anchor_pattern, ast_node_signature) so it can be consumed by the developer's Fix Consumption Protocol without conversion.",
+  "type": "object",
+  "required": [
+    "project",
+    "refactorer_version",
+    "created_at",
+    "scope",
+    "smell_catalog",
+    "refactoring_plan",
+    "tech_debt",
+    "verification_plan",
+    "behavior_equivalence_check",
+    "developer_instructions",
+    "conclusion"
+  ],
+  "properties": {
+    "project": {
+      "type": "string",
+      "description": "Name of the project being refactored"
+    },
+    "refactorer_version": {
+      "type": "string",
+      "const": "1.0",
+      "description": "Refactorer skill version. Fixed at 1.0 for this handoff format."
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp when the handoff file was created (ISO 8601, e.g., 2026-06-30T10:00:00Z)"
+    },
+    "scope": {
+      "type": "string",
+      "enum": ["full", "targeted_package", "targeted_files"],
+      "description": "Refactoring scope: full project, a specific package, or specific files. Values match the scope definition in javafx-refactorer/SKILL.md."
+    },
+    "smell_catalog": {
+      "type": "array",
+      "description": "Detected code smells with location, severity, and category. Field names are aligned with report-templates/report-schema.json for consistency. Each entry is referenced by refactoring_plan items via smell_ids.",
+      "items": {
+        "type": "object",
+        "required": ["smell_id", "type", "file", "lines", "ast_node_signature", "severity", "detail"],
+        "properties": {
+          "smell_id": {
+            "type": "string",
+            "pattern": "^SMELL-\\d{3}$",
+            "description": "Unique smell identifier, e.g., SMELL-001. Field name aligned with report-schema."
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "god_class", "long_method", "long_parameter_list", "duplicated_code",
+              "circular_dependency", "feature_envy", "data_class", "shotgun_surgery",
+              "primitive_obsession", "dead_code", "inappropriate_intimacy", "message_chain",
+              "ui_logic_in_controller", "fxml_god_file", "css_class_explosion",
+              "tight_ui_coupling", "blocking_ui_thread", "property_misuse", "listener_leak"
+            ],
+            "description": "Code smell type. Enum values are sourced from report-templates/report-schema.json to ensure consistency."
+          },
+          "file": {
+            "type": "string",
+            "description": "Source file path where the smell was detected"
+          },
+          "lines": {
+            "type": "string",
+            "pattern": "^\\d+(-\\d+)?$",
+            "description": "Line range of the smell location, e.g., '1-850' or '42'. Field name aligned with report-schema."
+          },
+          "ast_node_signature": {
+            "type": ["string", "null"],
+            "description": "AST-level anchor: fully qualified method/field/class signature (e.g., com.example.controller.UserController). Null for non-Java files. Uses the same format as the unified Fix Handoff ast_node_signature defined in javafx-orchestrator/SKILL.md."
+          },
+          "severity": {
+            "type": "string",
+            "enum": ["Critical", "Major", "Minor"],
+            "description": "Severity of the code smell, consistent with the classification in javafx-refactorer/SKILL.md"
+          },
+          "detail": {
+            "type": "string",
+            "description": "Detailed description of the detected smell, including metrics (e.g., line count, method count, LCOM score). Field name aligned with report-schema."
+          },
+          "recommended_refactoring": {
+            "type": "string",
+            "pattern": "^RF-\\d{3}$",
+            "description": "Refactoring action ID recommended for this smell"
+          }
+        }
+      }
+    },
+    "refactoring_plan": {
+      "type": "array",
+      "description": "Prioritized refactoring actions. Each action includes the unified Fix Handoff fields (target_file, target_lines, fix_type, fix_priority, code_fingerprint, anchor_pattern, ast_node_signature) so it can be consumed by javafx-developer's Fix Consumption Protocol without conversion. Field names for smell reference, action type, and snippets are aligned with report-templates/report-schema.json.",
+      "items": {
+        "type": "object",
+        "required": [
+          "refactor_id", "type", "smell_ids", "target_file", "target_lines",
+          "fix_type", "fix_priority", "code_fingerprint", "anchor_pattern", "ast_node_signature",
+          "description", "effort", "priority", "dependencies",
+          "before_snippet", "after_snippet", "behavior_equivalence_check"
+        ],
+        "properties": {
+          "refactor_id": {
+            "type": "string",
+            "pattern": "^RF-\\d{3}$",
+            "description": "Unique refactoring action identifier, e.g., RF-001. Field name aligned with report-schema."
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "extract_method", "extract_class", "move_method", "move_class",
+              "extract_interface", "pull_up_method", "extract_method_object",
+              "introduce_parameter_object", "replace_conditional_with_polymorphism",
+              "encapsulate_field", "remove_dead_code", "replace_inheritance_with_delegation",
+              "extract_controller_logic_to_service", "extract_fxml_component",
+              "replace_swinginterop", "extract_viewmodel", "replace_observable_misuse",
+              "extract_css_variables"
+            ],
+            "description": "Refactoring action type. Field name and enum values aligned with report-schema refactoring_plan.type."
+          },
+          "smell_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^SMELL-\\d{3}$"
+            },
+            "description": "Smell IDs from smell_catalog that this refactoring action addresses"
+          },
+          "target_file": {
+            "type": "string",
+            "description": "Primary source file targeted by this refactoring action. Unified Fix Handoff field — consumed by developer Fix Consumption Protocol."
+          },
+          "target_lines": {
+            "type": "string",
+            "pattern": "^\\d+(-\\d+)?$",
+            "description": "Line range in the target file to modify, e.g., '45-60' or '78'. Unified Fix Handoff field — consumed by developer Fix Consumption Protocol."
+          },
+          "fix_type": {
+            "type": "string",
+            "enum": ["replace", "insert", "delete"],
+            "description": "Fix operation type. Refactoring actions typically use 'replace' (replace problematic code with refactored version) or 'insert' (add new extracted class/file). Unified Fix Handoff field — consumed by developer Fix Consumption Protocol."
+          },
+          "fix_priority": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Fix priority for batch ordering (1 = highest). Derived from the refactoring action priority and phase: phase_1_immediate actions get priority 1-2, phase_2_high get 3-5, etc. Unified Fix Handoff field — consumed by developer Fix Consumption Protocol."
+          },
+          "code_fingerprint": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$",
+            "description": "SHA-256 hash of the problematic code snippet (whitespace-normalized). Used for drift-resistant matching in the developer's 4-level location hierarchy. Unified Fix Handoff field — consumed by developer Fix Consumption Protocol."
+          },
+          "anchor_pattern": {
+            "type": "string",
+            "description": "Surrounding context signature (2 lines before + 2 lines after the target code) for secondary location matching. Unified Fix Handoff field — consumed by developer Fix Consumption Protocol."
+          },
+          "ast_node_signature": {
+            "type": ["string", "null"],
+            "description": "AST-level anchor: fully qualified method or class signature (e.g., com.example.controller.UserController#saveUser(ActionEvent)). Enables refactor-resistant location matching. Null for non-Java files. Uses the same format as the unified Fix Handoff ast_node_signature defined in javafx-orchestrator/SKILL.md. Unified Fix Handoff field — consumed by developer Fix Consumption Protocol."
+          },
+          "description": {
+            "type": "string",
+            "description": "Human-readable description of the refactoring action"
+          },
+          "new_files": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "New files created by this refactoring action (e.g., extracted class file paths)"
+          },
+          "effort": {
+            "type": "string",
+            "enum": ["S", "M", "L"],
+            "description": "Effort estimate: Small, Medium, Large"
+          },
+          "risk": {
+            "type": "string",
+            "enum": ["Low", "Medium", "High"],
+            "description": "Risk level of behavior change for this refactoring action"
+          },
+          "priority": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Refactoring priority (1 = highest). Used to derive fix_priority for the unified Fix Handoff format."
+          },
+          "dependencies": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^RF-\\d{3}$"
+            },
+            "description": "Refactoring action IDs that must be applied before this action (safe sequencing)"
+          },
+          "before_snippet": {
+            "type": "string",
+            "description": "Code snippet showing the problematic code before refactoring. Field name aligned with report-schema."
+          },
+          "after_snippet": {
+            "type": "string",
+            "description": "Code snippet showing the refactored code after applying this action. Field name aligned with report-schema."
+          },
+          "behavior_equivalence_check": {
+            "type": "object",
+            "description": "Per-action behavior equivalence verification. Field name and structure aligned with report-schema.",
+            "required": ["method_signatures_preserved"],
+            "properties": {
+              "method_signatures_preserved": {
+                "type": "boolean",
+                "description": "Whether public API method signatures are preserved by this refactoring action"
+              },
+              "call_sites_to_update": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "Call sites that must be updated due to moved or renamed methods"
+              },
+              "new_public_api": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "New public API entries introduced by this refactoring action"
+              }
+            }
+          }
+        }
+      }
+    },
+    "tech_debt": {
+      "type": "object",
+      "description": "Technical debt inventory, metrics, and phased repayment plan",
+      "required": ["total_items", "by_severity", "estimated_effort_hours", "debt_density_per_kloc", "repayment_plan"],
+      "properties": {
+        "total_items": {
+          "type": "integer",
+          "description": "Total number of detected debt items (smells)"
+        },
+        "by_severity": {
+          "type": "object",
+          "required": ["critical", "major", "minor"],
+          "properties": {
+            "critical": { "type": "integer", "description": "Count of Critical severity debt items" },
+            "major": { "type": "integer", "description": "Count of Major severity debt items" },
+            "minor": { "type": "integer", "description": "Count of Minor severity debt items" }
+          }
+        },
+        "estimated_effort_hours": {
+          "type": "number",
+          "description": "Estimated total repayment effort in hours"
+        },
+        "debt_density_per_kloc": {
+          "type": "number",
+          "description": "Debt items per 1000 lines of code"
+        },
+        "repayment_plan": {
+          "type": "object",
+          "description": "Phased repayment plan referencing refactoring action IDs",
+          "properties": {
+            "phase_1_immediate": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Priority 1 items: Critical smells to fix immediately (e.g., RF-001)"
+            },
+            "phase_2_high": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Priority 2 items: Major smells to fix in the next sprint"
+            },
+            "phase_3_medium": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Priority 3 items: Minor smells to fix when touching relevant code"
+            },
+            "phase_4_low": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Priority 4 items: Cosmetic improvements during code reviews"
+            }
+          }
+        }
+      }
+    },
+    "verification_plan": {
+      "type": "object",
+      "description": "Pre-refactor baseline and post-refactor test expectations, plus semantic checks",
+      "properties": {
+        "pre_refactor_tests": {
+          "type": "string",
+          "description": "Command to run the pre-refactor test baseline, e.g., 'mvn test'"
+        },
+        "baseline_results": {
+          "type": "object",
+          "description": "Test results captured before refactoring is applied",
+          "properties": {
+            "total": { "type": "integer" },
+            "passed": { "type": "integer" },
+            "failed": { "type": "integer" }
+          }
+        },
+        "post_refactor_expectation": {
+          "type": "string",
+          "description": "Human-readable expectation for post-refactor test results"
+        },
+        "semantic_checks": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Semantic equivalence checks to perform, e.g., signature_preservation, call_site_integrity, field_access_integrity, import_graph_acyclic"
+        }
+      }
+    },
+    "behavior_equivalence_check": {
+      "type": "object",
+      "description": "Overall behavior equivalence verification approach spanning all refactoring actions. Per-action checks are in each refactoring_plan[].behavior_equivalence_check.",
+      "properties": {
+        "method_signatures_preserved": {
+          "type": "boolean",
+          "description": "Whether public API method signatures are preserved across all refactoring actions"
+        },
+        "call_sites_to_update": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Aggregated call sites that must be updated due to moved or renamed methods"
+        },
+        "new_public_api": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Aggregated new public API entries introduced by the refactoring"
+        }
+      }
+    },
+    "developer_instructions": {
+      "type": "object",
+      "description": "Instructions for javafx-developer on how to apply the refactoring safely. The developer consumes this handoff via Fix Consumption Protocol (Step 5.5), which recognizes the unified Fix Handoff fields in each refactoring_plan item.",
+      "required": ["apply_order", "safety_constraints"],
+      "properties": {
+        "apply_order": {
+          "type": "string",
+          "description": "Recommended application order for the refactoring actions, respecting dependencies"
+        },
+        "safety_constraints": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Safety constraints the developer must follow, e.g., compile after each action, run tests after each phase"
+        }
+      }
+    },
+    "conclusion": {
+      "type": "string",
+      "enum": ["Pass", "Pass with warnings", "Fail"],
+      "description": "Overall refactoring analysis conclusion"
+    }
+  }
+}

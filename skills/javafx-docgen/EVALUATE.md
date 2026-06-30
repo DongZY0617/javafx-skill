@@ -297,19 +297,109 @@ jkl3456 docs: update README
 
 ---
 
-## Test Case 14: Documentation Gate Never Blocks Delivery
+## Test Case 14: Non-Blocking Documentation Gate (Default)
 
-**Scenario**: DocGen fails to generate some documents (e.g., Javadoc parsing error).
+**Scenario**: DocGen fails to generate some documents (e.g., Javadoc parsing error). `doc_gate_mode` is "non-blocking" or not set (default).
 
 **Expected docgen behavior**:
 - Failed documents are marked as "failed" in the report
 - Successfully generated documents are still available
 - Conclusion: "Fail" but delivery is NOT blocked
 - Warning explains what failed and why
+- `gate_blocked` is `false` in the report
 
 **Pass criteria**:
 - [ ] Failed documents are marked as "failed" with reason
 - [ ] Successfully generated documents are still available
 - [ ] Conclusion is "Fail"
-- [ ] Delivery is NOT blocked (documentation gate never blocks delivery)
+- [ ] Delivery is NOT blocked (non-blocking mode)
+- [ ] `gate_blocked` is `false` in the report
+- [ ] `next_action` is "delivered" (not "fix_documentation")
 - [ ] Failure reason is logged in the report
+
+---
+
+## Test Case 15: Blocking Documentation Gate
+
+**Scenario**: `.loop-config.json` has `"doc_gate_mode": "blocking"`. DocGen fails to generate API reference due to Javadoc parsing errors.
+
+**Expected docgen behavior**:
+- Failed documents are marked as "failed" in the report
+- Conclusion: "Fail"
+- Delivery IS blocked — project stays in "passed" state
+- `gate_blocked` is `true` in the report
+- `next_action` is "fix_documentation"
+- Orchestrator does not proceed to deployer phase
+
+**Pass criteria**:
+- [ ] Failed documents are marked as "failed" with reason
+- [ ] Conclusion is "Fail"
+- [ ] Delivery IS blocked (blocking mode)
+- [ ] `gate_blocked` is `true` in the report
+- [ ] `next_action` is "fix_documentation" (not "delivered")
+- [ ] Loop state remains "passed" (not "delivered")
+- [ ] Orchestrator does not trigger deployer
+
+---
+
+## Test Case 16: Blocking Gate Bypass via Skip Config
+
+**Scenario**: `.loop-config.json` has `"doc_gate_mode": "blocking"` AND `"docgen": false`.
+
+**Expected docgen behavior**:
+- DocGen is skipped entirely
+- Gate is bypassed (not evaluated)
+- Project is delivered
+- Report notes "DocGen skipped per configuration"
+
+**Pass criteria**:
+- [ ] No documentation files are generated
+- [ ] `docgen_result` is absent or `triggered: false` in loop state
+- [ ] Project is delivered (loop state: "delivered")
+- [ ] `next_action` is "delivered"
+- [ ] No `gate_blocked` field (gate was not evaluated)
+
+---
+
+## Test Case 17: Javadoc HTML Generation
+
+**Scenario**: `.loop-config.json` has `"doc_javadoc_html": true`. Project has 5 public classes with Javadoc comments.
+
+**Expected docgen behavior**:
+- Markdown API reference generated at `docs/api-reference.md`
+- Javadoc HTML site generated at `docs/api-reference-html/`
+- `index.html` exists in the HTML output directory
+- All public packages have `package-summary.html` pages
+- All public classes have individual HTML pages
+- `javadoc_html_generated` is `true` in the report
+- `coverage.api_html` section is present with `javadoc_errors: 0`
+
+**Pass criteria**:
+- [ ] `docs/api-reference.md` is generated (Markdown, always)
+- [ ] `docs/api-reference-html/` directory exists
+- [ ] `docs/api-reference-html/index.html` exists
+- [ ] No Javadoc errors in Maven output
+- [ ] `javadoc_html_generated` is `true` in `docgen-report.json`
+- [ ] `coverage.api_html.generated` is `true`
+- [ ] `coverage.api_html.javadoc_errors` is 0
+- [ ] `coverage.api_html.index_html_exists` is `true`
+- [ ] Generated documents list includes an entry with `document_type: "api-reference-html"`
+
+---
+
+## Test Case 18: Javadoc HTML Not Generated (Default)
+
+**Scenario**: `.loop-config.json` does not have `doc_javadoc_html` set (or set to `false`). Project has public classes.
+
+**Expected docgen behavior**:
+- Only Markdown API reference generated at `docs/api-reference.md`
+- No `docs/api-reference-html/` directory created
+- `javadoc_html_generated` is `false` in the report
+- No `coverage.api_html` section in the report
+
+**Pass criteria**:
+- [ ] `docs/api-reference.md` is generated
+- [ ] `docs/api-reference-html/` directory does NOT exist
+- [ ] `javadoc_html_generated` is `false` in `docgen-report.json`
+- [ ] No `coverage.api_html` section in the report
+- [ ] Generated documents list does NOT include `api-reference-html`

@@ -158,6 +158,7 @@
 | Dimension | Check Items | Passed | Failed | Skipped | Compile Mode | Pass Rate |
 |-----------|-------------|--------|--------|---------|--------------|-----------|
 | Compile Verification | 7 | [N] | [N] | [N] | [Incremental / Full] | [N%] |
+| Static Analysis Verification | 6 | [N] | [N] | [N] | — | [N%] |
 | Runtime Verification | 10 | [N] | [N] | [N] | — | [N%] |
 | Test Verification | 5 | [N] | [N] | [N] | — | [N%] |
 | Packaging Verification | 8 | [N] | [N] | [N] | — | [N%] |

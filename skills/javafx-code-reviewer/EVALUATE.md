@@ -26,6 +26,9 @@ This file defines the acceptance test cases for the `javafx-code-reviewer` skill
 | 12 | Fix handoff completeness | Positive | All dimensions | Includes handoff fields |
 | 13 | Controller crossing layers to data layer | Positive | Code Structure | 1 Major |
 | 14 | Static reference holding Stage | Positive | Memory Leak Risks | 1 Critical (cannot be de-escalated) |
+| 15 | Database Access Security Review | Positive | Database Access Security | 1 Critical + 2 Major |
+| 16 | Refactoring Verification | Positive | Refactoring Verification | Behavior equivalence verified (no drift) |
+| 17 | Static Analysis Findings (missing file) | Boundary | Static Analysis Tool Findings | Dimension 10 skipped (no failure) |
 
 ---
 
@@ -355,3 +358,79 @@ This file defines the acceptance test cases for the `javafx-code-reviewer` skill
   - [ ] Recommends changing to an instance field or using `WeakReference` / `ObjectProperty<Stage>`
   - [ ] Rule reference cites `memory-management.md - Static Reference Detection` + SKILL.md escalation/de-escalation conditions table (annotated as cannot be de-escalated)
   - [ ] Includes fix handoff fields
+
+---
+
+## Case 15: Database Access Security Review
+
+- **Input**: A JavaFX project with MyBatis integration containing three database access security issues
+  ```java
+  // Issue 1: MyBatis mapper uses ${} for user-controlled value (SQL injection risk)
+  // UserMapper.xml
+  <select id="findByCondition" resultType="User">
+      SELECT * FROM users
+      WHERE name LIKE '%${keyword}%'   <!-- ${} concatenates raw value — SQL injection -->
+      ORDER BY ${sortField}            <!-- dynamic sort field not whitelisted -->
+  </select>
+  ```
+  ```java
+  // Issue 2: Connection obtained from pool but not closed in finally block
+  public class UserService {
+      public User findById(Long id) {
+          Connection conn = dataSource.getConnection();  // No try-with-resources, no finally
+          Statement stmt = conn.createStatement();
+          ResultSet rs = stmt.executeQuery("SELECT * FROM users WHERE id = " + id);
+          if (rs.next()) { return map(rs); }
+          return null;  // Connection never closed on exception path
+      }
+  }
+  ```
+  ```java
+  // Issue 3: Database transaction spanning the UI thread
+  public class UserController implements Initializable {
+      @FXML
+      private void handleLoad() {
+          // @Transactional executed synchronously on JavaFX Application Thread
+          userService.saveAll(loadedUsers);  // freezes UI; widens transaction scope
+      }
+  }
+  ```
+- **Type**: Positive sample
+- **Covered Dimension**: Database Access Security
+- **Expected Finding**: 1 Critical (SQL injection) + 2 Major (connection leak, UI-thread transaction)
+- **Verification Standards**:
+  - [ ] SQL injection detected in `${}` usage — flags both the `keyword` LIKE clause and the un-whitelisted `${sortField}` dynamic sort field
+  - [ ] Connection leak detected — points out `Connection` not closed in a `finally` block or try-with-resources; on the exception path the pooled connection leaks until the pool is exhausted
+  - [ ] UI-thread transaction boundary violation flagged — points out `@Transactional` / DB I/O executing on the JavaFX Application Thread (freezes UI, widens transaction scope); recommends wrapping in `Task` / `Service` on a background thread with `Platform.runLater()` to return results
+  - [ ] Fix handoff with `ast_node_signature` for each issue (e.g., `com.example.service.UserService#findById(Long)`)
+  - [ ] Recommendations include MyBatis `#{}` parameterization (and whitelist validation for dynamic sort fields / table names)
+
+---
+
+## Case 16: Refactoring Verification
+
+- **Input**: A JavaFX project that was recently refactored (extract method applied to a long method). `.loop-state.json` shows `refactor_result.triggered: true` and the developer has applied changes with `status: "reviewing_and_verifying"`. The `refactor-handoff.json` records the applied refactoring with a `behavior_equivalence_check` block (`method_signatures_preserved`, `call_sites_to_update`, `new_public_api`).
+- **Type**: Positive sample
+- **Covered Dimension**: Refactoring Verification
+- **Expected Finding**: Behavior equivalence verified — no behavior drift detected (0 issues, or issues only where intentional API changes were declared in the handoff)
+- **Verification Standards**:
+  - [ ] `refactor-handoff.json` consumed — the reviewer loads the handoff to know which refactorings were applied and what the expected API changes are
+  - [ ] `method_signatures_preserved` verified — public API signatures unchanged unless the refactoring intentionally changed the API (flagged `method_signatures_preserved: false` in the handoff)
+  - [ ] `call_sites_to_update` all updated — no dangling references to old method names or old class locations
+  - [ ] `new_public_api` documented — newly introduced public APIs from the refactoring are present and consistent with the handoff
+  - [ ] No behavior drift detected — previously-passing tests still pass, side-effect ordering preserved, no new circular dependencies introduced
+
+---
+
+## Case 17: Static Analysis Tool Findings Consumption — Missing File Boundary
+
+- **Input**: A JavaFX project under review where `target/static-analysis-findings.json` is missing (the runner did not produce it — e.g., compile failed before static analysis, or `.loop-config.json` has `static_analysis: false`). All other dimensions (1-9) have source code available to review.
+- **Type**: Boundary case
+- **Covered Dimension**: Static Analysis Tool Findings
+- **Expected Finding**: Dimension 10 skipped with a documented note (no issues, no failure)
+- **Verification Standards**:
+  - [ ] Missing file detected gracefully — the reviewer checks for `target/static-analysis-findings.json` and handles its absence without erroring
+  - [ ] Dimension 10 skipped (not failed) — the dimension is recorded as "skipped" rather than "failed" in the compliance summary
+  - [ ] Warning documented in report — the note "Static analysis findings file not found — Dimension 10 skipped" appears in the report (review summary / compliance summary)
+  - [ ] Other dimensions proceed normally — Dimensions 1-9 run as usual; their findings are unaffected by the Dimension 10 skip
+  - [ ] `conclusion` not affected by skip — the overall review conclusion is determined by Dimensions 1-9 only; a missing static analysis file does not cause a Pass to become Fail
