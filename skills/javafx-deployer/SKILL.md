@@ -16,7 +16,7 @@ license: Apache-2.0
 compatibility: Requires JDK 17+. Supports JavaFX 17/21/24/25/26.
 metadata:
   author: DongZY0617
-  version: "1.1"
+  version: "1.2"
 triggers:
   - deploy
   - package
