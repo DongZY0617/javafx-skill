@@ -1,5 +1,5 @@
 ---
-name: javafx-developer-en
+name: javafx-developer
 description: |
   JavaFX desktop application development expertise covering project setup, FXML UI design,
   MVC/MVVM architecture, data binding, CSS theming, and cross-platform packaging.

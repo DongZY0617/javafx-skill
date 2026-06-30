@@ -1,5 +1,5 @@
 ---
-name: javafx-architect-en
+name: javafx-architect
 description: |
   JavaFX architecture design skill that produces technology selection decisions,
   UML diagrams (PlantUML class/sequence/deployment), Architecture Decision Records

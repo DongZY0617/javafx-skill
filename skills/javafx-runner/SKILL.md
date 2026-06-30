@@ -1,5 +1,5 @@
 ---
-name: javafx-runner-en
+name: javafx-runner
 description: |
   JavaFX runtime verification skill that performs dynamic verification by actually
   compiling, running, and packaging JavaFX projects, capturing compilation errors,

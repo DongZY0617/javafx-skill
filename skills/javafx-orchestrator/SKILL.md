@@ -1,5 +1,5 @@
 ---
-name: javafx-orchestrator-en
+name: javafx-orchestrator
 description: |
   Closed-Loop Orchestration Controller for JavaFX Skill Set — manages the full
   development cycle (requirements → architect → design → generate → review →

@@ -1,5 +1,5 @@
 ---
-name: javafx-tester-en
+name: javafx-tester
 description: |
   JavaFX professional testing skill that performs deep testing beyond smoke
   verification — including performance benchmarking (startup time, UI response

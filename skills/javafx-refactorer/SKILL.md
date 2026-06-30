@@ -1,5 +1,5 @@
 ---
-name: javafx-refactorer-en
+name: javafx-refactorer
 description: |
   JavaFX code refactoring skill that detects code smells (God Class, long methods,
   duplicated code, circular dependencies), generates refactoring recommendations

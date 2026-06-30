@@ -1,5 +1,5 @@
-﻿---
-name: javafx-code-reviewer-en
+---
+name: javafx-code-reviewer
 description: |
   Professional JavaFX code review skill that performs comprehensive reviews of JavaFX
   code based on official specifications and best practices, covering code structure,

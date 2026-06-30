@@ -1,5 +1,5 @@
 ---
-name: javafx-designer-en
+name: javafx-designer
 description: |
   JavaFX UI/UX visual design skill that generates FXML layout prototypes, CSS
   theme systems (light/dark), interaction flow diagrams (Mermaid), responsive

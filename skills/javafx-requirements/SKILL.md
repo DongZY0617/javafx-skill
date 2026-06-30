@@ -1,5 +1,5 @@
 ---
-name: javafx-requirements-en
+name: javafx-requirements
 description: |
   JavaFX requirements engineering skill that produces structured requirements
   artifacts — stakeholder intent, user stories, acceptance criteria, non-functional

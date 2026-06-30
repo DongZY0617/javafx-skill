@@ -1,5 +1,5 @@
 ---
-name: javafx-docgen-en
+name: javafx-docgen
 description: |
   JavaFX documentation generation skill that automatically produces delivery
   documentation after the development loop passes the quality gate. Generates

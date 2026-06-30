@@ -1,5 +1,5 @@
 ---
-name: javafx-deployer-en
+name: javafx-deployer
 description: |
   JavaFX deployment and DevOps skill that generates CI/CD pipeline configurations
   (GitHub Actions / GitLab CI), automates release management (versioning, changelog,
