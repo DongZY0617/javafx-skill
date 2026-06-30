@@ -135,13 +135,13 @@ For distributing MSIX outside the Store, create an `.appinstaller` file that ena
 <AppInstaller
   xmlns="http://schemas.microsoft.com/appx/appinstaller/2021"
   Version="1.0.0.0"
-  Uri="https://cdn.example.com/myapp/MyApp.appinstaller">
+  Uri="https://<your-cdn-domain>/myapp/MyApp.appinstaller">
 
   <MainPackage
     Name="MyCompany.MyApp"
     Publisher="CN=MyCompany, O=MyCompany, L=City, S=State, C=Country"
     Version="1.0.0.0"
-    Uri="https://cdn.example.com/myapp/1.0.0/MyApp.msix"/>
+    Uri="https://<your-cdn-domain>/myapp/1.0.0/MyApp.msix"/>
 
   <UpdateSettings>
     <OnLaunch HoursBetweenUpdateChecks="24"/>
@@ -243,7 +243,7 @@ productbuild \
 # Step 4: Submit to App Store via Transporter or altool
 xcrun altool --upload-app -f MyApp.pkg \
   --type macos \
-  --username "apple-id@example.com" \
+  --username "apple-id@<your-cdn-domain>" \
   --password "app-specific-password"
 ```
 

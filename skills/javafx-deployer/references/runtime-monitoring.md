@@ -122,7 +122,7 @@ private void maybeReportRemote(Path file) {
     if (!Preferences.userNodeForPackage(App.class)
         .getBoolean("report_crashes", false)) return;
     HttpClient.newHttpClient().sendAsync(HttpRequest.newBuilder(
-        URI.create("https://api.example.com/crash-report"))
+        URI.create("https://<your-api-domain>/crash-report"))
         .header("Content-Type", "text/plain")
         .POST(HttpRequest.BodyPublishers.ofFile(file)).build(),
         HttpResponse.BodyHandlers.ofString());

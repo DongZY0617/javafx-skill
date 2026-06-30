@@ -207,7 +207,7 @@ This file defines the acceptance test cases for the `javafx-deployer` skill, use
   - [ ] Manifest has `platforms` object with `windows`, `macos`, `linux` keys
   - [ ] Each platform entry has `url`, `size`, `sha256` fields
   - [ ] update-config.json has `check_on_startup`, `check_interval_hours`, `manifest_url`, `allow_skip_version`
-  - [ ] Manifest template uses placeholder values (e.g., `https://example.com/...`)
+  - [ ] Manifest template uses placeholder values (e.g., `https://<your-cdn-domain>/...`)
 
 ---
 

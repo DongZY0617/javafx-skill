@@ -26,9 +26,9 @@ The manifest describes the latest release, the minimum supported version (below 
   "rollback_version": "1.3.0",
   "release_notes": "Added dark mode and fixed PDF export crash.",
   "platforms": {
-    "windows": { "url": "https://cdn.example.com/myapp/1.4.0/MyApp.msi", "size": 48234496, "sha256": "9f86d081..." },
-    "macos":   { "url": "https://cdn.example.com/myapp/1.4.0/MyApp.dmg", "size": 52111360, "sha256": "a3f5b2c9..." },
-    "linux":   { "url": "https://cdn.example.com/myapp/1.4.0/myapp.deb", "size": 39087616, "sha256": "c7e1d4f8..." }
+    "windows": { "url": "https://<your-cdn-domain>/myapp/1.4.0/MyApp.msi", "size": 48234496, "sha256": "9f86d081..." },
+    "macos":   { "url": "https://<your-cdn-domain>/myapp/1.4.0/MyApp.dmg", "size": 52111360, "sha256": "a3f5b2c9..." },
+    "linux":   { "url": "https://<your-cdn-domain>/myapp/1.4.0/myapp.deb", "size": 39087616, "sha256": "c7e1d4f8..." }
   }
 }
 ```
@@ -52,7 +52,7 @@ A local configuration file controls update behavior. It ships with the app and m
 {
   "check_on_startup": true,
   "check_interval_hours": 24,
-  "manifest_url": "https://cdn.example.com/myapp/update-manifest.json",
+  "manifest_url": "https://<your-cdn-domain>/myapp/update-manifest.json",
   "allow_skip_version": true,
   "rollback_enabled": true,
   "rollback_grace_period_hours": 24,

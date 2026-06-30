@@ -31,9 +31,9 @@ The update manifest includes a `pinned_version` field that overrides `latest_ver
   "rollback_enabled": true,
   "rollback_version": "1.3.2",
   "platforms": {
-    "windows": { "url": "https://cdn.example.com/myapp/1.3.2/MyApp.msi", "size": 47234496, "sha256": "8f86d081..." },
-    "macos":   { "url": "https://cdn.example.com/myapp/1.3.2/MyApp.dmg", "size": 51111360, "sha256": "b3f5b2c9..." },
-    "linux":   { "url": "https://cdn.example.com/myapp/1.3.2/myapp.deb", "size": 38087616, "sha256": "d7e1d4f8..." }
+    "windows": { "url": "https://<your-cdn-domain>/myapp/1.3.2/MyApp.msi", "size": 47234496, "sha256": "8f86d081..." },
+    "macos":   { "url": "https://<your-cdn-domain>/myapp/1.3.2/MyApp.dmg", "size": 51111360, "sha256": "b3f5b2c9..." },
+    "linux":   { "url": "https://<your-cdn-domain>/myapp/1.3.2/myapp.deb", "size": 38087616, "sha256": "d7e1d4f8..." }
   }
 }
 ```
@@ -221,19 +221,19 @@ jobs:
 
       - name: Check crash report endpoint
         run: |
-          CRASH_COUNT=$(curl -s "https://api.example.com/crashes?version=${{ github.ref_name }}&hours=1" | jq '.count')
+          CRASH_COUNT=$(curl -s "https://<your-api-domain>/crashes?version=${{ github.ref_name }}&hours=1" | jq '.count')
           echo "Crash count in last hour: $CRASH_COUNT"
           if [ "$CRASH_COUNT" -gt 10 ]; then
             echo "::warning::High crash count detected — consider pinning to previous version"
             # Trigger version pinning via API
-            curl -X POST "https://api.example.com/manifest/pin" \
+            curl -X POST "https://<your-api-domain>/manifest/pin" \
               -H "Authorization: Bearer ${{ secrets.MANIFEST_API_KEY }}" \
               -d "{\"pinned_version\": \"$(git describe --abbrev=0 ${{ github.ref_name }}^)\"}"
           fi
 
       - name: Check download success rate
         run: |
-          SUCCESS_RATE=$(curl -s "https://api.example.com/downloads/success-rate?version=${{ github.ref_name }}" | jq '.rate')
+          SUCCESS_RATE=$(curl -s "https://<your-api-domain>/downloads/success-rate?version=${{ github.ref_name }}" | jq '.rate')
           echo "Download success rate: $SUCCESS_RATE"
           if (( $(echo "$SUCCESS_RATE < 0.95" | bc -l) )); then
             echo "::warning::Low download success rate — possible installer corruption"
@@ -273,7 +273,7 @@ public class HealthMetrics {
         HttpClient client = HttpClient.newHttpClient();
         String json = toJson();
         HttpRequest request = HttpRequest.newBuilder()
-            .uri(URI.create("https://api.example.com/health"))
+            .uri(URI.create("https://<your-api-domain>/health"))
             .header("Content-Type", "application/json")
             .POST(HttpRequest.BodyPublishers.ofString(json))
             .build();
@@ -320,16 +320,16 @@ Execute the manual rollback Runbook when:
      "rollback_enabled": true,
      "rollback_version": "1.3.2",
      "platforms": {
-       "windows": { "url": "https://cdn.example.com/myapp/1.3.2/MyApp.msi", ... },
-       "macos":   { "url": "https://cdn.example.com/myapp/1.3.2/MyApp.dmg", ... },
-       "linux":   { "url": "https://cdn.example.com/myapp/1.3.2/myapp.deb", ... }
+       "windows": { "url": "https://<your-cdn-domain>/myapp/1.3.2/MyApp.msi", ... },
+       "macos":   { "url": "https://<your-cdn-domain>/myapp/1.3.2/MyApp.dmg", ... },
+       "linux":   { "url": "https://<your-cdn-domain>/myapp/1.3.2/myapp.deb", ... }
      }
    }
    ```
 
 3. **Verify the manifest update**:
    ```bash
-   curl -s https://cdn.example.com/myapp/update-manifest.json | jq .pinned_version
+   curl -s https://<your-cdn-domain>/myapp/update-manifest.json | jq .pinned_version
    # Expected output: "1.3.2"
    ```
 
@@ -357,7 +357,7 @@ Execute the manual rollback Runbook when:
      "rollback_enabled": true,
      "rollback_version": "1.3.2",
      "platforms": {
-       "windows": { "url": "https://cdn.example.com/myapp/1.3.2/MyApp.msi", ... },
+       "windows": { "url": "https://<your-cdn-domain>/myapp/1.3.2/MyApp.msi", ... },
        ...
      }
    }
@@ -366,7 +366,7 @@ Execute the manual rollback Runbook when:
 
 2. **Verify** the manifest:
    ```bash
-   curl -s https://cdn.example.com/myapp/update-manifest.json | jq '{latest, minimum: .minimum_version}'
+   curl -s https://<your-cdn-domain>/myapp/update-manifest.json | jq '{latest, minimum: .minimum_version}'
    # Expected: {"latest": "1.3.2", "minimum": "1.3.2"}
    ```
 
@@ -398,7 +398,7 @@ After executing a rollback:
 {
   "check_on_startup": true,
   "check_interval_hours": 24,
-  "manifest_url": "https://cdn.example.com/myapp/update-manifest.json",
+  "manifest_url": "https://<your-cdn-domain>/myapp/update-manifest.json",
   "allow_skip_version": true,
   "rollback_enabled": true,
   "rollback_grace_period_hours": 24,
@@ -423,7 +423,7 @@ After executing a rollback:
   "crash_rate_threshold": 0.05,
   "launch_failure_threshold": 0.02,
   "auto_pin_on_alert": true,
-  "manifest_api_url": "https://api.example.com/manifest",
+  "manifest_api_url": "https://<your-api-domain>/manifest",
   "manifest_api_key_secret": "MANIFEST_API_KEY"
 }
 ```

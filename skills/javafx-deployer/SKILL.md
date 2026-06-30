@@ -176,9 +176,9 @@ When a user request matches both `javafx-runner` ("verify packaging / try packag
      "minimum_version": "0.9.0",
      "release_notes": "Bug fixes and performance improvements",
      "platforms": {
-       "windows": { "url": "https://example.com/downloads/app-1.0.0.exe", "size": 45000000, "sha256": "..." },
-       "macos": { "url": "https://example.com/downloads/app-1.0.0.dmg", "size": 52000000, "sha256": "..." },
-       "linux": { "url": "https://example.com/downloads/app-1.0.0.deb", "size": 48000000, "sha256": "..." }
+       "windows": { "url": "https://<your-cdn-domain>/downloads/app-1.0.0.exe", "size": 45000000, "sha256": "..." },
+       "macos": { "url": "https://<your-cdn-domain>/downloads/app-1.0.0.dmg", "size": 52000000, "sha256": "..." },
+       "linux": { "url": "https://<your-cdn-domain>/downloads/app-1.0.0.deb", "size": 48000000, "sha256": "..." }
      }
    }
    ```
@@ -187,7 +187,7 @@ When a user request matches both `javafx-runner` ("verify packaging / try packag
    {
      "check_on_startup": true,
      "check_interval_hours": 24,
-     "manifest_url": "https://example.com/updates/manifest.json",
+     "manifest_url": "https://<your-cdn-domain>/updates/manifest.json",
      "allow_skip_version": true
    }
    ```
